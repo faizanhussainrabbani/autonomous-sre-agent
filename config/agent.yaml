@@ -1,0 +1,69 @@
+# SRE Agent Configuration
+# See: src/sre_agent/config/settings.py for all options
+
+telemetry_provider: otel  # "otel" or "newrelic"
+cloud_provider: none      # "aws", "azure", or "none"
+
+# OTel backend URLs (used when telemetry_provider = "otel")
+otel:
+  prometheus_url: "http://prometheus:9090"
+  jaeger_url: "http://jaeger:16686"
+  loki_url: "http://loki:3100"
+  otel_collector_url: "http://otel-collector:4317"
+
+# New Relic config (used when telemetry_provider = "newrelic")
+# newrelic:
+#   account_id: "YOUR_ACCOUNT_ID"
+#   api_key_secret_name: "newrelic-api-key"
+#   region: "US"
+
+# AWS config (used when cloud_provider = "aws")
+# aws:
+#   region: "us-east-1"
+#   eks_cluster_name: "production"
+#   s3_bucket: "sre-agent-audit-logs"
+#   secrets_manager_prefix: "/sre-agent/"
+
+# Azure config (used when cloud_provider = "azure")
+# azure:
+#   subscription_id: "YOUR_SUBSCRIPTION_ID"
+#   resource_group: "sre-agent-rg"
+#   aks_cluster_name: "production"
+#   blob_container: "audit-logs"
+#   keyvault_name: "sre-agent-kv"
+
+# Anomaly detection thresholds
+detection:
+  latency_sigma_threshold: 3.0
+  latency_duration_minutes: 2
+  error_rate_surge_percent: 200.0
+  memory_pressure_percent: 85.0
+  memory_pressure_duration_minutes: 5
+  disk_exhaustion_percent: 80.0
+  disk_projection_hours: 24
+  cert_expiry_warning_days: 14
+  cert_expiry_critical_days: 3
+  deployment_correlation_window_minutes: 60
+  suppression_window_seconds: 30
+
+# Performance SLO targets
+performance:
+  alert_latency_seconds: 60
+  error_alert_latency_seconds: 30
+  proactive_alert_latency_seconds: 120
+  rag_query_timeout_seconds: 30
+  max_concurrent_rag_queries: 10
+  max_concurrent_remediations: 3
+
+# Feature flags
+features:
+  ebpf_enabled: true
+  multi_dimensional_correlation: true
+  deployment_aware_detection: true
+  proactive_scaling: false
+  architectural_recommendations: false
+  new_relic_adapter: false
+  otel_adapter: true
+
+log_level: INFO
+environment: development

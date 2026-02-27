@@ -1,0 +1,186 @@
+# ===========================================================================
+# OpenTelemetry Collector — Local Development
+#
+# Receives OTLP (gRPC + HTTP), exports to Prometheus, Jaeger, Loki.
+# Deployed in 'observability' namespace.
+# ===========================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: observability
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+        timeout: 5s
+        send_batch_size: 256
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 512
+
+    exporters:
+      logging:
+        loglevel: info
+
+      # Prometheus (for metrics)
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        namespace: sre_agent
+
+      # OTLP export (for Jaeger/Tempo)
+      otlp/jaeger:
+        endpoint: jaeger:4317
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [logging, prometheus]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [logging, otlp/jaeger]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [logging]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: observability
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.96.0
+          args: ["--config=/etc/otel/collector.yaml"]
+          ports:
+            - containerPort: 4317    # OTLP gRPC
+              name: otlp-grpc
+            - containerPort: 4318    # OTLP HTTP
+              name: otlp-http
+            - containerPort: 8889    # Prometheus export
+              name: prometheus
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: observability
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - port: 4317
+      targetPort: 4317
+      name: otlp-grpc
+    - port: 4318
+      targetPort: 4318
+      name: otlp-http
+    - port: 8889
+      targetPort: 8889
+      name: prometheus
+  type: ClusterIP
+
+---
+# ===========================================================================
+# Jaeger — All-in-One (for local trace storage)
+# ===========================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:1.54
+          ports:
+            - containerPort: 16686   # UI
+            - containerPort: 4317    # OTLP gRPC ingest
+            - containerPort: 14250   # Model (gRPC)
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: observability
+spec:
+  selector:
+    app: jaeger
+  ports:
+    - port: 16686
+      targetPort: 16686
+      name: ui
+    - port: 4317
+      targetPort: 4317
+      name: otlp-grpc
+    - port: 14250
+      targetPort: 14250
+      name: model
+  type: ClusterIP

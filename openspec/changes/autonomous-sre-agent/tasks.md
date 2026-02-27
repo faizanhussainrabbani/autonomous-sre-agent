@@ -110,3 +110,46 @@
 - [ ] 12.3 Build diagnostic accuracy dashboard: per-category correct/incorrect rates, agent vs. human comparison view
 - [ ] 12.4 Implement incident timeline drill-down view: full investigation and remediation sequence per incident
 - [ ] 12.5 Build graduation gate progress tracker: real-time criteria completion status with gap highlighting
+
+## 13. Provider Abstraction Layer
+
+- [ ] 13.1 Define canonical data model for metrics, traces, logs, and events (provider-independent internal format)
+- [ ] 13.2 Build telemetry provider interface: MetricsQuery, TraceQuery, LogQuery, DependencyGraphQuery
+- [ ] 13.3 Implement OTel/Prometheus adapter: metric queries via PromQL, traces via Jaeger/Tempo API, logs via Loki API
+- [ ] 13.4 Implement New Relic adapter: metric queries via NRQL/NerdGraph, traces via NerdGraph distributed tracing, logs via NerdGraph log API
+- [ ] 13.5 Build provider registration system with runtime-configurable provider selection and connectivity validation
+- [ ] 13.6 Implement dependency graph provider abstraction: OTel trace-derived graph vs. New Relic Service Maps API
+- [ ] 13.7 Build provider health monitoring with automatic "degraded telemetry" mode on failures
+- [ ] 13.8 Design extensible plugin interface for future providers (Datadog, Splunk, Dynatrace)
+
+## 14. Cloud Portability
+
+- [ ] 14.1 Implement secrets management abstraction: AWS Secrets Manager, Azure Key Vault, HashiCorp Vault adapters
+- [ ] 14.2 Implement object storage abstraction: AWS S3, Azure Blob Storage, MinIO (S3-compatible) adapters
+- [ ] 14.3 Build IAM/authentication abstraction: AWS IRSA, Azure Workload Identity, K8s-native service accounts
+- [ ] 14.4 Implement cloud provider configuration block with startup validation
+- [ ] 14.5 Build "no cloud provider" mode for self-managed clusters using K8s-native resources only
+- [ ] 14.6 Write cross-cloud integration tests validating identical agent behavior on EKS, AKS, and self-managed K8s
+
+## 15. Performance & Latency SLOs
+
+- [ ] 15.1 Implement per-stage latency instrumentation: timestamped tracking at detection, diagnosis, RAG query, LLM reasoning, confidence scoring, second-opinion, remediation initiation, and resolution
+- [ ] 15.2 Build end-to-end latency dashboard showing pipeline stage waterfall per incident
+- [ ] 15.3 Implement severity-based incident queue with priority ordering (Sev 1 processed first under load)
+- [ ] 15.4 Build RAG query timeout handling: 30-second max with automatic escalation on timeout
+- [ ] 15.5 Implement SLO violation alerting: internal alert when any stage latency exceeds target
+- [ ] 15.6 Build graceful degradation logic: core pipeline continues operating when non-critical subsystems fail
+- [ ] 15.7 Implement system availability monitoring with 99.9% uptime target tracking
+
+## 16. Predictive Capabilities (Phase 4)
+
+- [ ] 16.1 Build resource exhaustion prediction engine: disk, memory, and connection pool trend analysis with time-to-exhaustion projection
+- [ ] 16.2 Implement proactive certificate and credential expiration tracking with automated rotation scheduling
+- [ ] 16.3 Build traffic pattern learning model: detect recurring spikes (daily, weekly, monthly) from historical data
+- [ ] 16.4 Implement preemptive scaling engine: scale services before predicted traffic spikes with prediction accuracy feedback loop
+- [ ] 16.5 Build degradation trend detector: multi-week latency/error creep analysis below anomaly thresholds
+- [ ] 16.6 Implement architectural improvement recommendation engine: recurring incident pattern analysis, cascade failure recommendations, over-scaling detection
+- [ ] 16.7 Build cross-service causal reasoning: multi-hop dependency graph analysis for complex failure scenarios
+- [ ] 16.8 Implement Predictive phase graduation gate evaluation and automatic phase regression on prediction accuracy drop
+
+

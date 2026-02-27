@@ -27,6 +27,10 @@ An autonomous SRE agent that can detect, investigate, reason, act, and learn wil
 - `severity-classification`: Automated incident severity assignment (Sev 1-4) based on user impact, service tier, blast radius, and remediation reversibility, with human override support
 - `notifications`: Multi-channel notification delivery (PagerDuty, Slack, Jira) for escalations, approval requests, and post-incident summaries with fallback and severity-based routing
 - `operator-dashboard`: Real-time operational dashboard showing agent status, confidence visualization, diagnostic accuracy metrics, incident timeline drill-down, and graduation gate progress tracking
+- `provider-abstraction`: Telemetry backend abstraction layer with canonical data model, provider-agnostic query interface, and plugin system supporting both open-standard (OTel/Prometheus/Jaeger) and proprietary (New Relic, Datadog) backends
+- `cloud-portability`: Multi-cloud deployment support for AWS (EKS), Azure (AKS), and self-managed Kubernetes with provider-specific adapters for secrets management, object storage, and IAM authentication
+- `performance-slos`: End-to-end latency SLOs for the agent pipeline (detect-to-resolve ≤15min for Sev 3-4), per-stage latency targets, RAG query bounds, and 99.9% system availability requirement
+- `predictive-capabilities`: Phase 4 capabilities — proactive resource exhaustion prediction, traffic pattern prediction, degradation trend detection, architectural improvement recommendations, cross-service causal reasoning, and Predictive phase graduation criteria
 
 ### Modified Capabilities
 _(None — this is a greenfield system)_

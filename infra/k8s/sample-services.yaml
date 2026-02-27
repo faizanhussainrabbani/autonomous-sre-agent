@@ -1,0 +1,173 @@
+# ===========================================================================
+# Sample Microservices — A → B → C chain
+#
+# Three simple services for testing:
+#   svc-a (frontend) → svc-b (processor) → svc-c (database proxy)
+#
+# Each service:
+#   - Responds to HTTP requests
+#   - Calls the next service in the chain
+#   - Exports OTel traces via OTLP to the collector
+#   - Generates enough syscall/network activity for eBPF capture
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Service A — Frontend (receives external traffic, calls B)
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-a
+  labels:
+    app: svc-a
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svc-a
+  template:
+    metadata:
+      labels:
+        app: svc-a
+    spec:
+      containers:
+        - name: app
+          image: nicolaka/netshoot:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              # Simple HTTP server that calls svc-b
+              while true; do
+                echo -e "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nsvc-a OK (called svc-b)" | nc -l -p 8080 -q 1 &
+                sleep 2
+                # Generate traffic to svc-b
+                wget -qO- http://svc-b:8080/ 2>/dev/null || true
+                sleep 3
+              done
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-a
+spec:
+  selector:
+    app: svc-a
+  ports:
+    - port: 8080
+      targetPort: 8080
+
+# ---------------------------------------------------------------------------
+# Service B — Processor (called by A, calls C)
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-b
+  labels:
+    app: svc-b
+    tier: processing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svc-b
+  template:
+    metadata:
+      labels:
+        app: svc-b
+    spec:
+      containers:
+        - name: app
+          image: nicolaka/netshoot:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo -e "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nsvc-b OK (called svc-c)" | nc -l -p 8080 -q 1 &
+                sleep 2
+                # Call downstream svc-c
+                wget -qO- http://svc-c:8080/ 2>/dev/null || true
+                # Generate some file I/O for eBPF to capture
+                dd if=/dev/urandom of=/tmp/workload bs=1K count=10 2>/dev/null
+                sleep 3
+              done
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-b
+spec:
+  selector:
+    app: svc-b
+  ports:
+    - port: 8080
+      targetPort: 8080
+
+# ---------------------------------------------------------------------------
+# Service C — Database Proxy (leaf service)
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-c
+  labels:
+    app: svc-c
+    tier: data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svc-c
+  template:
+    metadata:
+      labels:
+        app: svc-c
+    spec:
+      containers:
+        - name: app
+          image: nicolaka/netshoot:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo -e "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nsvc-c OK (leaf)" | nc -l -p 8080 -q 1 &
+                # Simulate DB work — file I/O + DNS lookups
+                dd if=/dev/urandom of=/tmp/db_sim bs=4K count=5 2>/dev/null
+                nslookup kubernetes.default.svc.cluster.local 2>/dev/null || true
+                sleep 5
+              done
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-c
+spec:
+  selector:
+    app: svc-c
+  ports:
+    - port: 8080
+      targetPort: 8080
