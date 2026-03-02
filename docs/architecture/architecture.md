@@ -4,29 +4,35 @@ The SRE Agent is designed as a sophisticated, layered processing pipeline that t
 
 ## High-Level System Architecture and Data Flow
 
-The agent operates across four primary layers:
-1. **Observability Layer:** Gathers raw signals.
-2. **Intelligence Layer (SRE Agent Core):** The brain processing the signals.
-3. **Action Layer:** Gating and execution.
-4. **Target Infrastructure:** The environment being managed.
+The agent operates across five primary layers:
+1. **Observability Layer:** Collection, forwarding, and storage of raw signals (OTel Collector, Prometheus, Loki).
+2. **Detection Layer:** Baselining, anomaly scoring, and multi-dimensional metric correlation.
+3. **Intelligence Layer (SRE Agent Core):** RAG reasoning, confidence scoring, and severity classification.
+4. **Action Layer:** Safety gating and remediation execution.
+5. **Target Infrastructure:** The environment being managed.
 
 ```mermaid
 graph TD
     subgraph Observability ["Observability Layer"]
         OTel[OpenTelemetry Collector]
+        Prom[Prometheus / Loki]
         eBPF[eBPF Programs]
     end
 
-    subgraph Intelligence ["SRE Agent Core"]
-        Ingest[Telemetry Ingestion Pipeline]
-        Detect[ML Anomaly Detection Engine]
+    subgraph Detection ["Detection Layer"]
+        Ingest[Telemetry Ingestion & Windowing]
+        Detect[ML Anomaly Detection]
+        Correlate[Multi-Dimensional Correlation]
+    end
+
+    subgraph Intelligence ["Intelligence Layer (Core)"]
         Diag[RAG Diagnostic Pipeline]
         Severity[Severity Classification]
     end
 
     subgraph Actions ["Action Layer"]
-        Remediation[Remediation Engine]
         Guardrails[Safety Guardrails]
+        Remediation[Remediation Engine]
     end
 
     subgraph Target ["Target Infrastructure"]
@@ -35,11 +41,12 @@ graph TD
     end
 
     %% Flow
-    OTel -->|Metrics/Traces/Logs| Ingest
-    eBPF -->|Kernel/Network| Ingest
+    OTel -->|Metrics/Traces/Logs| Prom
+    eBPF -->|Kernel/Network| Prom
+    Prom --> Ingest
     Ingest --> Detect
-    Detect -->|Anomalies| Diag
-    Detect -->|Alerts| Severity
+    Detect -->|Anomalies| Correlate
+    Correlate -->|Correlated Alert / Incident| Diag
     Diag -->|Hypothesis & Root Cause| Severity
     
     Severity -->|Sev 3-4 (Autonomous)| Guardrails
@@ -60,9 +67,9 @@ Specific **Adapters** implement these queries based on the target backend (e.g.,
 
 ## Subsystems
 
-1. **Telemetry Ingestion:** Collects metrics, logs, traces (via OTel), and eBPF kernel telemetry.
-2. **Anomaly Detection Engine:** ML-based baselining of metrics (no static thresholds). Combines multi-dimensional metrics to identify complex issues.
-3. **RAG Diagnostic Pipeline:** Embeds the anomaly context and uses a Vector DB to search past incident histories. Feeds this data to an LLM Reasoning Engine to deduce root causes.
-4. **Severity Classification Engine:** Scores impact and prioritizes alerts based on service tier and disruption.
-5. **Remediation Action Layer:** Reverts Git commits (Argocd GitOps) or hits K8s APIs to fix the diagnosed issues.
-6. **Safety Guardrails:** A comprehensive suite of limits and verifications that wrap any action. See [Features & Safety](./features_and_safety.md).
+1. **Telemetry Collection (Observability):** Gathers metrics, logs, traces (via OTel), and eBPF kernel telemetry.
+2. **Anomaly Detection Engine (Detection):** ML-based baselining of metrics (no static thresholds). Combines multi-dimensional metrics to identify complex issues.
+3. **RAG Diagnostic Pipeline (Intelligence):** Embeds the anomaly context and uses a Vector DB to search past incident histories. Feeds this data to an LLM Reasoning Engine to deduce root causes.
+4. **Severity Classification Engine (Intelligence):** Scores impact and prioritizes alerts based on service tier and disruption.
+5. **Remediation Action Engine (Action):** Reverts Git commits (Argocd GitOps) or hits K8s APIs to fix the diagnosed issues.
+6. **Safety Guardrails (Action):** A comprehensive suite of limits and verifications that wrap any action. See [Features & Safety](./features_and_safety.md).

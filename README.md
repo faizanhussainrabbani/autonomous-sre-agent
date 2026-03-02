@@ -9,7 +9,7 @@
 
 ## 📖 Overview
 
-Modern SRE teams manage hundreds of microservices. When incidents occur, engineers manually query multiple observability backends, correlate signals, consult post-mortems, and execute runbooks. The **Autonomous SRE Agent** automates this `detect → investigate → diagnose → remediate` pipeline for well-understood incidents (e.g., OOM kills, traffic spikes, certificate expirations) to dramatically reduce Mean Time to Recovery (MTTR).
+Modern SRE teams manage hundreds of microservices. When incidents occur, engineers manually query multiple observability backends, correlate signals, consult post-mortems, and execute runbooks. The **Autonomous SRE Agent** automates this `detect → investigate → diagnose → remediate` pipeline for 5 well-understood incidents (see [Incident Taxonomy](docs/architecture/incident_taxonomy.md)) to dramatically reduce Mean Time to Recovery (MTTR).
 
 The agent is built on a **Safety-First, RAG-Grounded** architecture. It relies on structural evidence and strict blast-radius limits rather than LLM self-reported confidence.
 

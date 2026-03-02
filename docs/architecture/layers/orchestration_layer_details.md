@@ -8,7 +8,7 @@ The Governance Layer ensures the agent stays within its authorized boundaries, g
 
 ### 1.1 Phased Rollout State Machine
 *   **State Persistence:** Maintains the current authorized mode of the agent (Phase 1: Shadow, Phase 2: Assist, Phase 3: Autonomous, Phase 4: Predictive).
-*   **Graduation Gate Evaluation:** Continuously measures the agent's performance (e.g., diagnostic accuracy vs. human decisions, false positive rates) against the hard-coded requirements to graduate to the next phase.
+*   **Graduation Gate Evaluation:** Continuously measures the agent's performance against the hard-coded requirements (detailed in [Graduation Criteria](../../operations/graduation_criteria.md)) to graduate to the next phase.
 *   **Automatic Regression:** If the agent is in Phase 3 (Autonomous) but suddenly begins failing its safety criteria (e.g., causes a regression post-remediation), the State Machine automatically reverts the agent back to Phase 2 (Assist) and alerts engineering leadership.
 
 ### 1.2 Multi-Agent Coordination (Lock Manager)

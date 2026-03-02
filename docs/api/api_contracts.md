@@ -30,7 +30,7 @@ When the agent encounters a Sev 1/2 incident, or lacks confidence to auto-remedi
   "type": "object",
   "properties": {
     "alert_id": { "type": "string", "format": "uuid" },
-    "anomaly_type": { "type": "string", "enum": ["latency_spike", "memory_pressure", "error_rate_surge", "deployment_induced", "certificate_expiry", "disk_exhaustion"] },
+    "anomaly_type": { "type": "string", "enum": ["oom_kill", "traffic_spike", "deploy_regression", "cert_expiry", "disk_exhaustion"] },
     "service_target": { 
       "type": "object",
       "properties": {
@@ -69,7 +69,8 @@ Used to instantly halt all autonomous remediations across the fleet.
     ```json
     {
       "reason": "String",
-      "requested_by": "String (Email/ID)"
+      "requested_by": "String (Email/ID)",
+      "mode": { "type": "string", "enum": ["soft", "hard"] }
     }
     ```
 *   **Response (200 OK):**
@@ -92,3 +93,66 @@ Used to instantly halt all autonomous remediations across the fleet.
       "review_notes": "String"
     }
     ```
+
+---
+
+## 4. Multi-Agent Coordination Protocol
+
+To function within the multi-agent ecosystem described in `AGENTS.md`, agents communicate their intents and state changes via a shared message bus (e.g., Redis Pub/Sub or Kafka).
+
+### 4.1 Action Intent (Lock Request) Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ActionIntent",
+  "type": "object",
+  "properties": {
+    "intent_id": { "type": "string", "format": "uuid" },
+    "agent_id": { "type": "string" },
+    "priority_level": { "type": "integer", "enum": [1, 2, 3] },
+    "target_resource": {
+      "type": "object",
+      "properties": {
+        "resource_type": { "type": "string" },
+        "resource_name": { "type": "string" },
+        "namespace": { "type": "string" }
+      },
+      "required": ["resource_type", "resource_name"]
+    },
+    "proposed_action": { "type": "string" },
+    "estimated_duration_seconds": { "type": "integer" }
+  },
+  "required": ["intent_id", "agent_id", "priority_level", "target_resource", "proposed_action"]
+}
+```
+
+### 4.2 Resource Acted Upon (State Observation) Schema
+
+Published immediately after an agent successfully modifies a resource.
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ResourceActedUpon",
+  "type": "object",
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "agent_id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "target_resource": {
+      "type": "object",
+      "properties": {
+        "resource_type": { "type": "string" },
+        "resource_name": { "type": "string" },
+        "namespace": { "type": "string" }
+      },
+      "required": ["resource_type", "resource_name"]
+    },
+    "action_executed": { "type": "string" },
+    "new_state": { "type": "string" },
+    "cooling_off_ttl_seconds": { "type": "integer" }
+  },
+  "required": ["event_id", "agent_id", "timestamp", "target_resource", "action_executed"]
+}
+```

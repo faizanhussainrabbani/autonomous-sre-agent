@@ -59,6 +59,46 @@ A specialized agent optimizing infrastructure for cost-efficiency.
 
 All agents within this ecosystem MUST adhere to the **Multi-Agent Lock Protocol** (backed by Redis/etcd).
 
-1.  **Mutual Exclusion (Mutex):** Before an agent executes any write action on a Kubernetes Resource or Git Repository, it must acquire an exclusive lock via the Coordinator.
-2.  **State Observation:** Before acquiring a lock, an agent must verify that the resource is not currently in a "cooling off" period from another agent's recent action (preventing oscillation loops).
-3.  **Human Supremacy:** Any human operator possessing elevated credentials can override agent locks, forcibly release them, or trigger the global agent **Kill Switch**. When human intervention is detected on a resource, all autonomous agents immediately back off and yield control.
+### 1. The Lock Schema
+When requesting a lock, the agent must write the following structured data to the distributed store:
+```json
+{
+  "agent_id": "sre-agent-prod-01",
+  "resource_type": "deployment",
+  "resource_name": "checkout-service",
+  "namespace": "prod",
+  "priority_level": 2,
+  "acquired_at": "2024-03-01T12:00:00Z",
+  "ttl_seconds": 180,
+  "fencing_token": 948271
+}
+```
+
+### 2. Preemption Protocol
+Conflict resolution is handled deterministically based on `priority_level`.
+
+```mermaid
+sequenceDiagram
+    participant SRE Agent (Priority 2)
+    participant Redis Lock Manager
+    participant SecOps Agent (Priority 1)
+
+    SRE Agent (Priority 2)->>Redis Lock Manager: Request Lock (checkout-service)
+    Redis Lock Manager-->>SRE Agent (Priority 2): Lock Granted (TTL 180s)
+    
+    SecOps Agent (Priority 1)->>Redis Lock Manager: Request Lock (checkout-service)
+    Redis Lock Manager-->>SecOps Agent (Priority 1): Lock Granted (Preempts Priority 2)
+    Redis Lock Manager->>SRE Agent (Priority 2): Revoke Lock Event (Pub/Sub)
+    
+    SRE Agent (Priority 2)->>SRE Agent (Priority 2): Abort Operation, Queue Retry
+```
+
+### 3. Cooling Off Implementation
+To prevent oscillation loops, once an agent completes an action and releases the primary lock, it MUST write a "Cooling Off" key.
+*   **Key Format:** `cooldown:{namespace}:{resource_type}:{resource_name}`
+*   **Value:** `{"last_actor": "sre-agent", "action": "scale_up", "timestamp": "..."}`
+*   **TTL:** Configured per resource type (default 15 minutes).
+*   **Enforcement:** The Lock Manager will deny any new lock requests for a resource while its Cooldown key exists, unless the request is from a higher-priority agent (e.g., SecOps overriding SRE).
+
+### 4. Human Supremacy
+Any human operator possessing elevated credentials can override agent locks, forcibly release them, or trigger the global agent **Kill Switch**. When human intervention is detected on a resource, all autonomous agents immediately back off and yield control.

@@ -3,15 +3,9 @@
 The SRE Agent targets well-understood, repeatable infrastructure incidents. Because the agent executes modifications autonomously, **safety is the most critical feature.**
 
 ## Supported Use Cases
-The agent currently focuses on the following highly repeatable incident types, which have idempotent and safe remediation paths:
+The agent currently focuses on 5 highly repeatable incident types, which have idempotent and safe remediation paths. 
 
-| Incident Type | Required Telemetry Signal | Remediation Action |
-|---------------|---------------------------|--------------------|
-| **OOM kills** | Memory metrics, eBPF OOM events | Pod restart |
-| **Traffic spikes** | Request rates, Latency, Throughput | Horizontal pod scaling |
-| **Deploy regressions** | Trace degradation + recent deploy history | GitOps rollback via ArgoCD |
-| **Certificate expiry** | Cert metadata | Certificate rotation |
-| **Disk space exhaustion** | Disk usage, growth projection | Log rotation, volume expand |
+See the **[Incident Taxonomy Table](../architecture/incident_taxonomy.md)** for a complete breakdown of detection signals, approved remediations, blast-radius limits, and rollback strategies.
 
 *Explicit Non-Goals:* The agent does not attempt to resolve novel failures lacking historical data, stateful database schema changes, business logic errors, or complex security incidents.
 
@@ -30,7 +24,7 @@ Incidents are classified into severity levels, dynamically shifting the agent's 
 Our three-tiered safety framework guarantees that the agent's actions remain within bounded blast radiuses while minimizing LLM hallucinations.
 
 ### Tier 1: Action Execution Guardrails
-These wrap the execution phase directly:
+These wrap the execution phase directly (see [Guardrails Configuration](guardrails_configuration.md) for exact limits):
 1. **Evidence-Weighted Confidence:** The RAG diagnostic engine must present concrete evidence from the historical KB. If the confidence score is below threshold, action falls back to humans.
 2. **Blast Radius Hard Limits:** Hard-coded limits per action (e.g., the agent can never restart >20% of pods fleet-wide).
 3. **Canary Execution:** Remediation is applied to 5% of traffic/instances first and verified before fleet-wide rollout.

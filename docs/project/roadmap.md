@@ -46,7 +46,7 @@ The agent runs exclusively in **Read-Only / Shadow Mode**.
 
 * **Capabilities:** Ingests data, creates baselines, triggers ML anomalies, and diagnoses via RAG. It then logs its prescribed runbook but **takes no action**.
 * **Intent:** Humans resolve the incident; the system compares the human action against the agent's shadow recommendation to build an accuracy timeline.
-* **Graduation Criteria:** Agent accuracy ≥90%, >100 incidents logged, zero destructive false positive recommendations.
+* **Graduation Criteria:** See [Graduation Criteria](../operations/graduation_criteria.md) for detailed Phase 1 exit requirements.
 
 ## Phase 2: ASSIST (Months 4–6)
 The agent operates with restricted autonomy.
@@ -55,7 +55,7 @@ The agent operates with restricted autonomy.
   * Sev 1-2 incidents: The agent suggests root cause and remediation via a Slack or Jira PR, waiting for **Human Approval** before acting.
   * Sev 3-4 incidents: The agent executes autonomously.
 * **Intent:** Dial in the blast-radius hard limits and let operators get comfortable managing incidents via agent approvals.
-* **Graduation Criteria:** Sev 3-4 resolution rate ≥95%, no agent-worsened incidents.
+* **Graduation Criteria:** See [Graduation Criteria](../operations/graduation_criteria.md) for detailed Phase 2 exit requirements.
 
 ## Phase 3: AUTONOMOUS (Months 7–12)
 Full autonomous operation for known incident classes.

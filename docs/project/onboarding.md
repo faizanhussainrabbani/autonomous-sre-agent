@@ -74,7 +74,11 @@ The project relies heavily on testing for safety.
   ```bash
   pytest tests/unit
   ```
-* **E2E Tests:** Find these under `tests/e2e/`. These test the agent against the live (local) K8s cluster.
+* **Integration Tests:** Find these under `tests/integration/`. Validates adapter connectivity via `testcontainers`.
+  ```bash
+  pytest tests/integration
+  ```
+* **E2E Tests:** Find these under `tests/e2e/`. These test the agent against the live (local) K8s cluster and inject chaos faults.
   ```bash
   pytest tests/e2e/live_cluster_demo.py
   ```

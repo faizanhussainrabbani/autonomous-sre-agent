@@ -42,6 +42,13 @@ We maintain our documentation with the same rigor as our application code.
 *   **Architecture changes** must be reflected in `docs/architecture/` using Meridian (Mermaid.js) diagrams. No external proprietary diagram formats (e.g., Visio, Lucidchart) are allowed for core system documentation.
 *   **Keep it Evergreen:** If a document is out of date and redundant, open a PR to delete it. We prefer "Minimum Viable Documentation" over stale noise.
 
+### Document Versioning Policy
+To prevent draft concepts from stagnating, all architectural, operative, and security documentation must adhere to the following lifecycle:
+
+1.  **DRAFT:** A new concept or proposed architecture. Header must contain `Status: DRAFT`. Merged to `main` for visibility but not enforced.
+2.  **APPROVED:** The design is finalized and the agent's code must adhere to it. Requires PR approval from at least two Staff Engineers or SRE Tech Leads. Update header to `Status: APPROVED`.
+3.  **Semantic Versioning:** Docs use `Version: X.Y.Z` in their headers. Major version bumps (2.0.0) indicate a fundamental shift (e.g., switching from Phase 1 to Phase 2 operations). Minor bumps indicate expansions (e.g., adding a new incident type).
+
 ---
 
 *Thank you for helping us make autonomous operations safer and more reliable!*
