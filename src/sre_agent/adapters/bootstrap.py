@@ -91,3 +91,53 @@ async def bootstrap_provider(
         available=ProviderPlugin.available_providers(),
     )
     return provider
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.5 — Cloud operator bootstrap
+# ---------------------------------------------------------------------------
+
+def bootstrap_cloud_operators(config: AgentConfig):
+    """Bootstrap cloud remediation operators based on available SDKs.
+
+    Returns a CloudOperatorRegistry with registered operators for any
+    cloud SDKs that are importable.
+    """
+    from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
+
+    registry = CloudOperatorRegistry()
+
+    # AWS operators (requires boto3)
+    try:
+        import boto3  # noqa: F401
+
+        from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
+        from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator
+        from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator
+
+        region = getattr(config, "aws_region", "us-east-1")
+        registry.register(ECSOperator(boto3.client("ecs", region_name=region)))
+        registry.register(EC2ASGOperator(boto3.client("autoscaling", region_name=region)))
+        registry.register(LambdaOperator(boto3.client("lambda", region_name=region)))
+        logger.info("aws_operators_bootstrapped", region=region)
+    except ImportError:
+        logger.debug("aws_operators_skipped", reason="boto3 not installed")
+
+    # Azure operators (requires azure-mgmt-web)
+    try:
+        from azure.mgmt.web import WebSiteManagementClient  # noqa: F401
+        from azure.identity import DefaultAzureCredential  # noqa: F401
+
+        from sre_agent.adapters.cloud.azure.app_service_operator import AppServiceOperator
+        from sre_agent.adapters.cloud.azure.functions_operator import FunctionsOperator
+
+        sub_id = getattr(config, "azure_subscription_id", "")
+        credential = DefaultAzureCredential()
+        web_client = WebSiteManagementClient(credential, sub_id)
+        registry.register(AppServiceOperator(web_client))
+        registry.register(FunctionsOperator(web_client))
+        logger.info("azure_operators_bootstrapped", subscription=sub_id)
+    except ImportError:
+        logger.debug("azure_operators_skipped", reason="azure-mgmt-web not installed")
+
+    return registry

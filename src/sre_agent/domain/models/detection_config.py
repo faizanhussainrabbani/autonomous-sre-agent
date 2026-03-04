@@ -20,6 +20,14 @@ class DetectionConfig:
 
     Domain-owned value object — the config module loads raw values
     from YAML/env-vars and constructs this dataclass at startup.
+
+    .. note:: **Two-phase detection pattern:**
+        The anomaly detector uses a two-phase pattern for latency spikes
+        and memory pressure. The *first* metric above threshold starts a
+        timer (no alert). The *second* metric checks if the condition has
+        persisted for the configured duration and fires the alert. This
+        prevents transient spikes from triggering false alerts. Even with
+        ``latency_duration_minutes=0``, two data points are required.
     """
     latency_sigma_threshold: float = 3.0
     latency_duration_minutes: int = 2
@@ -32,6 +40,9 @@ class DetectionConfig:
     cert_expiry_critical_days: int = 3
     deployment_correlation_window_minutes: int = 60
     suppression_window_seconds: int = 30
+
+    # Phase 1.5: Serverless cold-start suppression (AC-1.5.3)
+    cold_start_suppression_window_seconds: int = 15
 
     # Multi-dimensional correlation (AC-3.2.3)
     multi_dim_latency_percent: float = 50.0   # +50% latency shift

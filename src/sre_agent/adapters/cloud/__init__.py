@@ -1,0 +1,1 @@
+# AWS Cloud Operator Adapters

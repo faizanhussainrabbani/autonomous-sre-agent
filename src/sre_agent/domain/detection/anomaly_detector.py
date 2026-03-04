@@ -21,6 +21,7 @@ from sre_agent.domain.models.canonical import (
     AnomalyAlert,
     AnomalyType,
     CanonicalMetric,
+    ComputeMechanism,
     DomainEvent,
     EventTypes,
 )
@@ -83,11 +84,15 @@ class AnomalyDetector:
         self._service_overrides: dict[str, dict] = {}   # service → {sigma, ...}
         self._metric_overrides: dict[str, dict] = {}    # metric_pattern → {sigma, ...}
 
+        # Phase 1.5: Cold-start tracking for serverless compute
+        self._cold_start_init_times: dict[str, datetime] = {}  # service → first metric timestamp
+
     async def detect(
         self,
         service: str,
         metrics: list[CanonicalMetric],
         namespace: str = "",
+        compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES,
     ) -> DetectionResult:
         """Run all detection rules against a batch of metrics for a service.
 
@@ -95,6 +100,7 @@ class AnomalyDetector:
             service: Service name.
             metrics: Latest metric data points.
             namespace: Kubernetes namespace.
+            compute_mechanism: Target compute platform (Phase 1.5).
 
         Returns:
             DetectionResult with generated alerts and statistics.
@@ -104,7 +110,7 @@ class AnomalyDetector:
         for metric in metrics:
             result.checked_count += 1
 
-            alert = await self._evaluate_metric(service, metric, namespace)
+            alert = await self._evaluate_metric(service, metric, namespace, compute_mechanism)
             if alert is None:
                 # Track sub-threshold shifts for multi-dimensional correlation
                 self._track_sub_threshold(service, metric)
@@ -174,19 +180,32 @@ class AnomalyDetector:
         service: str,
         metric: CanonicalMetric,
         namespace: str,
+        compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES,
     ) -> AnomalyAlert | None:
         """Evaluate a single metric against all detection rules."""
 
         # Latency spike detection (AC-3.1.2)
         if "duration" in metric.name or "latency" in metric.name:
-            return self._detect_latency_spike(service, metric, namespace)
+            return self._detect_latency_spike(service, metric, namespace, compute_mechanism)
+
+        # Phase 1.5: InvocationError surge detection (serverless OOM replacement)
+        # Must precede generic "error" check so invocation-specific metrics are routed here.
+        if "invocation" in metric.name and "error" in metric.name:
+            return self._detect_invocation_error_surge(service, metric, namespace)
 
         # Error rate detection (AC-3.1.3)
         if "error" in metric.name:
             return self._detect_error_surge(service, metric, namespace)
 
-        # Memory pressure (AC-3.1.4)
+        # Memory pressure (AC-3.1.4) — Phase 1.5: exempt SERVERLESS
         if "memory" in metric.name and "limit" not in metric.name:
+            if compute_mechanism == ComputeMechanism.SERVERLESS:
+                logger.debug(
+                    "memory_pressure_skipped_serverless",
+                    service=service,
+                    compute_mechanism=compute_mechanism.value,
+                )
+                return None
             return self._detect_memory_pressure(service, metric, namespace)
 
         # Disk exhaustion (AC-3.1.5)
@@ -201,9 +220,28 @@ class AnomalyDetector:
         return self._detect_sigma_deviation(service, metric, namespace)
 
     def _detect_latency_spike(
-        self, service: str, metric: CanonicalMetric, namespace: str
+        self, service: str, metric: CanonicalMetric, namespace: str,
+        compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES,
     ) -> AnomalyAlert | None:
-        """AC-3.1.2: p99 > Nσ for >2 minutes → alert within 60s."""
+        """AC-3.1.2: p99 > Nσ for >2 minutes → alert within 60s.
+
+        Phase 1.5: Suppresses during cold-start window for SERVERLESS.
+        """
+        # Phase 1.5: Cold-start suppression for serverless
+        if compute_mechanism == ComputeMechanism.SERVERLESS:
+            if service not in self._cold_start_init_times:
+                self._cold_start_init_times[service] = metric.timestamp
+            init_time = self._cold_start_init_times[service]
+            elapsed = (metric.timestamp - init_time).total_seconds()
+            if elapsed <= self._config.cold_start_suppression_window_seconds:
+                logger.debug(
+                    "cold_start_suppression",
+                    service=service,
+                    elapsed_seconds=elapsed,
+                    reason="cold_start",
+                )
+                return None  # Suppress during cold-start window
+
         sigma, baseline = self._baselines.compute_deviation(
             service, metric.name, metric.value, metric.timestamp
         )
@@ -231,6 +269,7 @@ class AnomalyDetector:
             anomaly_type=AnomalyType.LATENCY_SPIKE,
             service=service,
             namespace=namespace,
+            compute_mechanism=compute_mechanism,
             metric_name=metric.name,
             current_value=metric.value,
             baseline_value=baseline.mean if baseline else 0,
@@ -303,6 +342,40 @@ class AnomalyDetector:
             description=(
                 f"Memory at {metric.value * 100:.1f}% of limit for "
                 f"{duration:.0f}s (threshold: {self._config.memory_pressure_percent}%)"
+            ),
+        )
+
+    def _detect_invocation_error_surge(
+        self, service: str, metric: CanonicalMetric, namespace: str
+    ) -> AnomalyAlert | None:
+        """Phase 1.5: Detect InvocationError surges on serverless compute.
+
+        Replaces OOM/memory pressure detection for SERVERLESS targets.
+        Uses the same error rate surge percentage threshold from config.
+        """
+        _, baseline = self._baselines.compute_deviation(
+            service, metric.name, metric.value, metric.timestamp
+        )
+
+        if baseline is None or not baseline.is_established or baseline.mean == 0:
+            return None
+
+        increase_pct = ((metric.value - baseline.mean) / baseline.mean) * 100
+
+        if increase_pct < self._config.error_rate_surge_percent:
+            return None
+
+        return AnomalyAlert(
+            anomaly_type=AnomalyType.INVOCATION_ERROR_SURGE,
+            service=service,
+            namespace=namespace,
+            metric_name=metric.name,
+            current_value=metric.value,
+            baseline_value=baseline.mean,
+            deviation_sigma=increase_pct / 100,
+            description=(
+                f"Serverless InvocationError surged {increase_pct:.0f}% above baseline "
+                f"(threshold: {self._config.error_rate_surge_percent}%)"
             ),
         )
 

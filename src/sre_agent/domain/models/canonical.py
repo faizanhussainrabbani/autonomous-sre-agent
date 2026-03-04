@@ -58,6 +58,8 @@ class AnomalyType(Enum):
     CERTIFICATE_EXPIRY = "certificate_expiry"
     MULTI_DIMENSIONAL = "multi_dimensional"
     DEPLOYMENT_INDUCED = "deployment_induced"
+    INVOCATION_ERROR_SURGE = "invocation_error_surge"  # Phase 1.5: Serverless
+    TRAFFIC_ANOMALY = "traffic_anomaly"
 
 
 class IncidentPhase(Enum):
@@ -83,24 +85,43 @@ class OperationalPhase(Enum):
     PREDICTIVE = "predictive"
 
 
+class ComputeMechanism(Enum):
+    """Target compute platform for a service instance.
+
+    Used to adapt detection heuristics and select the correct
+    remediation operator (CloudOperatorPort).
+    """
+    KUBERNETES = "kubernetes"
+    SERVERLESS = "serverless"           # AWS Lambda, Azure Functions
+    VIRTUAL_MACHINE = "virtual_machine"  # EC2, Azure VM
+    CONTAINER_INSTANCE = "container_instance"  # ECS Fargate, Azure Container Instances
+
+
 # ---------------------------------------------------------------------------
 # Labels — aligned with OTel Semantic Conventions
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class ServiceLabels:
-    """Standard labels for identifying a service instance.
+    """Standard labels for identifying a service/compute instance.
 
-    Naming follows OTel semantic conventions:
+    Naming follows OTel semantic conventions where applicable:
         service.name      → service
-        service.namespace → namespace
-        k8s.pod.name      → pod
-        k8s.node.name     → node
+        service.namespace → namespace (optional; primarily K8s)
+        k8s.pod.name      → pod (optional; K8s only)
+        k8s.node.name     → node (optional; K8s only)
+
+    Phase 1.5: compute_mechanism, resource_id, and platform_metadata
+    provide compute-agnostic identification for Serverless, VM, and
+    Container Instance targets.
     """
     service: str
-    namespace: str
+    namespace: str = ""
+    compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
+    resource_id: str = ""  # Universal ID: Pod UID, ECS Task ARN, Lambda ARN, etc.
     pod: str = ""
     node: str = ""
+    platform_metadata: dict[str, Any] = field(default_factory=dict)
     extra: dict[str, str] = field(default_factory=dict)
 
 
@@ -235,7 +256,9 @@ class CanonicalEvent:
 class ServiceNode:
     """A node in the service dependency graph."""
     service: str
-    namespace: str
+    version: str = ""
+    namespace: str = ""
+    compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
     tier: int = 3  # 1 = revenue-critical, 2 = customer-facing, 3 = internal
     is_healthy: bool = True
 
@@ -288,9 +311,10 @@ class CorrelatedSignals:
     and diagnostics — provides the complete picture for a service.
     """
     service: str
-    namespace: str
-    time_window_start: datetime
-    time_window_end: datetime
+    namespace: str = ""
+    time_window_start: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    time_window_end: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
     metrics: list[CanonicalMetric] = field(default_factory=list)
     traces: list[CanonicalTrace] = field(default_factory=list)
     logs: list[CanonicalLogEntry] = field(default_factory=list)
@@ -314,6 +338,8 @@ class AnomalyAlert:
     anomaly_type: AnomalyType = AnomalyType.LATENCY_SPIKE
     service: str = ""
     namespace: str = ""
+    resource_id: str = ""  # Phase 1.5: Universal compute unit identifier
+    compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
     severity: Severity | None = None  # Assigned in Phase 2 by severity classifier
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 

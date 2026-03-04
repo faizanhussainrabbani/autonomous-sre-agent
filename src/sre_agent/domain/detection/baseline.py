@@ -152,6 +152,11 @@ class BaselineService(BaselineQuery):
 
         Creates the baseline window if it doesn't exist yet.
 
+        .. warning::
+            This method is ``async`` and **must** be ``await``-ed. Calling it
+            without ``await`` silently drops the data point — no error is
+            raised but the baseline will never be established.
+
         Args:
             service: Service name.
             metric: Metric name.

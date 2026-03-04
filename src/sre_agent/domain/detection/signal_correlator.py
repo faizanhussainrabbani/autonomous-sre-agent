@@ -22,6 +22,7 @@ from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
     CanonicalMetric,
     CanonicalTrace,
+    ComputeMechanism,
     CorrelatedSignals,
     DataQuality,
 )
@@ -67,6 +68,7 @@ class SignalCorrelator:
         metric_names: list[str] | None = None,
         is_degraded: bool = False,
         degradation_reason: str | None = None,
+        compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES,
     ) -> CorrelatedSignals:
         """Build a correlated signal view for a service in a time window.
 
@@ -76,12 +78,13 @@ class SignalCorrelator:
 
         Args:
             service: Service name to correlate signals for.
-            namespace: Kubernetes namespace.
+            namespace: Kubernetes namespace (optional for non-K8s).
             start_time: Start of correlation window.
             end_time: End of correlation window.
             metric_names: Optional specific metrics to query (if None, uses defaults).
             is_degraded: Whether telemetry is in degraded mode.
             degradation_reason: Reason for degraded mode.
+            compute_mechanism: Target compute platform (Phase 1.5).
 
         Returns:
             CorrelatedSignals with all available data for the service+window.
@@ -93,17 +96,37 @@ class SignalCorrelator:
             "container_cpu_usage_seconds_total",
         ]
 
+        # Phase 1.5: Check eBPF support for the target compute mechanism
+        ebpf_supported = (
+            self._ebpf is not None
+            and self._ebpf.is_supported(compute_mechanism)
+        )
+        if not ebpf_supported and self._ebpf is not None:
+            is_degraded = True
+            degradation_reason = f"ebpf_unsupported_on_{compute_mechanism.value}"
+            logger.info(
+                "ebpf_degradation_detected",
+                service=service,
+                compute_mechanism=compute_mechanism.value,
+                reason=degradation_reason,
+            )
+
         # Fetch signals with error isolation (one failing doesn't break others)
         metrics = await self._fetch_metrics(service, default_metrics, start_time, end_time)
         traces = await self._fetch_traces(service, start_time, end_time)
         logs = await self._fetch_logs(service, start_time, end_time)
-        events = await self._fetch_ebpf_events(service, namespace, start_time, end_time)
+        events = (
+            await self._fetch_ebpf_events(service, namespace, start_time, end_time)
+            if ebpf_supported
+            else []
+        )
 
         return CorrelatedSignals(
             service=service,
             namespace=namespace,
             time_window_start=start_time,
             time_window_end=end_time,
+            compute_mechanism=compute_mechanism,
             metrics=metrics,
             traces=traces,
             logs=logs,

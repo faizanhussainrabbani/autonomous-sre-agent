@@ -19,6 +19,7 @@ from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
     CanonicalMetric,
     CanonicalTrace,
+    ComputeMechanism,
     ServiceGraph,
 )
 
@@ -344,6 +345,18 @@ class eBPFQuery(ABC):
         AC-2.2.2: Overhead SHALL NOT exceed 2% CPU.
         """
         ...
+
+    def is_supported(self, compute_mechanism: ComputeMechanism) -> bool:
+        """Check if eBPF collection is supported on the target compute mechanism.
+
+        Phase 1.5: eBPF is only available on platforms with kernel-level access.
+        Returns True for KUBERNETES and VIRTUAL_MACHINE.
+        Returns False for SERVERLESS and CONTAINER_INSTANCE (e.g., Fargate).
+        """
+        return compute_mechanism in (
+            ComputeMechanism.KUBERNETES,
+            ComputeMechanism.VIRTUAL_MACHINE,
+        )
 
 
 class TelemetryProvider(ABC):
