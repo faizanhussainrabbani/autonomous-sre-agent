@@ -406,6 +406,56 @@ class TestPipelineMonitor:
         assert monitor.is_service_degraded("payment-svc")
         assert not monitor.is_service_degraded("api-gw")
 
+    @pytest.mark.asyncio
+    async def test_check_heartbeats_degradatation_and_down(self):
+        from sre_agent.domain.detection.pipeline_monitor import PipelineHealthMonitor, PipelineComponentStatus
+        bus = InMemoryEventBus()
+        # Set short timeout for testing
+        monitor = PipelineHealthMonitor(event_bus=bus, heartbeat_timeout_seconds=0)
+        monitor.register_component("otel-collector-node1")
+        
+        # Fast forward time inherently because elapsed is > 0s threshold
+        failed = await monitor.check_heartbeats()
+        assert "otel-collector-node1" in failed
+        comp = monitor.components["otel-collector-node1"]
+        assert comp.status == PipelineComponentStatus.DEGRADED
+        assert comp.consecutive_misses == 1
+        
+        # Check event was emitted
+        assert len(bus.published_events) == 1
+        assert bus.published_events[0].event_type == "observability.degraded"
+
+        # Check twice more to transition to DOWN
+        await monitor.check_heartbeats()
+        await monitor.check_heartbeats()
+        
+        comp = monitor.components["otel-collector-node1"]
+        assert comp.status == PipelineComponentStatus.DOWN
+        assert comp.consecutive_misses == 3
+
+    @pytest.mark.asyncio
+    async def test_heartbeat_recovers_degraded_services(self):
+        from sre_agent.domain.detection.pipeline_monitor import PipelineHealthMonitor, PipelineComponentStatus
+        monitor = PipelineHealthMonitor(heartbeat_timeout_seconds=0)
+        
+        # Manually set to degraded
+        monitor.register_component("otel-col-1")
+        await monitor.check_heartbeats()
+        assert monitor.components["otel-col-1"].status == PipelineComponentStatus.DEGRADED
+        
+        # Flag a service as degraded due to this component
+        await monitor.flag_degraded_observability("order-svc", "otel-col-1 is down")
+        assert monitor.is_service_degraded("order-svc")
+        
+        # Record heartbeat
+        await monitor.record_heartbeat("otel-col-1")
+        
+        # Comp is healthy
+        assert monitor.components["otel-col-1"].status == PipelineComponentStatus.HEALTHY
+        
+        # Service degradation is cleared
+        assert not monitor.is_service_degraded("order-svc")
+
 
 # ---------------------------------------------------------------------------
 # Dependency Graph Service Tests (Task 13.6)

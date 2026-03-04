@@ -63,7 +63,7 @@ class LateDataHandler:
         self._late_arrivals: list[LateArrivalRecord] = []
 
         # Track recent incidents for retroactive updates
-        self._recent_incidents: dict[str, list[dict]] = {}  # service → [{id, ts, type}]
+        self._recent_incidents: dict[str, list[dict[str, Any]]] = {}  # service → [{id, ts, type}]
 
     @property
     def late_arrival_count(self) -> int:

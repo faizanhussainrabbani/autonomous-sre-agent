@@ -49,10 +49,11 @@ def test_bootstrap_cloud_operators_without_sdks():
 
     mock_config = MagicMock()
 
-    # Both boto3 and azure imports will fail naturally if not installed
-    # but they are installed in our test env, so just verify it works
-    registry = bootstrap_cloud_operators(mock_config)
-    assert registry is not None
+    with patch.dict("sys.modules", {"boto3": None, "azure.mgmt.web": None, "azure.identity": None}):
+        registry = bootstrap_cloud_operators(mock_config)
+        assert registry is not None
+        # Registry should have no registered operators
+        assert len(registry._operators) == 0
 
 
 # ---------------------------------------------------------------------------

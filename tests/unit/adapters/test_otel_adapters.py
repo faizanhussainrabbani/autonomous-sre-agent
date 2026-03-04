@@ -164,6 +164,67 @@ class TestPrometheusMetricsAdapter:
         query = adapter._build_query("my-svc", "http_requests_total", {"method": "GET"})
         assert query == 'http_requests_total{service="my-svc", method="GET"}'
 
+    @pytest.mark.asyncio
+    async def test_health_check(self):
+        adapter = PrometheusMetricsAdapter.__new__(PrometheusMetricsAdapter)
+        adapter._base_url = "http://test:9090"
+        
+        # Test success
+        adapter._client = httpx.AsyncClient(transport=mock_transport({"status": "success"}, 200), base_url="http://test:9090")
+        assert await adapter.health_check() is True
+        await adapter._client.aclose()
+        
+        # Test failure
+        adapter._client = httpx.AsyncClient(transport=mock_transport({}, 503), base_url="http://test:9090")
+        assert await adapter.health_check() is False
+        await adapter._client.aclose()
+        
+        # Test connection error
+        def raise_error(request):
+            raise httpx.RequestError("con refused", request=request)
+        adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(raise_error), base_url="http://test:9090")
+        assert await adapter.health_check() is False
+        await adapter._client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_query_request_error(self):
+        adapter = PrometheusMetricsAdapter.__new__(PrometheusMetricsAdapter)
+        adapter._base_url = "http://test:9090"
+        def raise_error(request):
+            raise httpx.RequestError("con error", request=request)
+        adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(raise_error), base_url="http://test:9090")
+        now = datetime.now(timezone.utc)
+        metrics = await adapter.query("svc", "metric", now - timedelta(minutes=1), now)
+        assert metrics == []
+        await adapter._client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_query_instant_error(self):
+        adapter = PrometheusMetricsAdapter.__new__(PrometheusMetricsAdapter)
+        adapter._base_url = "http://test:9090"
+        adapter._client = httpx.AsyncClient(transport=mock_transport({}, status_code=500), base_url="http://test:9090")
+        result = await adapter.query_instant("api-gw", "requests")
+        assert result is None
+        await adapter._client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_close(self):
+        adapter = PrometheusMetricsAdapter.__new__(PrometheusMetricsAdapter)
+        adapter._client = httpx.AsyncClient(transport=mock_transport({}))
+        await adapter.close()
+        assert adapter._client.is_closed
+
+    @pytest.mark.asyncio
+    async def test_list_metrics(self):
+        prom_response = {"status": "success", "data": ["http_requests", "cpu_usage"]}
+        adapter = PrometheusMetricsAdapter.__new__(PrometheusMetricsAdapter)
+        adapter._base_url = "http://test:9090"
+        adapter._client = httpx.AsyncClient(transport=mock_transport(prom_response), base_url="http://test:9090")
+        metrics = await adapter.list_metrics("api-gw")
+        assert len(metrics) == 2
+        assert "http_requests" in metrics
+        await adapter._client.aclose()
+
 
 # ---------------------------------------------------------------------------
 # Jaeger Adapter Tests (AC-1.3.2)
@@ -252,6 +313,51 @@ class TestJaegerTraceAdapter:
 
         await adapter._client.aclose()
 
+    @pytest.mark.asyncio
+    async def test_health_check_jaeger(self):
+        adapter = JaegerTraceAdapter.__new__(JaegerTraceAdapter)
+        adapter._base_url = "http://test:16686"
+        
+        # Test success
+        adapter._client = httpx.AsyncClient(transport=mock_transport({"data": []}, 200), base_url="http://test:16686")
+        assert await adapter.health_check() is True
+        await adapter._client.aclose()
+        
+        # Test failure
+        adapter._client = httpx.AsyncClient(transport=mock_transport({}, 503), base_url="http://test:16686")
+        assert await adapter.health_check() is False
+        await adapter._client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_get_trace_request_error(self):
+        adapter = JaegerTraceAdapter.__new__(JaegerTraceAdapter)
+        adapter._base_url = "http://test:16686"
+        def raise_error(request):
+            raise httpx.RequestError("con error", request=request)
+        adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(raise_error), base_url="http://test:16686")
+        trace = await adapter.get_trace("abc")
+        assert trace is None
+        await adapter._client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_close_jaeger(self):
+        adapter = JaegerTraceAdapter.__new__(JaegerTraceAdapter)
+        adapter._client = httpx.AsyncClient(transport=mock_transport({}))
+        await adapter.close()
+        assert adapter._client.is_closed
+
+    @pytest.mark.asyncio
+    async def test_query_traces(self):
+        jaeger_response = {"data": [{"traceID": "t1", "spans": []}]}
+        adapter = JaegerTraceAdapter.__new__(JaegerTraceAdapter)
+        adapter._base_url = "http://test:16686"
+        adapter._client = httpx.AsyncClient(transport=mock_transport(jaeger_response), base_url="http://test:16686")
+        now = datetime.now(timezone.utc)
+        traces = await adapter.query_traces("svc", now - timedelta(hours=1), now, min_duration_ms=100.0, status_code=500)
+        assert len(traces) == 1
+        assert traces[0].trace_id == "t1"
+        await adapter._client.aclose()
+
 
 # ---------------------------------------------------------------------------
 # Loki Adapter Tests (AC-1.3.3)
@@ -310,6 +416,59 @@ class TestLokiLogAdapter:
         assert '|= "t123"' in query
         assert "| json" in query
 
+    @pytest.mark.asyncio
+    async def test_query_logs_error(self):
+        adapter = LokiLogAdapter.__new__(LokiLogAdapter)
+        adapter._base_url = "http://test:3100"
+        adapter._client = httpx.AsyncClient(transport=mock_transport({}, 500), base_url="http://test:3100")
+        now = datetime.now(timezone.utc)
+        logs = await adapter.query_logs("svc", now - timedelta(hours=1), now)
+        assert logs == []
+        await adapter._client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_query_logs_request_error(self):
+        adapter = LokiLogAdapter.__new__(LokiLogAdapter)
+        adapter._base_url = "http://test:3100"
+        def raise_error(request):
+            raise httpx.RequestError("con error", request=request)
+        adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(raise_error), base_url="http://test:3100")
+        now = datetime.now(timezone.utc)
+        logs = await adapter.query_logs("svc", now - timedelta(hours=1), now)
+        assert logs == []
+        await adapter._client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_health_check_loki(self):
+        adapter = LokiLogAdapter.__new__(LokiLogAdapter)
+        adapter._base_url = "http://test:3100"
+        adapter._client = httpx.AsyncClient(transport=mock_transport({"status": "success"}, 200), base_url="http://test:3100")
+        assert await adapter.health_check() is True
+        await adapter._client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_close_loki(self):
+        adapter = LokiLogAdapter.__new__(LokiLogAdapter)
+        adapter._client = httpx.AsyncClient(transport=mock_transport({}))
+        await adapter.close()
+        assert adapter._client.is_closed
+
+    @pytest.mark.asyncio
+    async def test_query_by_trace_id(self):
+        loki_response = {
+            "status": "success",
+            "data": {"resultType": "streams", "result": [
+                {"stream": {"level": "error"}, "values": [["123456789", "err msg"]]}
+            ]}
+        }
+        adapter = LokiLogAdapter.__new__(LokiLogAdapter)
+        adapter._base_url = "http://test:3100"
+        adapter._client = httpx.AsyncClient(transport=mock_transport(loki_response), base_url="http://test:3100")
+        logs = await adapter.query_by_trace_id("t123")
+        assert len(logs) == 1
+        assert logs[0].message == "err msg"
+        await adapter._client.aclose()
+
 
 # ---------------------------------------------------------------------------
 # OTel Provider Tests (AC-1.3.1 — AC-1.3.4)
@@ -329,3 +488,38 @@ class TestOTelProvider:
         assert provider.traces is not None
         assert provider.logs is not None
         assert provider.dependency_graph is not None
+
+    @pytest.mark.asyncio
+    async def test_provider_health_check_all_healthy(self):
+        config = OTelConfig()
+        provider = OTelProvider(config)
+        import unittest.mock
+        with unittest.mock.patch.object(provider.metrics, "health_check", return_value=True), \
+             unittest.mock.patch.object(provider.traces, "health_check", return_value=True), \
+             unittest.mock.patch.object(provider.logs, "health_check", return_value=True):
+            healthy = await provider.health_check()
+            assert healthy is True
+
+    @pytest.mark.asyncio
+    async def test_provider_health_check_degraded(self):
+        config = OTelConfig()
+        provider = OTelProvider(config)
+        import unittest.mock
+        with unittest.mock.patch.object(provider.metrics, "health_check", return_value=True), \
+             unittest.mock.patch.object(provider.traces, "health_check", return_value=False), \
+             unittest.mock.patch.object(provider.logs, "health_check", return_value=True):
+            healthy = await provider.health_check()
+            assert healthy is False
+
+    @pytest.mark.asyncio
+    async def test_provider_close(self):
+        config = OTelConfig()
+        provider = OTelProvider(config)
+        import unittest.mock
+        with unittest.mock.patch.object(provider.metrics, "close", new_callable=unittest.mock.AsyncMock) as m_close, \
+             unittest.mock.patch.object(provider.traces, "close", new_callable=unittest.mock.AsyncMock) as t_close, \
+             unittest.mock.patch.object(provider.logs, "close", new_callable=unittest.mock.AsyncMock) as l_close:
+            await provider.close()
+            m_close.assert_called_once()
+            t_close.assert_called_once()
+            l_close.assert_called_once()

@@ -78,11 +78,11 @@ class AnomalyDetector:
 
         # Multi-dimensional correlation state (AC-3.2.3)
         # Tracks recent sub-threshold shifts per (service, dimension)
-        self._sub_threshold_shifts: dict[str, list[dict]] = {}  # "svc" → [{type, percent, ts}]
+        self._sub_threshold_shifts: dict[str, list[dict[str, Any]]] = {}  # "svc" → [{type, percent, ts}]
 
         # Per-service / per-metric sensitivity overrides (AC-3.5.1, AC-3.5.2)
-        self._service_overrides: dict[str, dict] = {}   # service → {sigma, ...}
-        self._metric_overrides: dict[str, dict] = {}    # metric_pattern → {sigma, ...}
+        self._service_overrides: dict[str, dict[str, Any]] = {}   # service → {sigma, ...}
+        self._metric_overrides: dict[str, dict[str, Any]] = {}    # metric_pattern → {sigma, ...}
 
         # Phase 1.5: Cold-start tracking for serverless compute
         self._cold_start_init_times: dict[str, datetime] = {}  # service → first metric timestamp
@@ -166,13 +166,13 @@ class AnomalyDetector:
         if service in self._service_overrides:
             override = self._service_overrides[service].get("sigma_threshold")
             if override is not None:
-                return override
+                return float(override)
         # Per-metric next (AC-3.5.2)
         for pattern, overrides in self._metric_overrides.items():
             if pattern in metric_name:
                 override = overrides.get("sigma_threshold")
                 if override is not None:
-                    return override
+                    return float(override)
         return self._config.latency_sigma_threshold
 
     async def _evaluate_metric(
@@ -645,7 +645,7 @@ class AnomalyDetector:
             error_rate_surge_percent: Custom error rate threshold.
             memory_pressure_percent: Custom memory pressure threshold.
         """
-        overrides: dict = {}
+        overrides: dict[str, Any] = {}
         if sigma_threshold is not None:
             overrides["sigma_threshold"] = sigma_threshold
         if error_rate_surge_percent is not None:
@@ -669,17 +669,17 @@ class AnomalyDetector:
             metric_pattern: Substring pattern to match metric names (e.g., "latency", "error").
             sigma_threshold: Custom sigma threshold for matching metrics.
         """
-        overrides: dict = {}
+        overrides: dict[str, Any] = {}
         if sigma_threshold is not None:
             overrides["sigma_threshold"] = sigma_threshold
 
         self._metric_overrides[metric_pattern] = overrides
         logger.info("metric_sensitivity_configured", pattern=metric_pattern, overrides=overrides)
 
-    def get_service_sensitivity(self, service: str) -> dict:
+    def get_service_sensitivity(self, service: str) -> dict[str, Any]:
         """Get the current sensitivity configuration for a service."""
         return dict(self._service_overrides.get(service, {}))
 
-    def get_metric_sensitivity(self, metric_pattern: str) -> dict:
+    def get_metric_sensitivity(self, metric_pattern: str) -> dict[str, Any]:
         """Get the current sensitivity configuration for a metric pattern."""
         return dict(self._metric_overrides.get(metric_pattern, {}))

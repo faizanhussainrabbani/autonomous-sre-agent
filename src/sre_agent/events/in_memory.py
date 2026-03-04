@@ -7,9 +7,12 @@ Production deployments should use the Kafka-based adapter instead.
 from __future__ import annotations
 
 from collections import defaultdict
+import structlog
 
 from sre_agent.domain.models.canonical import DomainEvent
 from sre_agent.ports.events import EventBus, EventHandler, EventStore
+
+logger = structlog.get_logger(__name__)
 
 
 class InMemoryEventBus(EventBus):
@@ -25,8 +28,26 @@ class InMemoryEventBus(EventBus):
 
     async def publish(self, event: DomainEvent) -> None:
         self._published_events.append(event)
-        for handler in self._handlers.get(event.event_type, []):
-            await handler(event)
+        handlers = self._handlers.get(event.event_type, []) + self._handlers.get("*", [])
+        
+        # Deduplicate if a handler subscribed to both exact and wildcard
+        seen = set()
+        unique_handlers = []
+        for h in handlers:
+            if h not in seen:
+                seen.add(h)
+                unique_handlers.append(h)
+
+        for handler in unique_handlers:
+            try:
+                await handler(event)
+            except Exception as exc:
+                logger.error(
+                    "subscriber_failed",
+                    event_type=event.event_type,
+                    error=str(exc),
+                    handler=handler.__name__ if hasattr(handler, "__name__") else str(handler),
+                )
 
     async def subscribe(self, event_type: str, handler: EventHandler) -> None:
         self._handlers[event_type].append(handler)

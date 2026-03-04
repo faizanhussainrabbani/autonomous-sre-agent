@@ -13,7 +13,9 @@ Validates: AC-2.3.1, AC-2.3.2
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
-from typing import Any
+from typing import Any, Awaitable, Callable, TypeVar
+
+T = TypeVar("T")
 
 import structlog
 
@@ -224,7 +226,12 @@ class SignalCorrelator:
             end_time,
         ) or []
 
-    async def _safe_query(self, query_fn, *args, **kwargs):
+    async def _safe_query(
+        self,
+        query_fn: Callable[..., Awaitable[T]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> T | None:
         """Execute a query with error isolation — never crashes the correlator."""
         try:
             return await query_fn(*args, **kwargs)
