@@ -62,3 +62,33 @@ An immutable record of every state change or decision made by the agent, require
 *   `action` (String): Description of the evaluation, lock acquisition, or API call.
 *   `outcome` (String): Success, failure, or denial reason.
 *   `provenance_chain` (List[UUID]): Links the Action -> Diagnosis -> Incident to prove exactly *why* a given API call was made.
+
+---
+
+## Phase 1.5: Compute-Agnostic Data Model Extensions
+
+### ComputeMechanism (Enum)
+
+Defines the target compute platform for a service instance. Values:
+- `KUBERNETES` — Pods, Deployments (default; backward-compatible)
+- `SERVERLESS` — AWS Lambda, Azure Functions
+- `VIRTUAL_MACHINE` — EC2, Azure VM
+- `CONTAINER_INSTANCE` — ECS Fargate, Azure Container Instances
+
+### ServiceLabels (updated)
+
+Phase 1.5 additions:
+- `compute_mechanism` (ComputeMechanism): Defaults to `KUBERNETES` for backward compatibility.
+- `resource_id` (String): Universal compute unit identifier (Pod UID, ECS Task ARN, Lambda ARN, etc.).
+- `platform_metadata` (Dict): Provider-specific metadata (e.g., `runtime`, `memory_mb` for Lambda).
+- `namespace` is now **optional** (defaults to `""`), since non-K8s platforms don't have namespaces.
+
+### CloudOperatorPort (Interface)
+
+Abstract remediation interface for cloud operations:
+- `restart_compute_unit(resource_id, metadata)` — Restart a compute unit.
+- `scale_capacity(resource_id, desired_count, metadata)` — Scale capacity.
+- `is_action_supported(action, compute_mechanism)` — Check action support.
+- `health_check()` — Pre-flight validation.
+
+Implementations: `ECSOperator`, `EC2ASGOperator`, `LambdaOperator`, `AppServiceOperator`, `FunctionsOperator`.

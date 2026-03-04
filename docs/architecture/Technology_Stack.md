@@ -73,6 +73,15 @@
 
 ---
 
+## 3.5 Cloud Provider Remediation (Phase 1.5)
+
+| Technology | Purpose | Phase | Notes |
+|-----------|---------|-------|-------|
+| **boto3** (AWS SDK) | ECS task restart, EC2 ASG scaling, Lambda concurrency | 1.5 | Optional dependency (`pip install sre-agent[aws]`). Requires IAM roles for ECS, ASG, Lambda access |
+| **azure-mgmt-web** (Azure SDK) | App Service restart/scaling, Azure Functions restart/scaling | 1.5 | Optional dependency (`pip install sre-agent[azure]`). Requires Azure RBAC with Web Plan Contributor role |
+
+---
+
 ## 4. Data Infrastructure
 
 | Technology | Purpose | Phase | Notes |

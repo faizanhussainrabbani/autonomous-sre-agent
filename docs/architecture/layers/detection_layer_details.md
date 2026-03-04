@@ -10,7 +10,7 @@ The **Detection Layer** bridges the gap between raw telemetry (Observability) an
     *   *ML-Based:* Unsupervised anomaly detection (e.g., Isolation Forests, Autoencoders) for complex, highly dimensional data like request latency distributions where simple thresholds fail.
 *   **Multi-Dimensional Correlation:** Single metric spikes are noisy. The layer correlates CPU spikes with latency increases, error rates, and concurrent deployment events to suppress false positives.
 *   **Threshold-Free Detection:** Moving away from static, human-defined alerting rules (e.g., "CPU > 80%") toward dynamic, self-tuning sensitivity based on historical seasonality.
-*   **Incident Type Assignment:** Upon correlating a confirmed anomaly, the Detection Layer maps the anomalous signature to one of the 5 canonical types defined in `incident_taxonomy.md` (e.g., a burst of 5xx errors post-deployment is mapped to `deploy_regression`) before passing it to Intelligence.
+*   **Incident Type Assignment:** Upon correlating a confirmed anomaly, the Detection Layer maps the anomalous signature to one of the `AnomalyType` categories defined in `canonical.py` (e.g., `LATENCY_SPIKE`, `ERROR_RATE_SURGE`, `MEMORY_PRESSURE`, `DEPLOYMENT_INDUCED`, `INVOCATION_ERROR_SURGE`, etc.) before passing it to Intelligence.
 
 ## 2. Integration Boundaries
 

@@ -37,6 +37,7 @@ The Action Layer relies on declarative infrastructure tools and robust SDKs to s
 | **ArgoCD / Flux** | GitOps Controllers | The preferred execution path. The agent modifies Git, and these controllers safely reconcile the target Kubernetes state to match Git. Ensures perfect auditability. |
 | **cert-manager** | K8s Add-on | The agent interfaces with this to automatically renew or rotate x509 certificates that are nearing expiration. |
 | **Cloud Provider SDKs** | AWS `boto3` / Azure SDK | Used for remediations that fall outside of K8s, such as adjusting an ASG, modifying DNS routing (Route53), or resizing a cloud volume. |
+| **CloudOperatorPort** (Phase 1.5) | Remediation Abstraction | Unified `restart_compute_unit()` / `scale_capacity()` interface for non-K8s targets. Adapters: `ECSOperator` (AWS ECS), `EC2ASGOperator` (EC2 ASG), `LambdaOperator` (Lambda concurrency), `AppServiceOperator` (Azure App Service), `FunctionsOperator` (Azure Functions). Selected at runtime via `CloudOperatorRegistry` based on `compute_mechanism` + provider. |
 
 ### 2.2 Security, Locking, & State Management
 

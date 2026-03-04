@@ -30,7 +30,7 @@ When the agent encounters a Sev 1/2 incident, or lacks confidence to auto-remedi
   "type": "object",
   "properties": {
     "alert_id": { "type": "string", "format": "uuid" },
-    "anomaly_type": { "type": "string", "enum": ["oom_kill", "traffic_spike", "deploy_regression", "cert_expiry", "disk_exhaustion"] },
+    "anomaly_type": { "type": "string", "enum": ["latency_spike", "error_rate_surge", "memory_pressure", "disk_exhaustion", "certificate_expiry", "multi_dimensional", "deployment_induced", "invocation_error_surge", "traffic_anomaly"] },
     "service_target": { 
       "type": "object",
       "properties": {

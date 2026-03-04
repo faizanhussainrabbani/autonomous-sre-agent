@@ -16,9 +16,13 @@ The core agent built and maintained within this repository.
     *   Kubernetes Pods, Deployments, StatefulSets
     *   GitOps Repositories (ArgoCD / Flux)
     *   Certificate Managers
+    *   AWS: ECS Tasks/Services, EC2 Auto Scaling Groups, Lambda Functions *(Phase 1.5)*
+    *   Azure: App Services, Azure Functions (Premium Plan) *(Phase 1.5)*
 *   **Required Permissions:** 
     *   `kubectl` `restart`, `scale`, `patch` on specific namespaces.
     *   Write access to Infrastructure Git Repositories (to generate Revert PRs).
+    *   AWS IAM: `ecs:StopTask`, `ecs:UpdateService`, `autoscaling:SetDesiredCapacity`, `lambda:PutFunctionConcurrency` *(Phase 1.5)*
+    *   Azure RBAC: `Microsoft.Web/sites/restart/Action`, `Microsoft.Web/serverfarms/write` (Web Plan Contributor) *(Phase 1.5)*
 *   **Conflict Priority Level:** **Medium (Level 2)** 
     *   SRE actions supersede Cost/FinOps actions.
     *   SRE actions yield to Security/SecOps actions.
@@ -67,10 +71,32 @@ When requesting a lock, the agent must write the following structured data to th
   "resource_type": "deployment",
   "resource_name": "checkout-service",
   "namespace": "prod",
+  "compute_mechanism": "KUBERNETES",
+  "resource_id": "deployment/checkout-service",
+  "provider": "kubernetes",
   "priority_level": 2,
   "acquired_at": "2024-03-01T12:00:00Z",
   "ttl_seconds": 180,
   "fencing_token": 948271
+}
+```
+
+> **Phase 1.5 Note:** For non-Kubernetes targets, `namespace` may be empty. The `resource_id` field (e.g., ECS Task ARN, Lambda Function ARN, Azure Resource URI) serves as the canonical identifier. The `compute_mechanism` field (`KUBERNETES`, `SERVERLESS`, `VIRTUAL_MACHINE`, `CONTAINER_INSTANCE`) and `provider` field (`kubernetes`, `aws`, `azure`) together determine which `CloudOperatorPort` adapter handles remediation.
+
+Example for an AWS Lambda target:
+```json
+{
+  "agent_id": "sre-agent-prod-01",
+  "resource_type": "function",
+  "resource_name": "payment-handler",
+  "namespace": "",
+  "compute_mechanism": "SERVERLESS",
+  "resource_id": "arn:aws:lambda:us-east-1:123456789:function:payment-handler",
+  "provider": "aws",
+  "priority_level": 2,
+  "acquired_at": "2024-03-01T12:00:00Z",
+  "ttl_seconds": 180,
+  "fencing_token": 948272
 }
 ```
 
@@ -95,8 +121,10 @@ sequenceDiagram
 
 ### 3. Cooling Off Implementation
 To prevent oscillation loops, once an agent completes an action and releases the primary lock, it MUST write a "Cooling Off" key.
-*   **Key Format:** `cooldown:{namespace}:{resource_type}:{resource_name}`
-*   **Value:** `{"last_actor": "sre-agent", "action": "scale_up", "timestamp": "..."}`
+*   **Key Format (Kubernetes):** `cooldown:{namespace}:{resource_type}:{resource_name}`
+*   **Key Format (Non-K8s, Phase 1.5):** `cooldown:{provider}:{compute_mechanism}:{resource_id}`
+    *   Example: `cooldown:aws:SERVERLESS:arn:aws:lambda:us-east-1:123456789:function:payment-handler`
+*   **Value:** `{"last_actor": "sre-agent", "action": "scale_up", "compute_mechanism": "SERVERLESS", "timestamp": "..."}`
 *   **TTL:** Configured per resource type (default 15 minutes).
 *   **Enforcement:** The Lock Manager will deny any new lock requests for a resource while its Cooldown key exists, unless the request is from a higher-priority agent (e.g., SecOps overriding SRE).
 

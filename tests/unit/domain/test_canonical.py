@@ -299,7 +299,7 @@ class TestEnums:
         assert len(phases) == 4
 
     def test_anomaly_types(self):
-        assert len(AnomalyType) == 7
+        assert len(AnomalyType) == 9
 
     def test_data_quality_values(self):
         assert DataQuality.HIGH.value == "high"
