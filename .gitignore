@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# mypy / type checking
+.mypy_cache/
+.pytype/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (never commit)
+*.pem
+*.key
+.env
+.env.*
+
+# Agent / tooling
+.agent/
+.agents/
+.gemini/
