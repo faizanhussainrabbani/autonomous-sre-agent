@@ -3,7 +3,7 @@
 **Status:** DRAFT
 **Version:** 1.0.0
 
-**Reviewed Against:** `docs/project/engineering_standards.md`  
+**Reviewed Against:** `docs/project/standards/engineering_standards.md`  
 **Date:** March 4, 2026  
 **Reviewer:** Autonomous Audit  
 **Result:** 184/184 tests pass, 85% coverage — but several structural gaps identified below.

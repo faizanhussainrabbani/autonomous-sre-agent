@@ -8,7 +8,7 @@ The SRE Agent targets well-understood, repeatable infrastructure incidents. Beca
 ## Supported Use Cases
 The agent currently focuses on 5 highly repeatable incident types, which have idempotent and safe remediation paths. 
 
-See the **[Incident Taxonomy Table](../architecture/incident_taxonomy.md)** for a complete breakdown of detection signals, approved remediations, blast-radius limits, and rollback strategies.
+See the **[Incident Taxonomy Table](../architecture/models/incident_taxonomy.md)** for a complete breakdown of detection signals, approved remediations, blast-radius limits, and rollback strategies.
 
 *Explicit Non-Goals:* The agent does not attempt to resolve novel failures lacking historical data, stateful database schema changes, business logic errors, or complex security incidents.
 

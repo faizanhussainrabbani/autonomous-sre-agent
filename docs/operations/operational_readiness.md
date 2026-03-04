@@ -44,7 +44,7 @@ The agent runs as a unified deployment within the management Kubernetes cluster.
 
 ## 4. Operational Runbooks
 *   [Agent Failure Runbook](runbook_agent_failure.md)
-*   [Incident Response Runbook](runbook_incident_response.md)
+*   [Incident Response Runbook](runbooks/incident_response.md)
 
 ## 5. Sign-off
 *   [ ] Primary Engineer

@@ -62,7 +62,7 @@ The documentation is readable and architecturally sound, but would mislead a new
 
 ### C-1: `data_model.md` Uses `dataclasses` but Code Uses `Pydantic`
 
-**File:** `docs/architecture/data_model.md`  
+**File:** `docs/architecture/models/data_model.md`  
 **Issue:** The document states models are "implemented as Python `dataclasses` in `canonical.py`". However, the actual implementation at `src/sre_agent/domain/models/canonical.py` uses **Pydantic `BaseModel`** classes (imported from `pydantic`), not `dataclasses`.
 
 **Impact:** Any contributor following this document to extend the data model will use the wrong base class.
@@ -73,7 +73,7 @@ The documentation is readable and architecturally sound, but would mislead a new
 
 ### C-2: `data_model.md` Incident State Enum Doesn't Match Code
 
-**File:** `docs/architecture/data_model.md`  
+**File:** `docs/architecture/models/data_model.md`  
 **Issue:** The documented `Incident.state` enum lists these states:
 ```
 DETECTED, DIAGNOSING, DIAGNOSED, ACQUIRING_LOCK, BLOCKED, REMEDIATING, 
@@ -164,7 +164,7 @@ The current codebase only implements layers 1 and 2. The Intelligence Layer (RAG
 
 ### C-7: `data_model.md` Documents Entities Not in Code
 
-**File:** `docs/architecture/data_model.md`  
+**File:** `docs/architecture/models/data_model.md`  
 **Issue:** The following documented entities have **no implementation** in the codebase:
 - `Incident` (as a full domain entity with `id`, `source`, `type`, `severity`, `state`, timestamps, `telemetry_context`) — the code has `CorrelatedIncident` which is a simpler dataclass
 - `Diagnosis` (with `hypothesis`, `confidence_score`, `evidence_citations`, `rag_similarity_scores`) — **does not exist in code** (Phase 2/3 Intelligence Layer)
@@ -321,7 +321,7 @@ The `AlertCorrelationEngine` is placed in `domain/detection/` in code but descri
 
 ### M-14: Phase 1 Status Report vs Acceptance Criteria Contradiction
 
-**Files:** `docs/project/phase_1_status_report.md` + `phases/phase-1-data-foundation/acceptance_criteria.md`  
+**Files:** `docs/project/../reports/phase_1_status.md` + `phases/phase-1-data-foundation/acceptance_criteria.md`  
 **Issue:** The status report declares Phase 1 at 100% completion. The acceptance criteria document has 0/62 items checked. These are fundamentally contradictory official documents.
 
 **Fix:** Reconcile by checking applicable ACs and adjusting the status report to reflect actual tested/verified criteria.
@@ -410,7 +410,7 @@ The `AlertCorrelationEngine` is placed in `domain/detection/` in code but descri
 
 ### N-11: `FAANG_Documentation_Standards.md` May Conflict with Existing Standards
 
-**File:** `docs/project/FAANG_Documentation_Standards.md`  
+**File:** `docs/project/standards/FAANG_Documentation_Standards.md`  
 **Issue:** This meta-document about documentation standards may define rules that aren't enforced or that conflict with the now-expanded `engineering_standards.md`.
 
 **Fix:** Reconcile the two documents or consolidate.
@@ -460,7 +460,7 @@ The `AlertCorrelationEngine` is placed in `domain/detection/` in code but descri
 | `operational_readiness.md` | `docs/runbooks/agent_failure_runbook.md` | `docs/operations/runbooks/agent_failure_runbook.md` | Wrong path |
 | `onboarding.md` | Links to `./architecture.md` | `../architecture/architecture.md` | Relative path wrong |
 | `onboarding.md` | Links to `./features_and_safety.md` | `../security/features_and_safety.md` | Relative path wrong |
-| `features_and_safety.md` | `../architecture/incident_taxonomy.md` | ✅ Valid | OK |
+| `features_and_safety.md` | `../architecture/models/incident_taxonomy.md` | ✅ Valid | OK |
 | `glossary.md` | Implicit link to `data_model.md` | ✅ Valid | OK |
 
 ---
@@ -770,14 +770,14 @@ This pattern exists for all 6 layers (12 files total). The summaries are often 8
 | 3 | `README.md` | Repository root | ❌ | ⭐⭐⭐ |
 | 4 | `docs/api/api_contracts.md` | API specification | ❓ | ⭐⭐⭐ |
 | 5 | `docs/architecture/architecture.md` | System overview | ❌ | ⭐⭐⭐⭐ |
-| 6 | `docs/architecture/data_model.md` | Data model | ✅ | ⭐⭐ |
+| 6 | `docs/architecture/models/data_model.md` | Data model | ✅ | ⭐⭐ |
 | 7 | `docs/architecture/dependency_graph.md` | Graph architecture | ✅ | ⭐⭐⭐ |
 | 8 | `docs/architecture/extensibility.md` | Extension guide | ❌ | ⭐⭐ |
-| 9 | `docs/project/FAANG_Documentation_Standards.md` | Meta-standards | ❌ | ⭐⭐⭐ |
-| 10 | `docs/architecture/incident_taxonomy.md` | Incident types | ❌ | ⭐⭐⭐⭐⭐ |
+| 9 | `docs/project/standards/FAANG_Documentation_Standards.md` | Meta-standards | ❌ | ⭐⭐⭐ |
+| 10 | `docs/architecture/models/incident_taxonomy.md` | Incident types | ❌ | ⭐⭐⭐⭐⭐ |
 | 11 | `docs/architecture/sequence_incident_lifecycle.md` | Sequence diagram | ❌ | ⭐⭐⭐ |
-| 12 | `docs/architecture/state_incident_model.md` | State machine | ❌ | ⭐⭐⭐ |
-| 13 | `docs/architecture/target_architecture.md` | Target state | ❌ | ⭐⭐⭐ |
+| 12 | `docs/architecture/models/state_incident_model.md` | State machine | ❌ | ⭐⭐⭐ |
+| 13 | `docs/architecture/evolution/target_architecture.md` | Target state | ❌ | ⭐⭐⭐ |
 | 14 | `docs/architecture/Technology_Stack.md` | Tech inventory | ❌ | ⭐⭐⭐ |
 | 15–26 | `docs/architecture/layers/*.md` (12 files) | Layer docs | ❌ | ⭐⭐⭐ avg |
 | 27 | `docs/operations/ci_cd_pipeline.md` | CI/CD design | ✅ | ⭐⭐⭐ |
@@ -787,10 +787,10 @@ This pattern exists for all 6 layers (12 files total). The summaries are often 8
 | 31 | `docs/testing/test_infrastructure.md` | Test infra | ❌ | ⭐⭐⭐ |
 | 32–36 | `docs/operations/runbook_*.md` (5 files) | Runbooks | ❌ | ⭐⭐⭐ avg |
 | 37 | `docs/operations/runbooks/agent_failure_runbook.md` | Agent failure | ❌ | ⭐⭐⭐ |
-| 38 | `docs/project/engineering_standards.md` | Standards | ✅ | ⭐⭐⭐⭐⭐ |
+| 38 | `docs/project/standards/engineering_standards.md` | Standards | ✅ | ⭐⭐⭐⭐⭐ |
 | 39 | `docs/project/glossary.md` | Terminology | ❌ | ⭐⭐⭐⭐ |
 | 40 | `docs/project/onboarding.md` | Onboarding | ❌ | ⭐⭐ |
-| 41 | `docs/project/phase_1_status_report.md` | Status report | ❌ | ⭐⭐⭐ |
+| 41 | `docs/project/../reports/phase_1_status.md` | Status report | ❌ | ⭐⭐⭐ |
 | 42 | `docs/project/roadmap.md` | Roadmap | ❌ | ⭐⭐⭐⭐ |
 | 43 | `docs/security/features_and_safety.md` | Safety design | ❌ | ⭐⭐⭐ |
 | 44 | `docs/security/guardrails_configuration.md` | Guardrail config | ❌ | ⭐⭐⭐⭐ |

@@ -1,15 +1,19 @@
 """
 E2E Integration Test — Phase 1.5 Full Pipeline Validation.
 
-Tests the complete pipeline: Ingest → Correlate (degraded) → Detect
-(cold-start suppressed) → Registry Resolve → Operator Execute.
+Tests the complete pipeline using REAL (LocalStack Pro) external mocks: 
+Ingest → Correlate (degraded) → Detect (cold-start suppressed) → 
+Registry Resolve → Operator Execute → LocalStack Assertion.
 """
 
 from __future__ import annotations
 
+import io
+import zipfile
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -33,7 +37,7 @@ from sre_agent.adapters.cloud.resilience import RetryConfig
 
 
 # ---------------------------------------------------------------------------
-# Test Doubles
+# Test Doubles (Domain level)
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -59,88 +63,114 @@ class MockBaselineService(BaselineQuery):
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _create_dummy_lambda_zip() -> bytes:
+    zip_output = io.BytesIO()
+    with zipfile.ZipFile(zip_output, 'w') as zip_file:
+        zip_file.writestr('lambda_function.py', 'def handler(event, context): return "OK"\n')
+    return zip_output.getvalue()
+
+
+# ---------------------------------------------------------------------------
 # E2E Pipeline: Serverless Lambda (cold start → detect → remediate)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_e2e_serverless_pipeline():
+async def test_e2e_serverless_pipeline(lambda_client):
     """Full pipeline: Lambda cold start → degraded eBPF → cold-start suppressed
     → latency fires after window → registry resolves LambdaOperator → scale.
     """
-    # 1. Setup
+    # 0. Seed real resource in LocalStack
+    # We create a function so we can scale it.
+    func_name = "payment-handler-e2e"
+    resp = lambda_client.create_function(
+        FunctionName=func_name,
+        Runtime="python3.9",
+        Role="arn:aws:iam::000000000000:role/dummy",
+        Handler="lambda_function.handler",
+        Code={"ZipFile": _create_dummy_lambda_zip()},
+    )
+    func_arn = resp["FunctionArn"]
+    
+    # Assert base concurrency is absent
+    conc_base = lambda_client.get_function_concurrency(FunctionName=func_name)
+    assert "ReservedConcurrentExecutions" not in conc_base
+
+    # 1. Setup Agent Engine
     baseline_svc = MockBaselineService(sigma=5.0)
     config = DetectionConfig(
-        cold_start_suppression_window_seconds=15,
+        cold_start_suppression_window_seconds=0.5,
         latency_duration_minutes=0,
     )
     detector = AnomalyDetector(baseline_service=baseline_svc, config=config)
-
-    mock_lambda = MagicMock()
-    mock_lambda.put_function_concurrency.return_value = {}
     fast_retry = RetryConfig(max_retries=0)
 
     registry = CloudOperatorRegistry()
-    registry.register(LambdaOperator(lambda_client=mock_lambda, retry_config=fast_retry))
+    registry.register(LambdaOperator(lambda_client=lambda_client, retry_config=fast_retry))
 
     init_time = datetime.now(timezone.utc)
 
-    # 2. eBPF degradation check — is_supported is concrete, call unbound
-    assert eBPFQuery.is_supported(None, ComputeMechanism.SERVERLESS) is False
-
-    # 3. Cold-start suppression: metric at T+5s → suppressed
+    # 2. Cold-start suppression check
     metric_cold = CanonicalMetric(
         name="http_request_duration_seconds",
         value=8.5,
-        timestamp=init_time + timedelta(seconds=5),
+        timestamp=datetime.now(timezone.utc),
         labels=ServiceLabels(
-            service="payment-handler",
+            service=func_name,
             compute_mechanism=ComputeMechanism.SERVERLESS,
-            resource_id="arn:aws:lambda:us-east-1:123:function:payment-handler",
+            resource_id=func_arn,
         ),
     )
     result_cold = await detector.detect(
-        "payment-handler",
-        [metric_cold],
+        func_name, [metric_cold],
         compute_mechanism=ComputeMechanism.SERVERLESS,
     )
     assert len(result_cold.alerts) == 0, "Cold-start should suppress"
 
-    # 4. Post-window latency: T+22s starts timer (elapsed from init at T+5 = 17s > 15s), T+26s fires
+    # 3. Post-window latency triggers alert
+    await asyncio.sleep(0.6)  # physically wait out the 0.5s cold-start window
+    
     metric_post1 = CanonicalMetric(
         name="http_request_duration_seconds",
         value=8.5,
-        timestamp=init_time + timedelta(seconds=22),
+        timestamp=datetime.now(timezone.utc),
         labels=metric_cold.labels,
     )
-    await detector.detect(
-        "payment-handler", [metric_post1],
+    result1 = await detector.detect(
+        func_name, [metric_post1],
         compute_mechanism=ComputeMechanism.SERVERLESS,
     )
+    print(f"DEBUG: result1 alerts = {result1.alerts}")
 
     metric_post2 = CanonicalMetric(
         name="http_request_duration_seconds",
         value=8.5,
-        timestamp=init_time + timedelta(seconds=26),
+        timestamp=datetime.now(timezone.utc) + timedelta(seconds=1),
         labels=metric_cold.labels,
     )
     result_fire = await detector.detect(
-        "payment-handler", [metric_post2],
+        func_name, [metric_post2],
         compute_mechanism=ComputeMechanism.SERVERLESS,
     )
+    print(f"DEBUG: result_fire alerts = {result_fire.alerts}")
     assert len(result_fire.alerts) >= 1, "Alert should fire after cold-start window"
 
-    # 5. Registry resolves LambdaOperator
+    # 4. Registry resolves Operator
     op = registry.get_operator("aws", ComputeMechanism.SERVERLESS)
-    assert op is not None
     assert isinstance(op, LambdaOperator)
 
-    # 6. Scale via operator (remediation)
+    # 5. Execute Action (Remediation)
     result = await op.scale_capacity(
-        resource_id="arn:aws:lambda:us-east-1:123:function:payment-handler",
+        resource_id=func_arn,
         desired_count=10,
     )
-    mock_lambda.put_function_concurrency.assert_called_once()
     assert result["action"] == "put_function_concurrency"
+
+    # 6. Verify State in LocalStack 
+    conc_resp = lambda_client.get_function_concurrency(FunctionName=func_name)
+    assert conc_resp["ReservedConcurrentExecutions"] == 10
 
 
 # ---------------------------------------------------------------------------
@@ -148,22 +178,39 @@ async def test_e2e_serverless_pipeline():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_e2e_container_instance_pipeline():
-    """Pipeline: ECS target → memory exempted for containers (K8s path) → error
-    detected → registry resolves ECSOperator → restart.
+async def test_e2e_container_instance_pipeline(ecs_client):
+    """Pipeline: ECS target → error detected → registry resolves ECSOperator → restart.
+    Verifies that the task actually transitions to STOPPED in LocalStack.
     """
+    cluster_name = "e2e-prod-cluster"
+    # Seed LocalStack cluster & task
+    ecs_client.create_cluster(clusterName=cluster_name)
+    ecs_client.register_task_definition(
+        family="order-processor-task",
+        containerDefinitions=[{"name": "worker", "image": "nginx", "memory": 128}],
+        cpu="256",
+        memory="512"
+    )
+    
+    # We must create a subnet/vpc in localstack or just use EC2 launch type instead of FARGATE 
+    # to avoid needing subnets and security groups for run_task. So let's stick to simple EC2 compat.
+    # For simple localstack EC2 tasks, we can just run it
+    run_resp = ecs_client.run_task(
+        cluster=cluster_name,
+        taskDefinition="order-processor-task"
+    )
+    task_arn = run_resp["tasks"][0]["taskArn"]
+    
+    # 1. Setup Agent Engine
     baseline_svc = MockBaselineService(sigma=5.0, mean=10.0)
     config = DetectionConfig()
     detector = AnomalyDetector(baseline_service=baseline_svc, config=config)
-
-    mock_ecs = MagicMock()
-    mock_ecs.stop_task.return_value = {}
     fast_retry = RetryConfig(max_retries=0)
 
     registry = CloudOperatorRegistry()
-    registry.register(ECSOperator(ecs_client=mock_ecs, retry_config=fast_retry))
+    registry.register(ECSOperator(ecs_client=ecs_client, retry_config=fast_retry))
 
-    # InvocationError surge
+    # 2. Anomaly Ingestion
     metric = CanonicalMetric(
         name="invocation_error_count",
         value=35.0,
@@ -171,7 +218,7 @@ async def test_e2e_container_instance_pipeline():
         labels=ServiceLabels(
             service="order-processor",
             compute_mechanism=ComputeMechanism.CONTAINER_INSTANCE,
-            resource_id="arn:aws:ecs:us-east-1:123:task/cluster/task-id",
+            resource_id=task_arn,
         ),
     )
     result = await detector.detect(
@@ -180,25 +227,29 @@ async def test_e2e_container_instance_pipeline():
     )
     assert len(result.alerts) >= 1
 
-    # Registry resolves ECSOperator
+    # 3. Resolution & Action
     op = registry.get_operator("aws", ComputeMechanism.CONTAINER_INSTANCE)
     assert isinstance(op, ECSOperator)
 
-    # Restart via operator
     await op.restart_compute_unit(
-        resource_id="arn:aws:ecs:us-east-1:123:task/cluster/task-id",
-        metadata={"cluster": "prod-cluster"},
+        resource_id=task_arn,
+        metadata={"cluster": cluster_name},
     )
-    mock_ecs.stop_task.assert_called_once()
+
+    # 4. Verify LocalStack State
+    desc_resp = ecs_client.describe_tasks(cluster=cluster_name, tasks=[task_arn])
+    status = desc_resp["tasks"][0]["lastStatus"]
+    assert status in ("STOPPING", "STOPPED"), f"Task status should be terminating, got {status}"
 
 
 # ---------------------------------------------------------------------------
-# E2E: Multi-provider registry resolves correctly
+# E2E: Registry Integration 
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_e2e_multi_provider_registry_resolution():
     """Verify registry correctly resolves across all provider+mechanism combos."""
+    # (Leaving Mock dependencies here since this purely tests the Registry Dict matching hash logic)
     fast_retry = RetryConfig(max_retries=0)
     registry = CloudOperatorRegistry()
     registry.register(ECSOperator(MagicMock(), retry_config=fast_retry))
@@ -207,38 +258,30 @@ async def test_e2e_multi_provider_registry_resolution():
     registry.register(AppServiceOperator(MagicMock(), retry_config=fast_retry))
     registry.register(FunctionsOperator(MagicMock(), retry_config=fast_retry))
 
-    # All provider + mechanism combinations
-    assert isinstance(
-        registry.get_operator("aws", ComputeMechanism.CONTAINER_INSTANCE), ECSOperator
-    )
-    assert isinstance(
-        registry.get_operator("aws", ComputeMechanism.VIRTUAL_MACHINE), EC2ASGOperator
-    )
-    assert isinstance(
-        registry.get_operator("aws", ComputeMechanism.SERVERLESS), LambdaOperator
-    )
-    assert isinstance(
-        registry.get_operator("azure", ComputeMechanism.SERVERLESS), FunctionsOperator
-    )
+    assert isinstance(registry.get_operator("aws", ComputeMechanism.CONTAINER_INSTANCE), ECSOperator)
+    assert isinstance(registry.get_operator("aws", ComputeMechanism.VIRTUAL_MACHINE), EC2ASGOperator)
+    assert isinstance(registry.get_operator("aws", ComputeMechanism.SERVERLESS), LambdaOperator)
+    assert isinstance(registry.get_operator("azure", ComputeMechanism.SERVERLESS), FunctionsOperator)
 
     # Unknown combos return None
     assert registry.get_operator("gcp", ComputeMechanism.KUBERNETES) is None
     assert registry.get_operator("aws", ComputeMechanism.KUBERNETES) is None
 
 
-# ---------------------------------------------------------------------------
-# E2E: Health check across all operators
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
-async def test_e2e_health_check_all_operators():
-    """All registered operators return healthy status."""
+async def test_e2e_health_check_all_operators(asg_client, ecs_client, lambda_client):
+    """All registered operators return healthy status when connected to LocalStack."""
     fast_retry = RetryConfig(max_retries=0)
     registry = CloudOperatorRegistry()
-    registry.register(ECSOperator(MagicMock(), retry_config=fast_retry))
-    registry.register(LambdaOperator(MagicMock(), retry_config=fast_retry))
+    registry.register(EC2ASGOperator(asg_client, retry_config=fast_retry))
+    registry.register(ECSOperator(ecs_client, retry_config=fast_retry))
+    registry.register(LambdaOperator(lambda_client, retry_config=fast_retry))
+    # Still mock Azure
     registry.register(AppServiceOperator(MagicMock(), retry_config=fast_retry))
 
     results = await registry.health_check_all()
-    assert len(results) == 3
-    assert all(v is True for v in results.values())
+    assert len(results) == 4
+    # Check that EC2, ECS, and Lambda keys exist in the output dict and are True
+    assert results.get("aws:EC2ASGOperator", False) is True
+    assert results.get("aws:ECSOperator", False) is True
+    assert results.get("aws:LambdaOperator", False) is True

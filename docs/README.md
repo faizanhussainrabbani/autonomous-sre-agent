@@ -15,10 +15,10 @@ This index is the canonical entry point for all project documentation. Every doc
 | Understand the system | [Architecture Overview](architecture/architecture.md) |
 | Set up a local dev environment | [Onboarding Guide](project/onboarding.md) |
 | Run the test suite | [Testing Strategy](testing/testing_strategy.md) |
-| Deploy to production | [Deployment Runbook](operations/runbook_deployment.md) |
-| Respond to an active incident | [Incident Response Runbook](operations/runbook_incident_response.md) |
+| Deploy to production | [Deployment Runbook](operations/runbooks/deployment.md) |
+| Respond to an active incident | [Incident Response Runbook](operations/runbooks/incident_response.md) |
 | Review API contracts | [API Contracts](api/api_contracts.md) |
-| Understand coding standards | [Engineering Standards](project/engineering_standards.md) |
+| Understand coding standards | [Engineering Standards](project/standards/engineering_standards.md) |
 
 ---
 
@@ -36,18 +36,24 @@ Reference documentation for all internal and external interfaces.
 
 System design, domain models, and layer-by-layer technical breakdowns.
 
-| Document | Description |
+| **Core Architecture** | Description |
 |---|---|
-| [architecture/architecture.md](architecture/architecture.md) | High-level system architecture and hexagonal design overview |
-| [architecture/target_architecture.md](architecture/target_architecture.md) | Target (post-Phase 2) architecture and evolution roadmap |
-| [architecture/Technology_Stack.md](architecture/Technology_Stack.md) | Full technology stack inventory with rationale |
-| [architecture/data_model.md](architecture/data_model.md) | Domain model, canonical data structures, enums |
-| [architecture/dependency_graph.md](architecture/dependency_graph.md) | Service dependency graph structure and traversal |
-| [architecture/incident_taxonomy.md](architecture/incident_taxonomy.md) | Incident classification taxonomy and severity definitions |
-| [architecture/state_incident_model.md](architecture/state_incident_model.md) | Finite state machine for incident lifecycle |
-| [architecture/sequence_incident_lifecycle.md](architecture/sequence_incident_lifecycle.md) | Sequence diagrams for detection → diagnosis → remediation |
-| [architecture/extensibility.md](architecture/extensibility.md) | Extension points: adding new operators, detectors, and providers |
-| [architecture/phase_1_5_migration.md](architecture/phase_1_5_migration.md) | Phase 1 → 1.5 migration guide (adding non-K8s cloud targets) |
+| [architecture.md](architecture/architecture.md) | High-level system architecture and hexagonal design overview |
+| [Technology_Stack.md](architecture/Technology_Stack.md) | Full technology stack inventory with rationale |
+| [dependency_graph.md](architecture/dependency_graph.md) | Service dependency graph structure and traversal |
+| [sequence_incident_lifecycle.md](architecture/sequence_incident_lifecycle.md) | Sequence diagrams for detection → diagnosis → remediation |
+| [extensibility.md](architecture/extensibility.md) | Extension points: adding new operators, detectors, and providers |
+
+| **Domain Models** | Description |
+|---|---|
+| [models/data_model.md](architecture/models/data_model.md) | Domain model, canonical data structures, enums |
+| [models/incident_taxonomy.md](architecture/models/incident_taxonomy.md) | Incident classification taxonomy and severity definitions |
+| [models/state_incident_model.md](architecture/models/state_incident_model.md) | Finite state machine for incident lifecycle |
+
+| **Evolution & Future** | Description |
+|---|---|
+| [evolution/target_architecture.md](architecture/evolution/target_architecture.md) | Target (post-Phase 2) architecture and evolution roadmap |
+| [evolution/phase_1_5_migration.md](architecture/evolution/phase_1_5_migration.md) | Phase 1 → 1.5 migration guide (adding non-K8s cloud targets) |
 
 ### Architecture Layers
 
@@ -57,7 +63,7 @@ Detailed design for each layer of the hexagonal architecture:
 |---|---|
 | [architecture/layers/detection_layer.md](architecture/layers/detection_layer.md) | Anomaly detection algorithms, baseline computation, thresholds |
 | [architecture/layers/intelligence_layer.md](architecture/layers/intelligence_layer.md) | LLM-backed root cause analysis and remediation planning |
-| [architecture/layers/observability_layer.md](architecture/layers/observability_layer.md) | Metrics, logs, and trace ingestion from OTel, Prometheus, Loki, Jaeger |
+| [architecture/layers/observability_layer.md](architecture/layers/observability_layer.md) | Metrics, logs, trace ingestion from OTel, Prometheus, Loki, Jaeger |
 | [architecture/layers/action_layer.md](architecture/layers/action_layer.md) | Remediation action execution, dry-run mode, audit trail |
 | [architecture/layers/operator_layer.md](architecture/layers/operator_layer.md) | Cloud operator adapters: Kubernetes, AWS, Azure |
 | [architecture/layers/orchestration_layer.md](architecture/layers/orchestration_layer.md) | Multi-agent coordination, distributed locking, cooling-off protocol |
@@ -66,38 +72,40 @@ Detailed design for each layer of the hexagonal architecture:
 
 ## 3. Operations
 
-Day-to-day operational procedures, SLOs, and runbooks.
+Day-to-day operational procedures, SLOs, and incident playbooks.
 
-| Document | Description |
+| **Runbooks** | Description |
 |---|---|
-| [operations/runbook_deployment.md](operations/runbook_deployment.md) | Step-by-step deployment procedure for production |
-| [operations/runbook_incident_response.md](operations/runbook_incident_response.md) | Incident response playbook for the agent itself |
-| [operations/runbook_kill_switch.md](operations/runbook_kill_switch.md) | Emergency kill switch activation and recovery |
-| [operations/runbook_phase_management.md](operations/runbook_phase_management.md) | Procedures for graduating the agent across phases |
-| [operations/runbooks/agent_failure_runbook.md](operations/runbooks/agent_failure_runbook.md) | Runbook for responding to agent crash or stuck state |
-| [operations/slos_and_error_budgets.md](operations/slos_and_error_budgets.md) | Service Level Objectives, error budgets, burn rate alerts |
-| [operations/ci_cd_pipeline.md](operations/ci_cd_pipeline.md) | CI/CD pipeline design, stages, and quality gates |
-| [operations/operational_readiness.md](operations/operational_readiness.md) | Production readiness checklist |
-| [operations/graduation_criteria.md](operations/graduation_criteria.md) | Criteria for graduating from each phase to the next |
+| [runbooks/deployment.md](operations/runbooks/deployment.md) | Step-by-step deployment procedure for production |
+| [runbooks/incident_response.md](operations/runbooks/incident_response.md) | Incident response playbook for the agent itself |
+| [runbooks/kill_switch.md](operations/runbooks/kill_switch.md) | Emergency kill switch activation and recovery |
+| [runbooks/phase_management.md](operations/runbooks/phase_management.md) | Procedures for graduating the agent across phases |
+| [runbooks/agent_failure_runbook.md](operations/runbooks/agent_failure_runbook.md) | Runbook for responding to agent crash or stuck state |
+
+| **Operational Metrics** | Description |
+|---|---|
+| [slos_and_error_budgets.md](operations/slos_and_error_budgets.md) | Service Level Objectives, error budgets, burn rate alerts |
+| [ci_cd_pipeline.md](operations/ci_cd_pipeline.md) | CI/CD pipeline design, stages, and quality gates |
+| [operational_readiness.md](operations/operational_readiness.md) | Production readiness checklist |
+| [graduation_criteria.md](operations/graduation_criteria.md) | Criteria for graduating from each phase to the next |
 
 ---
 
-## 4. Project
+## 4. Project & Standards
 
-Project management, standards, decisions, and change history.
+Project management, core onboarding, and engineering standards.
 
-| Document | Description |
+| **Core Onboarding** | Description |
 |---|---|
 | [project/onboarding.md](project/onboarding.md) | New engineer onboarding guide — environment setup, key concepts |
-| [project/engineering_standards.md](project/engineering_standards.md) | Coding standards, test pyramid, style guide, review process |
-| [project/FAANG_Documentation_Standards.md](project/FAANG_Documentation_Standards.md) | Documentation quality standards applied to this project |
 | [project/roadmap.md](project/roadmap.md) | Feature roadmap and phase planning |
-| [project/phase_1_status_report.md](project/phase_1_status_report.md) | Phase 1 completion status report |
 | [project/CHANGELOG.md](project/CHANGELOG.md) | Chronological change log for major milestones |
 | [project/glossary.md](project/glossary.md) | Terminology and acronym definitions |
-| [project/improvement_areas_phase_1_5.md](project/improvement_areas_phase_1_5.md) | Identified improvement areas after Phase 1.5 delivery |
-| [project/implementation_progress_review.md](project/implementation_progress_review.md) | Detailed implementation progress against acceptance criteria |
-| [project/documentation_improvement_review.md](project/documentation_improvement_review.md) | Review of documentation gaps and improvement plan |
+
+| **Project Standards** | Description |
+|---|---|
+| [standards/engineering_standards.md](project/standards/engineering_standards.md) | Coding standards, test pyramid, style guide, review process |
+| [standards/FAANG_Documentation_Standards.md](project/standards/FAANG_Documentation_Standards.md) | Documentation quality standards applied to this project |
 
 ### Architectural Decision Records (ADRs)
 
@@ -123,22 +131,35 @@ Threat model, guardrails, and safety controls.
 
 ## 6. Testing
 
-Test strategy, infrastructure, results, and known issues.
+Test strategy, infrastructure instructions, and live validation.
 
 | Document | Description |
 |---|---|
 | [testing/testing_strategy.md](testing/testing_strategy.md) | End-to-end testing strategy, pyramid rationale, environment matrix |
-| [testing/test_infrastructure.md](testing/test_infrastructure.md) | Local test infrastructure: Testcontainers, k3d, LocalStack Pro setup |
+| [testing/localstack_pro_guide.md](testing/localstack_pro_guide.md) | Guide for using LocalStack Pro with Testcontainers to mock AWS services |
 | [testing/e2e_testing_plan.md](testing/e2e_testing_plan.md) | E2E test plan with scenarios, expected outcomes, success criteria |
 | [testing/live_validation_test_cases.md](testing/live_validation_test_cases.md) | Live cluster validation test cases for Phase 1.5 acceptance |
-| [testing/test_findings_report.md](testing/test_findings_report.md) | Full test findings report: 283/284 tests (99.6%), all categories graded |
 | [testing/bugs.md](testing/bugs.md) | Bug tracking log — all 6 bugs from Phase 1.5 resolved |
+
+---
+
+## 7. Reports & Archives
+
+Point-in-time progress reports, test findings, and document reviews.
+
+| Document | Description |
+|---|---|
+| [reports/phase_1_5_test_findings.md](reports/phase_1_5_test_findings.md) | Full test findings report: 283/284 tests (99.6%), all categories graded |
+| [reports/phase_1_status.md](reports/phase_1_status.md) | Phase 1 completion status report |
+| [reports/improvement_areas_phase_1_5.md](reports/improvement_areas_phase_1_5.md) | Identified improvement areas after Phase 1.5 delivery |
+| [reports/implementation_progress.md](reports/implementation_progress.md) | Detailed implementation progress against acceptance criteria |
+| [reports/documentation_review.md](reports/documentation_review.md) | Review of documentation gaps and improvement plan |
 
 ---
 
 ## Document Conventions
 
-All documents in this repository follow the standards defined in [FAANG_Documentation_Standards.md](project/FAANG_Documentation_Standards.md):
+All documents in this repository follow the standards defined in [FAANG_Documentation_Standards.md](project/standards/FAANG_Documentation_Standards.md):
 
 - **Headers:** `#` (H1) for document title, `##` (H2) for major sections
 - **Status badges:** `✅ PASS`, `❌ FAIL`, `⚠️ PARTIAL`, `🔵 KNOWN LIMITATION`

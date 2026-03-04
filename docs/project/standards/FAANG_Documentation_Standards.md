@@ -6,7 +6,7 @@
 This document synthesizes research on how top-tier technology companies (like Google, Uber, and others in the FAANG sphere) structure their engineering documentation, and compares those standards directly against the structure we have built for the Autonomous SRE Agent.
 
 > [!NOTE]
-> This document is a **companion** to [`engineering_standards.md`](../project/engineering_standards.md), which defines the detailed coding, testing, and architectural standards. This document focuses on the *organizational structure* of our documentation and how it aligns with industry best practices.
+> This document is a **companion** to [`engineering_standards.md`](../project/standards/engineering_standards.md), which defines the detailed coding, testing, and architectural standards. This document focuses on the *organizational structure* of our documentation and how it aligns with industry best practices.
 
 ## 1. How FAANG Does Documentation (Industry Standards)
 
@@ -75,7 +75,7 @@ The separation of concerns between *what we are proposing to build* (specs) and 
 
 ## Related Documents
 
-- [Engineering Standards & Code Organization](../project/engineering_standards.md) — Coding, testing, and architectural standards
+- [Engineering Standards & Code Organization](../project/standards/engineering_standards.md) — Coding, testing, and architectural standards
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) — Contributor guidelines
 - [ADR Records](../project/ADRs/) — Architectural decisions
 - [Testing Strategy](../testing/testing_strategy.md) — Comprehensive test plan

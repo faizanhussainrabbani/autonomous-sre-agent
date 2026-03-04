@@ -40,5 +40,5 @@ Use **Pydantic `BaseModel`** classes for all canonical domain models instead of 
 
 ## References
 
-- [Data Model Documentation](../../architecture/data_model.md)
+- [Data Model Documentation](../../architecture/models/data_model.md)
 - [Canonical Models Source](../../../src/sre_agent/domain/models/canonical.py)

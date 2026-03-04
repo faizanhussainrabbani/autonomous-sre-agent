@@ -10,9 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (2026-03-04 — Integration Testing & Docs Restructure)
-- **LocalStack Pro integration:** Activated Pro license (`LOCALSTACK_AUTH_TOKEN`) enabling full AWS service emulation (EC2 ASG, ECS, Lambda) in integration tests
+- **LocalStack Pro integration:** Activated Pro license (`LOCALSTACK_AUTH_TOKEN`) enabling full AWS service emulation (EC2 ASG, ECS, Lambda) in integration tests.
+- **`docs/testing/localstack_pro_guide.md`:** Comprehensive setup and authentication guide for local AWS mocking via Testcontainers.
 - **`docs/README.md`:** New top-level documentation navigation index linking all 47 documents across 6 sections
-- **`docs/testing/test_findings_report.md`:** Comprehensive Phase 1.5 test findings report (99.6% pass rate, all categories graded)
+- **`docs/reports/phase_1_5_test_findings.md`:** Comprehensive Phase 1.5 test findings report (99.6% pass rate, all categories graded)
 - **`docs/testing/live_validation_test_cases.md`:** Live cluster validation test cases for Phase 1.5 acceptance
 - **`docs/testing/e2e_testing_plan.md`:** E2E test plan with scenarios and success criteria
 
@@ -23,8 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Docs restructured:**
   - `docs/operations/testing_strategy.md` → `docs/testing/testing_strategy.md`
   - `docs/operations/test_infrastructure.md` → `docs/testing/test_infrastructure.md`
-  - `docs/architecture/FAANG_Documentation_Standards.md` → `docs/project/FAANG_Documentation_Standards.md`
-  - `docs/project/ImprovementAreasAfterPhase1_5.md` → `docs/project/improvement_areas_phase_1_5.md` (snake_case)
+  - `docs/architecture/standards/FAANG_Documentation_Standards.md` → `docs/project/standards/FAANG_Documentation_Standards.md`
+  - `docs/project/ImprovementAreasAfterPhase1_5.md` → `docs/project/../reports/improvement_areas_phase_1_5.md` (snake_case)
 - **Cross-references updated** in `documentation_improvement_review.md`, `FAANG_Documentation_Standards.md`, `engineering_standards.md`
 
 ### Fixed (2026-03-04)

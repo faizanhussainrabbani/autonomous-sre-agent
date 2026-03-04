@@ -159,7 +159,8 @@ These source modules have **zero** test coverage:
 
 2. **Ports as Test Boundaries** — The hexagonal architecture defines natural test seams. Unit tests mock ports; integration tests provide real adapters behind ports; E2E tests wire everything together.
 
-3. **Deterministic by Default** — All tests must be deterministic. Time-dependent tests use frozen clocks (`freezegun`). Random-dependent tests use seeded generators. Network-dependent tests use `testcontainers` or `responses`/`respx`.
+3. **Deterministic by Default** — All tests must be deterministic. Time-dependent tests use frozen clocks (`freezegun`). Random-dependent tests use seeded generators. Network-dependent tests use `testcontainers`, `responses`/`respx`, or **LocalStack Pro**.
+    *   **Note:** For testing AWS Cloud Operators (EC2 ASG, ECS, Lambda), we strictly require `localstack/localstack-pro:latest`. See the [LocalStack Pro Integration Guide](localstack_pro_guide.md) for detailed setup and authentication instructions.
 
 4. **Test Autonomously, Not Manually** — If the SRE Agent is autonomous, its test suite must be too. No test should require manual cluster setup, manual data seeding, or human judgment to determine pass/fail.
 
