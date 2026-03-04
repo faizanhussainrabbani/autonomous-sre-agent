@@ -1,5 +1,8 @@
 # End-to-End Testing Plan: SRE Agent (Phase 1 + 1.5)
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 **Date:** March 3, 2026
 **Version:** 1.0
 **Scope:** Complete verification of the Autonomous SRE Agent covering Phase 1 (Kubernetes) and Phase 1.5 (Non-K8s Platforms)

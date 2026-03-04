@@ -75,3 +75,9 @@ The telemetry provider interface SHALL be designed as a plugin system, allowing 
 - **THEN** the adapter SHALL implement the standard query interfaces: MetricsQuery, TraceQuery, LogQuery, DependencyGraphQuery
 - **AND** once registered the new provider SHALL be selectable via system configuration
 - **AND** no changes to anomaly detection, diagnostics, or remediation code SHALL be required
+
+---
+
+## Implementation References
+* **Adapters:** `src/sre_agent/adapters/telemetry/`
+* **Ports:** `src/sre_agent/ports/telemetry.py`

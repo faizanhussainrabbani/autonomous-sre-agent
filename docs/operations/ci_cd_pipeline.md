@@ -6,7 +6,7 @@
 ## Overview
 Because the SRE Agent manages tier-0 infrastructure, every pull request goes through rigorous automated testing gates before merging. We enforce a strict continuous integration policy to guarantee stability.
 
-## Pull Request Pipeline
+## [PLANNED] Pull Request Pipeline
 
 When a developer opens a Pull Request to the `main` branch, the following GitHub Actions pipeline executes:
 
@@ -32,7 +32,7 @@ When a developer opens a Pull Request to the `main` branch, the following GitHub
 *   **Execution:** A mock application is deployed, and an anomaly (e.g., OOM kill) is synthetically injected. The agent must detect and remediate it within the defined SLO.
 *   **Failure:** Blocks merge. E2E flakes require a post-mortem.
 
-## Deployment Pipeline (Continuous Delivery)
+## [PLANNED] Deployment Pipeline (Continuous Delivery)
 
 1.  **Tagging:** Merging to `main` auto-generates a semantic version tag (e.g., `v1.2.3`).
 2.  **Container Build:** Builds the `sre-agent` Docker image, signs it with Sigstore/Cosign, and pushes to our private registry.

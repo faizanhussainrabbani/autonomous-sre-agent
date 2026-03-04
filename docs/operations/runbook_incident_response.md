@@ -1,5 +1,8 @@
 # Runbook: Agent Incident Response
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 **Target Audience:** On-Call Engineers
 **Scope:** When the SRE Agent itself is failing, crashing, or causing infrastructure harm.
 

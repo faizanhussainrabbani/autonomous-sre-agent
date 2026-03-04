@@ -26,6 +26,19 @@ except ImportError:
     _FASTAPI_AVAILABLE = False
 
 
+# ── Request models (module-scope for FastAPI body parsing) ────────────────────
+if _FASTAPI_AVAILABLE:
+    class HaltRequest(BaseModel):
+        reason: str
+        requested_by: str
+        mode: str = "soft"  # "soft" | "hard"
+
+    class ResumeRequest(BaseModel):
+        primary_approver: str
+        secondary_approver: str
+        review_notes: str
+
+
 def create_app() -> Any:  # Returns FastAPI if available, else raises ImportError
     """Factory function to create the FastAPI application."""
     if not _FASTAPI_AVAILABLE:
@@ -70,11 +83,6 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         }
 
     # ── Kill switch ───────────────────────────────────────────────────────────
-    class HaltRequest(BaseModel):
-        reason: str
-        requested_by: str
-        mode: str = "soft"  # "soft" | "hard"
-
     @app.post("/api/v1/system/halt", tags=["Safety Controls"], status_code=status.HTTP_200_OK)
     async def halt(request: HaltRequest) -> dict[str, Any]:
         """
@@ -98,11 +106,6 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
             "mode": request.mode,
             "active_remediations_aborted": 0,  # Phase 2: wire to action executor
         }
-
-    class ResumeRequest(BaseModel):
-        primary_approver: str
-        secondary_approver: str
-        review_notes: str
 
     @app.post("/api/v1/system/resume", tags=["Safety Controls"], status_code=status.HTTP_200_OK)
     async def resume(request: ResumeRequest) -> dict[str, Any]:
@@ -128,3 +131,4 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
 
 # Module-level app instance (for uvicorn: sre_agent.api.main:app)
 app = create_app() if _FASTAPI_AVAILABLE else None
+

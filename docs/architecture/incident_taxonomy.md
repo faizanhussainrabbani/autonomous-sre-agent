@@ -1,5 +1,8 @@
 # Incident Taxonomy
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 The Autonomous SRE Agent is constrained to 5 well-understood incident types (Constitution Principle IV). This document serves as the single source of truth for these incidents, defining their detection signals, diagnostics, remediation actions, and safety boundaries.
 
 | Incident Type | Detection Signals | Diagnostic Evidence Pattern | Approved Remediation | Blast Radius Limits | Rollback Strategy |

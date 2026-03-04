@@ -1,5 +1,8 @@
 # Technology Stack: Autonomous SRE Agent
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 **Date:** February 25, 2026
 
 ---

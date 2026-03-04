@@ -1,5 +1,8 @@
 # Project Glossary
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 To ensure precise communication and prevent context drift, this glossary defines the canonical terms used across all SRE Agent documentation and codebase.
 
 ## 1. Event Types
@@ -24,11 +27,18 @@ To ensure precise communication and prevent context drift, this glossary defines
 
 ## 4. Phase States
 
-*   **Shadow Mode (Phase 1):** The agent ingests telemetry, generates diagnoses, and logs its intended actions, but is strictly prohibited from executing them. Also referred to as "Observe mode" or "Read-only mode".
-*   **Assist Mode (Phase 2):** The agent generates PRs or ChatOps prompts and awaits explicit human approval before executing actions.
-*   **Autonomous Mode (Phase 3):** The agent executes actions immediately without human intervention for well-understood incident types.
+*   **Shadow Mode:** The agent ingests telemetry, generates diagnoses, and logs its intended actions, but is strictly prohibited from executing them. Operates in a read-only capacity.
+*   **Assist Mode:** The agent generates PRs or ChatOps prompts and awaits explicit human approval before executing actions.
+*   **Autonomous Mode:** The agent executes actions immediately without human intervention for well-understood incident types.
 
-## 5. Agent Behaviors & Architecture
+## 5. Implementation Phases
+
+*   **Phase 1: Data Foundation:** The initial project phase focused on establishing robust telemetry ingestion, anomaly detection, and correlation pipelines.
+*   **Phase 1.5: Compute Agnosticism:** Extending Phase 1 to support non-Kubernetes environments like AWS EC2, ECS, and Lambda.
+*   **Phase 2: RAG Diagnostics:** Building the LLM and VectorDB reasoning capabilities.
+*   **Phase 3: Autonomous Remediation:** Implementing the execution adapters and safety guardrails.
+
+## 6. Agent Behaviors & Architecture
 
 *   **Canary Execution:** A safe deployment or remediation strategy where the agent applies a change to a small subset of instances first, monitoring for regressions before a full rollout.
 *   **Fencing Token:** A monotonically increasing integer provided by the distributed lock manager. The agent passes this token with its K8s/Argo API calls to prevent stale writes if it experiences a GC pause or network partition.

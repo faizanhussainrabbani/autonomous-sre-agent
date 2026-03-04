@@ -32,14 +32,29 @@ pytestmark = pytest.mark.skipif(
 
 httpx = pytest.importorskip("httpx")
 testcontainers_core_container = pytest.importorskip("testcontainers.core.container")
-testcontainers_core_waiting_utils = pytest.importorskip("testcontainers.core.waiting_utils")
 DockerContainer = testcontainers_core_container.DockerContainer
-wait_container_is_ready = testcontainers_core_waiting_utils.wait_container_is_ready
 
+import time
 
 from sre_agent.adapters.telemetry.otel.prometheus_adapter import PrometheusMetricsAdapter
 from sre_agent.adapters.telemetry.otel.loki_adapter import LokiLogAdapter
 from sre_agent.adapters.telemetry.otel.jaeger_adapter import JaegerTraceAdapter
+
+
+def _poll_until_ready(url: str, timeout: float = 60.0, interval: float = 1.0) -> None:
+    """Poll an HTTP endpoint until it returns 2xx or timeout is reached."""
+    deadline = time.monotonic() + timeout
+    last_err: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            resp = httpx.get(url, timeout=5.0)
+            resp.raise_for_status()
+            return
+        except (httpx.HTTPError, httpx.RequestError, EOFError, ConnectionError) as exc:
+            last_err = exc
+            time.sleep(interval)
+    raise TimeoutError(f"Container not ready at {url} after {timeout}s: {last_err}")
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -47,46 +62,30 @@ from sre_agent.adapters.telemetry.otel.jaeger_adapter import JaegerTraceAdapter
 
 @pytest.fixture(scope="module")
 def prometheus():
-    with DockerContainer("prom/prometheus:latest").with_exposed_ports(9090).with_command(
+    with DockerContainer("prom/prometheus:v2.48.0").with_exposed_ports(9090).with_command(
         "--config.file=/etc/prometheus/prometheus.yml"
     ) as container:
-        # Prometheus health endpoint
-        @wait_container_is_ready(httpx.HTTPError, httpx.RequestError, EOFError)
-        def _wait():
-            port = container.get_exposed_port(9090)
-            host = container.get_container_host_ip()
-            resp = httpx.get(f"http://{host}:{port}/-/healthy")
-            resp.raise_for_status()
-
-        _wait()
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(9090)
+        _poll_until_ready(f"http://{host}:{port}/-/healthy")
         yield container
 
 @pytest.fixture(scope="module")
 def loki():
-    with DockerContainer("grafana/loki:latest").with_exposed_ports(3100) as container:
-        @wait_container_is_ready(httpx.HTTPError, httpx.RequestError, EOFError)
-        def _wait():
-            port = container.get_exposed_port(3100)
-            host = container.get_container_host_ip()
-            resp = httpx.get(f"http://{host}:{port}/ready")
-            resp.raise_for_status()
-
-        _wait()
+    with DockerContainer("grafana/loki:2.9.0").with_exposed_ports(3100) as container:
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(3100)
+        _poll_until_ready(f"http://{host}:{port}/ready")
         yield container
 
 @pytest.fixture(scope="module")
 def jaeger():
-    with DockerContainer("jaegertracing/all-in-one:latest").with_exposed_ports(16686).with_env(
+    with DockerContainer("jaegertracing/all-in-one:1.52").with_exposed_ports(16686).with_env(
         "COLLECTOR_ZIPKIN_HOST_PORT", ":9411"
     ) as container:
-        @wait_container_is_ready(httpx.HTTPError, httpx.RequestError, EOFError)
-        def _wait():
-            port = container.get_exposed_port(16686)
-            host = container.get_container_host_ip()
-            resp = httpx.get(f"http://{host}:{port}/")
-            resp.raise_for_status()
-
-        _wait()
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(16686)
+        _poll_until_ready(f"http://{host}:{port}/")
         yield container
 
 

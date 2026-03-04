@@ -1,5 +1,8 @@
 # Runbook: Agent Kill Switch Activation
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 **Target Audience:** Incident Commanders, On-Call Engineers
 **Emergency Contact:** SRE Platform Team
 

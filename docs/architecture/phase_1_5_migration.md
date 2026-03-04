@@ -1,5 +1,8 @@
 # Phase 1.5 Migration Notes
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 ## For Existing Kubernetes Configurations
 
 Phase 1.5 introduces compute-agnostic data models. Existing Kubernetes-based

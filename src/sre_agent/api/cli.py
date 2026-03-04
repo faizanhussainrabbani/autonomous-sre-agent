@@ -32,7 +32,7 @@ logger = structlog.get_logger(__name__)
 @click.pass_context
 def cli(ctx: click.Context, log_level: str) -> None:
     """Autonomous SRE Agent — CLI entrypoint."""
-    configure_logging(level=log_level.upper())
+    configure_logging(log_level=log_level.upper())
     ctx.ensure_object(dict)
 
 

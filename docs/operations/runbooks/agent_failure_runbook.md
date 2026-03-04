@@ -1,5 +1,8 @@
 # Runbook: Agent Failure & Rogue Action
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 **Service:** Autonomous SRE Agent
 **Runbook Owner:** Core Infrastructure Team
 

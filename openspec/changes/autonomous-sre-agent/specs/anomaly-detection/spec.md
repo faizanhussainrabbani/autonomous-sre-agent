@@ -77,3 +77,9 @@ The system SHALL correlate detected anomalies with recent deployments to identif
 - **WHEN** an anomaly is detected on a service that has NO dependency relationship with a recently deployed service
 - **THEN** the system SHALL NOT flag it as deployment-induced
 - **AND** the incident SHALL be investigated independently
+
+---
+
+## Implementation References
+* **Anomaly Detector:** `src/sre_agent/domain/detection/anomaly_detector.py`
+* **Baseline Service:** `src/sre_agent/domain/detection/baseline.py`

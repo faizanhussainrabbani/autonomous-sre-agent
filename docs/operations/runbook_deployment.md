@@ -1,5 +1,8 @@
 # Runbook: Agent Deployment & Upgrade
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 **Target Audience:** SREs, Platform Engineers
 **Frequency:** Per release cycle
 

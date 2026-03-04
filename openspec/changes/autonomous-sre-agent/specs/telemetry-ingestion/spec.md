@@ -86,3 +86,9 @@ The system SHALL validate incoming telemetry for completeness and consistency be
 - **THEN** the system SHALL mark the trace as "incomplete"
 - **AND** log the missing span services for observability coverage tracking
 - **AND** the diagnostic engine SHALL be informed of the gap to avoid misattributing latency
+
+---
+
+## Implementation References
+* **Ingestion Adapters:** `src/sre_agent/adapters/telemetry/`
+* **Correlation Engine:** `src/sre_agent/domain/correlation/signal_correlator.py`

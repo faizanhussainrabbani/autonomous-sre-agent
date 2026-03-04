@@ -15,9 +15,9 @@ The SRE Agent does not rely on static, manually maintained CMDBs (Configuration 
 
 ## 2. Storage Format
 
-*   **In-Memory Representation:** The agent processes the graph using a localized Directed Graph library (e.g., Python's `networkx.DiGraph`). Microservices can have cycles (A -> B -> C -> A), and cycle detection is a valid signal for blast radius evaluation.
-*   **Persistent Storage:** The graph is periodically serialized to the **PostgreSQL Metadata Store** as an adjacency list JSON blob.
-*   **Visual Representation:** Exported to the Operator Layer Dashboard and rendered via `D3.js` or `Recharts`.
+*   **In-Memory Representation:** The agent processes the graph using a Canonical `ServiceGraph` Pydantic model (`domain/models/canonical.py`) composed of `ServiceDependency` directional edges. Microservices can have cycles (A -> B -> C -> A), and cycle detection is a valid signal for blast radius evaluation.
+*   **[PLANNED] Persistent Storage:** The graph is periodically serialized to a PostgreSQL Metadata Store as an adjacency list JSON blob.
+*   **[PLANNED] Visual Representation:** Exported to the Operator Layer Dashboard and rendered via `D3.js` or `Recharts`.
 
 ## 3. Update Cadence & Staleness Detection
 
@@ -30,12 +30,12 @@ Because microservice architectures are highly dynamic, the graph must remain eve
 ### 3.1 Cold-Start / Bootstrap Strategy
 On the first deployment of the SRE Agent when no historical trace data exists, the agent operates in a "Cold-Start" mode:
 *   The agent relies exclusively on the Secondary Source (Kubernetes `OwnerReferences` and Service mappings) to infer the initial baseline graph.
-*   The agent refuses to execute any autonomous actions for the first 24 hours, remaining strictly in Phase 1 (Observe mode) until sufficient OTel tracing telemetry populates the edges.
+*   The agent refuses to execute any autonomous actions for the first 24 hours, remaining strictly in Phase 1 (Data Foundation) / Shadow Mode until sufficient OTel tracing telemetry populates the edges.
 
 ### 3.2 Graph Snapshotting & Auditing
 For compliance and audit purposes ("What did the graph look like when decision X was made?"):
 *   A versioned snapshot of the dependency sub-graph is appended to the `Diagnosis` entity precisely when the agent generates its root cause hypothesis.
-*   These snapshots are stored immutably in the PostgreSQL Metadata Store alongside the `AuditEntry`.
+*   **[PLANNED]** These snapshots are stored immutably in the PostgreSQL/Metadata Store alongside the `AuditEntry`.
 
 ## 4. Blast Radius Evaluation
 

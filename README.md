@@ -25,15 +25,15 @@ The agent is built on a **Safety-First, RAG-Grounded** architecture. It relies o
 
 ---
 
-## 🏗️ Repository Structure
+## 🏗️ Repository Structure & Navigation
 
 We follow strict FAANG-standard documentation and specification practices.
 
-*   `docs/`: The "Evergreen" knowledge base.
-    *   `docs/architecture/`: High-level system design and technology stack.
-        *   `docs/architecture/layers/`: Deep-dive Mermaid diagrams for the specific Observability, Intelligence, Action, and Orchestration layers.
-    *   `docs/operations/`: Runbooks, SLO definitions, and operational readiness.
-    *   `docs/security/`: Threat modeling and safety guardrail definitions.
+*   `docs/`: The "Evergreen" knowledge base. Start here to understand the system.
+    *   **[Architecture Guide](docs/architecture/architecture.md)**: High-level system design and technology stack.
+    *   **[Operations & Runbooks](docs/operations/operational_readiness.md)**: Runbooks, SLO definitions, and operational readiness.
+    *   **[Security & Safety](docs/security/features_and_safety.md)**: Threat modeling and safety guardrail definitions.
+    *   **[API Contracts](docs/api/api_contracts.md)**: The strict boundaries of our system.
 *   `openspec/`: The Specifications. "Design Docs" and Testable Scenarios (Behavior-Driven Development).
 *   `src/`: The Python application source code.
 *   `tests/`: Unit and integration test suites.
@@ -88,9 +88,17 @@ pytest tests/unit
 pytest --cov=src tests/unit
 ```
 
-### 3. Local Cluster Simulation (WIP)
+### 3. Local Cluster Simulation (k3d)
 
-To test the agent's interaction with Kubernetes, we use a local `k3d` cluster. Please refer to the [Developer Onboarding Guide](docs/project/onboarding.md) for detailed instructions on spinning up the mock observability stack.
+To test the agent's interaction with Kubernetes, we use a local `k3d` cluster that includes Prometheus, Jaeger, and Loki pre-configured.
+
+```bash
+cd infra/local
+./setup.sh
+# To tear it down later, run: ./teardown.sh
+```
+
+Please refer to the **[Developer Onboarding Guide](docs/project/onboarding.md)** for detailed instructions on spinning up the mock observability stack.
 
 ---
 
@@ -98,10 +106,10 @@ To test the agent's interaction with Kubernetes, we use a local `k3d` cluster. P
 
 We are systematically rolling out the agent through carefully gated phases to ensure absolute safety.
 
-1.  **Phase 1 (Observe - Current Status):** Shadow mode. The agent ingests telemetry and suggests diagnoses to Slack, but takes *zero* action.
-2.  **Phase 2 (Assist):** The agent creates GitOps Pull Requests for humans to review and approve.
-3.  **Phase 3 (Autonomous):** The agent autonomously pushes Sev 3/4 remediations, but escalates Sev 1/2 to humans.
-4.  **Phase 4 (Predictive):** The agent proactively resolves resource exhaustion *before* an anomaly alert triggers.
+1.  **Phase 1 (Data Foundation - Current Status):** Shadow mode. The agent ingests telemetry and suggests diagnoses to Slack, but takes *zero* action.
+2.  **Phase 1.5 (Compute Agnosticism):** The agent adds adapters for generic cloud compute providers like EC2, ECS, and Lambda instead of only k8s.
+3.  **Phase 2 (RAG Diagnostics - Next):** The agent creates GitOps Pull Requests and diagnostics using Vector DBs for humans to review.
+4.  **Phase 3 (Autonomous Remediation):** The agent autonomously pushes Sev 3/4 remediations, but escalates Sev 1/2 to humans.
 
 ---
 

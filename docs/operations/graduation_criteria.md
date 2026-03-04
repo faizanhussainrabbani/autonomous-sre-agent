@@ -1,5 +1,8 @@
 # Phase Graduation Criteria
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 This document serves as the single source of truth for the SRE Agent's phase progression, detailing the specific entry criteria, exit criteria, and automatic regression triggers for each phase of operation.
 
 ## 1. Evaluation Methodology

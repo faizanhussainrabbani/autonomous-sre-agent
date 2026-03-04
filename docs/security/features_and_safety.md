@@ -1,5 +1,8 @@
 # Features & Safety Guardrails
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 The SRE Agent targets well-understood, repeatable infrastructure incidents. Because the agent executes modifications autonomously, **safety is the most critical feature.**
 
 ## Supported Use Cases
@@ -33,11 +36,11 @@ These wrap the execution phase directly (see [Guardrails Configuration](guardrai
 
 ### Tier 2: Knowledge & Reasoning Guardrails
 These target the RAG subsystem to prevent catastrophic LLM hallucinations:
-1. **Mandatory Citations:** Root-cause hypothesis *must* cite retrieved evidence vectors.
-2. **Second-Opinion Validation:** An independent validator cross-checks the LLM's primary diagnosis. Disagreement causes human escalation.
-3. **Knowledge Base Expiry (TTL):** Architecture changes constantly; documents older than 90 days trigger staleness recalculation.
+1. **[PLANNED] Mandatory Citations:** Root-cause hypothesis *must* cite retrieved evidence vectors.
+2. **[PLANNED] Second-Opinion Validation:** An independent validator cross-checks the LLM's primary diagnosis. Disagreement causes human escalation.
+3. **[PLANNED] Knowledge Base Expiry (TTL):** Architecture changes constantly; documents older than 90 days trigger staleness recalculation.
 
 ### Tier 3: Security & Access Limitations
-1. **Least-Privilege Roles:** Kubernetes ServiceAccounts are tightly scoped. 
+1. **[PLANNED] Least-Privilege Roles:** Kubernetes ServiceAccounts are tightly scoped. 
 2. **Multi-Agent Locking:** In severe outages, multiple agents running in parallel use distributed locks (etcd/Redis) to prevent contradictory "oscillation" behaviors.
-3. **No Direct Secret Access:** Externalized secret management via Hashicorp Vault/AWS SM.
+3. **[PLANNED] No Direct Secret Access:** Externalized secret management via Hashicorp Vault/AWS SM.

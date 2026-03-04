@@ -1,15 +1,15 @@
 # Phase 1.5 Bug Report
 
-**Date:** March 3, 2026 (Resolved: March 4, 2026)
+**Date:** March 3, 2026 (Updated: March 4, 2026)
 **Test Run:** `scripts/e2e_validate.py --all` + `pytest tests/ -v --cov`
-**Result:** 184/184 tests pass, 22/22 component validations pass, 85% coverage
+**Result:** 283/284 tests pass, 22/22 component validations pass, 88.4% coverage
 
 ---
 
 ## BUG-001: Test Coverage Below 85% Threshold
 
 **Severity:** Medium
-**Status:** ✅ RESOLVED — Coverage raised from 79.75% → 85% (180 unit tests)
+**Status:** ✅ RESOLVED — Coverage raised from 79.75% → 88.4% (283 unit + integration tests)
 **Component:** Project-wide
 
 ### Description
@@ -267,7 +267,7 @@ Any code that forgets `await` will see:
 
 | Bug ID | Severity | Type | Status |
 |---|---|---|---|
-| BUG-001 | Medium | Coverage gap | ✅ RESOLVED (85%, +30 tests) |
+| BUG-001 | Medium | Coverage gap | ✅ RESOLVED (88.4%, 283 tests) |
 | BUG-002 | Low | Missing enum value | ✅ RESOLVED (new INVOCATION_ERROR_SURGE) |
 | BUG-003 | Medium | Design/doc gap | ✅ RESOLVED (DetectionConfig docstring) |
 | BUG-004 | Low | Doc mismatch | ✅ RESOLVED (e2e_testing_plan.md fixed) |

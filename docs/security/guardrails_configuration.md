@@ -1,5 +1,8 @@
 # Guardrails Configuration
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 This document defines the quantitative, hard-coded boundaries that restrict the SRE Agent's autonomous actions. These Tier 1 execution guardrails act as the absolute safety net, regardless of the Intelligence Layer's confidence.
 
 | Guardrail | Parameter Scope | Allowed Value | Rationale |

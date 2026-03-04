@@ -22,6 +22,7 @@ Provides-Extra: azure
 Requires-Dist: azure-identity>=1.15; extra == "azure"
 Requires-Dist: azure-keyvault-secrets>=4.8; extra == "azure"
 Requires-Dist: azure-storage-blob>=12.19; extra == "azure"
+Requires-Dist: azure-mgmt-web>=7.0; extra == "azure"
 Provides-Extra: vault
 Requires-Dist: hvac>=2.1; extra == "vault"
 Provides-Extra: dev

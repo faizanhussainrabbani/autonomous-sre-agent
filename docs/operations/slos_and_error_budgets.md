@@ -17,7 +17,7 @@ As an autonomous Tier-1 infrastructure component, the SRE Agent must be held to 
 
 ### 1.2 Diagnostic & Remediation Latency SLO
 **Target: 99th percentile < 30 seconds**
-*   **SLI:** The time elapsed from `EventTypes.ANOMALY_DETECTED` to `EventTypes.REMEDIATING` (the moment an API call is made to a `CloudOperatorPort` or K8s API).
+*   **SLI:** The time elapsed from `EventType.ANOMALY_DETECTED` to `EventType.REMEDIATION_ACTION_PROPOSED` or `IncidentPhase.REMEDIATING` (the moment an API call is made to a `CloudOperatorPort` or K8s API).
 *   **Rationale:** The core value proposition of the agent is acting at machine speed. Slow RAG context generation defeats the purpose of the platform.
 
 ### 1.3 Accuracy & Safety SLO (False Positives)

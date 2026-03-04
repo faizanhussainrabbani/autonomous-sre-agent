@@ -1,5 +1,8 @@
 # Project Roadmap & Phased Rollout
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 The SRE Agent operates using a strictly phased rollout to establish baseline telemetry reliability, build an initial knowledge base (KB), and earn operator trust before acting autonomously.
 
 ## Incident Lifecycle and Phased States

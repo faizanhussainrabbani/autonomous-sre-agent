@@ -62,7 +62,7 @@ When the agent encounters a Sev 1/2 incident, or lacks confidence to auto-remedi
 ## 3. Global Kill Switch API
 Used to instantly halt all autonomous remediations across the fleet.
 
-### 3.1 Endpoint `/api/v1/system/halt`
+### 3.1 [PLANNED] Endpoint `/api/v1/system/halt`
 *   **Method:** `POST`
 *   **Auth:** Requires `GlobalAdmin` or `IncidentCommander` RBAC role.
 *   **Request Body:**
@@ -82,7 +82,7 @@ Used to instantly halt all autonomous remediations across the fleet.
     }
     ```
 
-### 3.2 Endpoint `/api/v1/system/resume`
+### 3.2 [PLANNED] Endpoint `/api/v1/system/resume`
 *   **Method:** `POST`
 *   **Auth:** Requires dual-authorization token.
 *   **Request Body:**

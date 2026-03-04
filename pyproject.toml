@@ -58,6 +58,30 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+timeout = 30
+timeout_method = "thread"
+markers = [
+    "unit: Pure domain logic tests (no I/O)",
+    "integration: Adapter tests with real backends (Docker required)",
+    "e2e: Full pipeline tests in k3d cluster",
+    "chaos: Fault injection tests",
+    "contract: API and data schema validation",
+    "performance: Throughput and latency benchmarks",
+    "slow: Tests taking >30 seconds",
+    "soak: Long-running endurance tests (hours/days)",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:moto.*",
+    "ignore::DeprecationWarning:botocore.*",
+    "ignore::DeprecationWarning:pydantic.*",
+    "ignore::DeprecationWarning:testcontainers.*",
+]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "-ra",
+]
 
 [tool.mypy]
 python_version = "3.11"
@@ -68,6 +92,20 @@ ignore_missing_imports = true  # boto3, azure-mgmt-web etc. have no bundled stub
 
 [tool.coverage.run]
 source = ["src/sre_agent"]
+branch = true
+omit = [
+    "src/sre_agent/tests/*",
+    "src/sre_agent/__pycache__/*",
+]
 
 [tool.coverage.report]
-fail_under = 85
+fail_under = 90
+show_missing = true
+precision = 1
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ ==",
+    "@overload",
+    "raise NotImplementedError",
+]

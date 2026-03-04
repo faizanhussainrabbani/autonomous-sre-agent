@@ -11,6 +11,7 @@ Before writing any code, you must read the **[Agent Constitution](.specify/memor
 ### Non-Negotiable Requirements for PRs:
 *   **No new remediation action** can be added without an accompanying unit test proving its hard-coded blast radius limit works (e.g., "cannot restart > 20% of pods").
 *   **No direct API calls** to standard infrastructure unless it interacts exclusively with an idempotent `Port` interface. 
+*   **Hexagonal Architecture Enforcement:** Developers must strictly adhere to the Ports and Adapters pattern (see `extensibility.md`). No external integrations or backend-specific code can be added to the core `domain/`.
 *   **No raw LLM logic** driving actions without RAG grounding and secondary evidence validation.
 
 ## 2. Development Workflow
@@ -27,6 +28,7 @@ When submitting a PR, ensure the following checklist is complete:
 - [ ] **Specs Updated:** If modifying behavior, the relevant `.md` spec in `openspec` must be updated *before* the code is merged.
 - [ ] **Documentation Updated:** If you added a new component or altered the architecture, update the corresponding file in the `docs/` folder.
 - [ ] **Tests Passing:** Unit tests and local integration tests must cleanly pass.
+- [ ] **Coverage Limits:** Code coverage must meet the CI/CD pipeline constraints: 100% for `domain/` logic and >85% for `adapters/`.
 - [ ] **Linting:** Your code complies with `flake8` and `black` (for Python) or `eslint` (for TS/JS).
 
 ### PR Title & Description

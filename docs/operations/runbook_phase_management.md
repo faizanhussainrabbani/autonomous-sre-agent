@@ -1,5 +1,8 @@
 # Runbook: Phase Management
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 **Target Audience:** SRE Leadership, Platform Managers
 **Reference:** [Graduation Criteria](graduation_criteria.md)
 

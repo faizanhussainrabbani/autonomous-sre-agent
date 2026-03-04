@@ -1,15 +1,18 @@
 # System Architecture Overview
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 The SRE Agent is designed as a sophisticated, layered processing pipeline that translates raw infrastructure telemetry into actionable incidents, autonomous diagnoses, and safe remediation.
 
 ## High-Level System Architecture and Data Flow
 
 The agent operates across five primary layers:
-1. **Observability Layer:** Collection, forwarding, and storage of raw signals (OTel Collector, Prometheus, Loki).
-2. **Detection Layer:** Baselining, anomaly scoring, and multi-dimensional metric correlation.
-3. **Intelligence Layer (SRE Agent Core):** RAG reasoning, confidence scoring, and severity classification.
-4. **Action Layer:** Safety gating and remediation execution.
-5. **Target Infrastructure:** The environment being managed.
+1. **[✅ IMPLEMENTED] Observability Layer:** Collection, forwarding, and storage of raw signals (OTel Collector, Prometheus, Loki).
+2. **[✅ IMPLEMENTED] Detection Layer:** Baselining, anomaly scoring, and multi-dimensional metric correlation.
+3. **[🔲 PLANNED] Intelligence Layer (SRE Agent Core):** RAG reasoning, confidence scoring, and severity classification.
+4. **[🔲 PLANNED] Action Layer:** Safety gating and remediation execution.
+5. **[🔲 PLANNED] Target Infrastructure:** The environment being managed (partially scaffolded via `CloudOperatorPort`).
 
 ```mermaid
 graph TD

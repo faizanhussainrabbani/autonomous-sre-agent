@@ -102,3 +102,9 @@ The agent system itself SHALL maintain high availability to ensure it is operati
 - **WHEN** a non-critical subsystem fails (e.g., operator dashboard, notification channel)
 - **THEN** the core pipeline (detection → diagnosis → remediation) SHALL continue operating
 - **AND** the failed subsystem SHALL be flagged on the dashboard with ETA for recovery
+
+---
+
+## Implementation References
+* **Architecture Overview:** `docs/architecture/architecture.md`
+* **SLOs & Error Budgets:** `docs/operations/slos_and_error_budgets.md`

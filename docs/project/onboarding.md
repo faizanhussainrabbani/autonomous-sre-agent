@@ -1,5 +1,8 @@
 # Developer Onboarding Guide
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 Welcome to the **SRE Agent**! This guide will get you up and running with the SRE Agent quickly. The system is designed to act as an autonomous agent that detects anomalies, proposes solutions via RAG, and safely executes remediations.
 
 ## Prerequisites
@@ -16,7 +19,8 @@ We use `k3d` to run a local Kubernetes cluster with an observability stack for s
    ```bash
    cd infra/local
    # Start the k3d cluster with prometheus and observability tools
-   # Assuming setup scripts exist, otherwise follow specific infra documentation
+   ./setup.sh
+   # To tear it down later, run: ./teardown.sh
    ```
 2. **Setup virtual environment:**
    ```bash
@@ -31,37 +35,38 @@ The core logic resides in `src/sre_agent`, built around the **Hexagonal Architec
 ```mermaid
 graph LR
     subgraph Adapters ["Adapters (External World)"]
-        PromAdapter[Prometheus Adapter]
-        K8sAdapter[Kubernetes API Adapter]
-        SlackAdapter[Slack Notifier]
+        PromAdapter[Prometheus Metrics Adapter]
+        NewRelicProvider[New Relic Provider]
+        ECS[ECS Cloud Operator]
+        Lambda[Lambda Cloud Operator]
     end
 
     subgraph Ports ["Ports (Interfaces)"]
-        MetricPort[Metric Source Interface]
-        ActionPort[Remediation Action Interface]
-        NotifyPort[Notification Interface]
+        TelemetryPort[Telemetry Port]
+        CloudOpPort[Cloud Operator Port]
     end
 
     subgraph Domain ["Domain (Core Business Logic)"]
-        Analyzer[Anomaly Analyzer]
-        DiagEngine[RAG Diagnostic Engine]
-        Coordinator[Agent Coordinator]
+        Baseline[Baseline Service]
+        Anomaly[Anomaly Detector]
+        Correlator[Alert Correlation Engine]
     end
 
     %% Dependency flow
-    PromAdapter -.->|Implements| MetricPort
-    K8sAdapter -.->|Implements| ActionPort
-    SlackAdapter -.->|Implements| NotifyPort
+    PromAdapter -.->|Implements| TelemetryPort
+    NewRelicProvider -.->|Implements| TelemetryPort
+    ECS -.->|Implements| CloudOpPort
+    Lambda -.->|Implements| CloudOpPort
 
-    MetricPort --> Analyzer
-    Analyzer --> DiagEngine
-    DiagEngine --> Coordinator
-    Coordinator --> ActionPort
-    Coordinator --> NotifyPort
+    TelemetryPort --> Baseline
+    TelemetryPort --> Anomaly
+    Baseline --> Anomaly
+    Anomaly --> Correlator
+    Correlator --> CloudOpPort
 ```
 
 ### Key Folders Structure
-* `src/sre_agent/domain`: Contains core business logic (`Analyzer`, `RAG Engine`, `Severity Classifier`). Does NOT depend on any external tooling.
+* `src/sre_agent/domain`: Contains core business logic (`AnomalyDetector`, `BaselineService`, `AlertCorrelationEngine`). Does NOT depend on any external tooling.
 * `src/sre_agent/ports`: Contains abstract base classes/interfaces defining what the domain expects.
 * `src/sre_agent/adapters`: Contains concrete implementations mapping abstract ports to actual external systems (e.g., K8s client, Prometheus, LLMs).
 * `src/sre_agent/api`: API and entry points for the agent (FastAPI/CLI).
@@ -84,5 +89,5 @@ The project relies heavily on testing for safety.
   ```
 
 ## 4. Next Steps
-* Understand how data flows through the system by reading the [Architecture Overview](./architecture.md).
-* Learn what the agent can actually do from the [Features & Safety Guide](./features_and_safety.md).
+* Understand how data flows through the system by reading the [Architecture Overview](../architecture/architecture.md).
+* Learn what the agent can actually do from the [Features & Safety Guide](../security/features_and_safety.md).

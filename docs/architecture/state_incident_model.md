@@ -1,5 +1,8 @@
 # State Machine: Canonical Incident
 
+**Status:** DRAFT
+**Version:** 1.0.0
+
 This diagram represents the strict lifecycle states of a `Canonical Incident` object as it moves through the SRE Agent's architectural layers.
 
 ```mermaid

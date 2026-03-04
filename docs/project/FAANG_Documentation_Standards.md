@@ -1,6 +1,12 @@
 # FAANG Documentation Standards vs. Our Repository Structure
 
+**Status:** APPROVED
+**Version:** 1.1.0
+
 This document synthesizes research on how top-tier technology companies (like Google, Uber, and others in the FAANG sphere) structure their engineering documentation, and compares those standards directly against the structure we have built for the Autonomous SRE Agent.
+
+> [!NOTE]
+> This document is a **companion** to [`engineering_standards.md`](../project/engineering_standards.md), which defines the detailed coding, testing, and architectural standards. This document focuses on the *organizational structure* of our documentation and how it aligns with industry best practices.
 
 ## 1. How FAANG Does Documentation (Industry Standards)
 
@@ -62,5 +68,14 @@ Our current organizational setup is **highly compliant** with top-tier industry 
 2.  We have living, well-categorized **Architecture and Operational references** (`docs`).
 3.  We are treating **Documentation as Code** (Markdown + Mermaid in Git).
 4.  We have eliminated redundant bloat.
+5.  We maintain **Architectural Decision Records** in `docs/project/ADRs/` for decision traceability.
+6.  We have a comprehensive **Changelog** at `docs/project/CHANGELOG.md`.
 
 The separation of concerns between *what we are proposing to build* (specs) and *how the system currently works/is operated* (docs) is the exact hallmark of a mature engineering organization.
+
+## Related Documents
+
+- [Engineering Standards & Code Organization](../project/engineering_standards.md) — Coding, testing, and architectural standards
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — Contributor guidelines
+- [ADR Records](../project/ADRs/) — Architectural decisions
+- [Testing Strategy](../testing/testing_strategy.md) — Comprehensive test plan
