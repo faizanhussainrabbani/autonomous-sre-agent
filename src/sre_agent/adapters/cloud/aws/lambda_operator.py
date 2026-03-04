@@ -10,6 +10,12 @@ from __future__ import annotations
 import structlog
 from typing import Any
 
+try:
+    from botocore.exceptions import ClientError as _BotoCoreClientError
+    _AWS_ERRORS = (_BotoCoreClientError, ConnectionError, TimeoutError)
+except ImportError:
+    _AWS_ERRORS = (Exception,)  # type: ignore[assignment]
+
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.cloud_operator import CloudOperatorPort
 from sre_agent.adapters.cloud.resilience import (
@@ -69,7 +75,7 @@ class LambdaOperator(CloudOperatorPort):
                     FunctionName=resource_id,
                     ReservedConcurrentExecutions=desired_count,
                 )
-            except Exception as exc:
+            except _AWS_ERRORS as exc:
                 raise TransientError(f"Lambda PutFunctionConcurrency failed: {exc}") from exc
             return {"action": "put_function_concurrency", "function": resource_id, "concurrency": desired_count, "response": response}
 
@@ -80,8 +86,9 @@ class LambdaOperator(CloudOperatorPort):
         )
 
     async def health_check(self) -> bool:
+        """Probe Lambda connectivity. Intentionally broad — any failure = unhealthy."""
         try:
             self._lambda.list_functions(MaxItems=1)
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 — health probe intentionally broad
             return False

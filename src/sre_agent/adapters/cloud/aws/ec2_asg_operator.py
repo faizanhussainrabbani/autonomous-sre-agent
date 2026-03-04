@@ -10,6 +10,12 @@ from __future__ import annotations
 import structlog
 from typing import Any
 
+try:
+    from botocore.exceptions import ClientError as _BotoCoreClientError
+    _AWS_ERRORS = (_BotoCoreClientError, ConnectionError, TimeoutError)
+except ImportError:
+    _AWS_ERRORS = (Exception,)  # type: ignore[assignment]
+
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.cloud_operator import CloudOperatorPort
 from sre_agent.adapters.cloud.resilience import (
@@ -64,7 +70,7 @@ class EC2ASGOperator(CloudOperatorPort):
                     AutoScalingGroupName=resource_id,
                     DesiredCapacity=desired_count,
                 )
-            except Exception as exc:
+            except _AWS_ERRORS as exc:
                 raise TransientError(f"ASG SetDesiredCapacity failed: {exc}") from exc
             return {"action": "set_desired_capacity", "asg": resource_id, "desired": desired_count, "response": response}
 
@@ -75,8 +81,9 @@ class EC2ASGOperator(CloudOperatorPort):
         )
 
     async def health_check(self) -> bool:
+        """Probe ASG connectivity. Intentionally broad — any failure = unhealthy."""
         try:
             self._asg.describe_auto_scaling_groups(MaxRecords=1)
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 — health probe intentionally broad
             return False

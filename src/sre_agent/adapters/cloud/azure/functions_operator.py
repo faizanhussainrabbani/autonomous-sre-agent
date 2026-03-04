@@ -10,6 +10,12 @@ from __future__ import annotations
 import structlog
 from typing import Any
 
+try:
+    from azure.core.exceptions import HttpResponseError as _AzureHttpError
+    _AZURE_ERRORS = (_AzureHttpError, ConnectionError, TimeoutError)
+except ImportError:
+    _AZURE_ERRORS = (Exception,)  # type: ignore[assignment]
+
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.cloud_operator import CloudOperatorPort
 from sre_agent.adapters.cloud.resilience import (
@@ -54,7 +60,7 @@ class FunctionsOperator(CloudOperatorPort):
             logger.info("functions_restart", app=resource_id, rg=resource_group)
             try:
                 self._web.web_apps.restart(resource_group, resource_id)
-            except Exception as exc:
+            except _AZURE_ERRORS as exc:
                 raise TransientError(f"Functions restart failed: {exc}") from exc
             return {"action": "restart", "function_app": resource_id}
 
@@ -79,7 +85,7 @@ class FunctionsOperator(CloudOperatorPort):
                 plan = self._web.app_service_plans.get(resource_group, plan_name)
                 plan.sku.capacity = desired_count
                 self._web.app_service_plans.create_or_update(resource_group, plan_name, plan)
-            except Exception as exc:
+            except _AZURE_ERRORS as exc:
                 raise TransientError(f"Functions scale failed: {exc}") from exc
             return {"action": "scale", "plan": plan_name, "desired_count": desired_count}
 
@@ -90,8 +96,9 @@ class FunctionsOperator(CloudOperatorPort):
         )
 
     async def health_check(self) -> bool:
+        """Probe Functions connectivity. Intentionally broad — any failure = unhealthy."""
         try:
             list(self._web.web_apps.list())
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 — health probe intentionally broad
             return False

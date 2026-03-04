@@ -10,6 +10,12 @@ from __future__ import annotations
 import structlog
 from typing import Any
 
+try:
+    from botocore.exceptions import ClientError as _BotoCoreClientError
+    _AWS_ERRORS = (_BotoCoreClientError, ConnectionError, TimeoutError)
+except ImportError:  # boto3 not installed
+    _AWS_ERRORS = (Exception,)  # type: ignore[assignment]
+
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.cloud_operator import CloudOperatorPort
 from sre_agent.adapters.cloud.resilience import (
@@ -54,7 +60,7 @@ class ECSOperator(CloudOperatorPort):
             logger.info("ecs_stop_task", task=resource_id, cluster=cluster)
             try:
                 response = self._ecs.stop_task(cluster=cluster, task=resource_id)
-            except Exception as exc:
+            except _AWS_ERRORS as exc:
                 raise TransientError(f"ECS StopTask failed: {exc}") from exc
             return {"action": "stop_task", "task": resource_id, "response": response}
 
@@ -78,7 +84,7 @@ class ECSOperator(CloudOperatorPort):
                 response = self._ecs.update_service(
                     cluster=cluster, service=resource_id, desiredCount=desired_count,
                 )
-            except Exception as exc:
+            except _AWS_ERRORS as exc:
                 raise TransientError(f"ECS UpdateService failed: {exc}") from exc
             return {"action": "update_service", "service": resource_id, "desired_count": desired_count, "response": response}
 
@@ -89,8 +95,9 @@ class ECSOperator(CloudOperatorPort):
         )
 
     async def health_check(self) -> bool:
+        """Probe ECS connectivity. Intentionally broad — any failure = unhealthy."""
         try:
             self._ecs.list_clusters()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 — health probe intentionally broad
             return False

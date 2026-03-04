@@ -48,7 +48,12 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "BLE"]
+ignore = [
+    # BLE001: blind exception — intentionally suppressed for health probes
+    # (health_check methods must not crash the provider registry)
+    # Use # noqa: BLE001 at each deliberate broad-catch site.
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -59,6 +64,7 @@ python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+ignore_missing_imports = true  # boto3, azure-mgmt-web etc. have no bundled stubs
 
 [tool.coverage.run]
 source = ["src/sre_agent"]
