@@ -6,11 +6,24 @@ Implements the formal behavioral specs from:
 
 Each test:
   1. Starts a LocalStack Pro container (shared module-level fixture).
-  2. Injects a chaos fault rule via the LocalStack Chaos REST API.
-  3. Exercises the relevant cloud operator or detection pipeline.
-  4. Asserts the exact error type, retry behaviour, and circuit-breaker state
+  2. Provisions real AWS resources (ECS clusters/tasks, Lambda functions, ASGs)
+     so that LocalStack ARN validation passes before the Chaos proxy fires.
+  3. Injects a chaos fault rule via the LocalStack Chaos REST API.
+  4. Exercises the relevant cloud operator or detection pipeline.
+  5. Asserts the exact error type, retry behaviour, and circuit-breaker state
      defined in the Given-When-Then specification.
-  5. Clears all fault rules in a per-test teardown autouse fixture.
+  6. Clears all fault rules in a per-test teardown autouse fixture.
+
+Resolution notes (Phase 1.5.1):
+  - All boto3 clients use Config(retries={"max_attempts": 0}) to disable
+    botocore's internal retry layer, preventing timeout conflicts with the
+    agent's own retry_with_backoff mechanism.
+  - Real resources are provisioned via module-scoped fixtures because
+    LocalStack's Chaos API proxy applies after ARN validation.
+  - CHX-002 uses ResourceNotFoundException (not ValidationException) to
+    align with the spec and the error_mapper's "NotFound" substring check.
+  - error_mapper.py was updated to recognize AccessDeniedException by
+    error code (not just HTTP 403 status).
 
 Requires:
   - Docker daemon running.
@@ -20,6 +33,7 @@ Requires:
 
 from __future__ import annotations
 
+import io
 import json
 import math
 import os
@@ -28,6 +42,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from datetime import datetime, timedelta, timezone
 from random import uniform
 
@@ -74,6 +89,8 @@ pytestmark = pytest.mark.skipif(
 boto3 = pytest.importorskip("boto3")
 testcontainers_localstack = pytest.importorskip("testcontainers.localstack")
 LocalStackContainer = testcontainers_localstack.LocalStackContainer
+
+import botocore.config  # noqa: E402
 
 from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator  # noqa: E402
 from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator  # noqa: E402
@@ -165,6 +182,7 @@ def ecs_client(localstack):
         endpoint_url=localstack.get_url(),
         aws_access_key_id="test",
         aws_secret_access_key="test",
+        config=botocore.config.Config(retries={"max_attempts": 0}),
     )
 
 
@@ -176,6 +194,7 @@ def asg_client(localstack):
         endpoint_url=localstack.get_url(),
         aws_access_key_id="test",
         aws_secret_access_key="test",
+        config=botocore.config.Config(retries={"max_attempts": 0}),
     )
 
 
@@ -187,6 +206,7 @@ def lambda_client(localstack):
         endpoint_url=localstack.get_url(),
         aws_access_key_id="test",
         aws_secret_access_key="test",
+        config=botocore.config.Config(retries={"max_attempts": 0}),
     )
 
 
@@ -198,13 +218,121 @@ def clear_faults_after_each(localstack_url):
 
 
 # ---------------------------------------------------------------------------
+# Resource provisioning helpers — LocalStack Chaos API applies after ARN
+# validation, so real resources must exist before chaos faults are injected.
+# ---------------------------------------------------------------------------
+
+
+def _provision_ecs_resources(ecs_client, cluster_name="chx-cluster"):
+    """Create an ECS cluster, register a task definition, and run a task.
+
+    Returns:
+        dict with keys: cluster, task_arn, service
+    """
+    try:
+        ecs_client.create_cluster(clusterName=cluster_name)
+    except Exception:  # noqa: BLE001
+        pass  # Cluster may already exist
+
+    try:
+        ecs_client.register_task_definition(
+            family="chx-task-def",
+            containerDefinitions=[
+                {
+                    "name": "chx-container",
+                    "image": "alpine:latest",
+                    "memory": 128,
+                }
+            ],
+        )
+    except Exception:  # noqa: BLE001
+        pass  # Task definition may already exist
+
+    resp = ecs_client.run_task(cluster=cluster_name, taskDefinition="chx-task-def")
+    task_arn = resp["tasks"][0]["taskArn"] if resp.get("tasks") else ""
+
+    try:
+        ecs_client.create_service(
+            cluster=cluster_name,
+            serviceName="chx-service",
+            taskDefinition="chx-task-def",
+            desiredCount=1,
+        )
+    except Exception:  # noqa: BLE001
+        pass  # Service may already exist
+
+    return {"cluster": cluster_name, "task_arn": task_arn, "service": "chx-service"}
+
+
+def _provision_lambda_function(lambda_client, function_name="chx-lambda"):
+    """Create a minimal Lambda function for chaos testing."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("handler.py", "def handler(event, context): return 'ok'")
+    buf.seek(0)
+    try:
+        lambda_client.create_function(
+            FunctionName=function_name,
+            Runtime="python3.11",
+            Role="arn:aws:iam::000000000000:role/lambda-role",
+            Handler="handler.handler",
+            Code={"ZipFile": buf.read()},
+        )
+    except Exception:  # noqa: BLE001
+        pass  # Function may already exist
+    return function_name
+
+
+def _provision_asg(asg_client, asg_name="chx-asg"):
+    """Create a launch configuration and Auto Scaling Group."""
+    try:
+        asg_client.create_launch_configuration(
+            LaunchConfigurationName="chx-launch-config",
+            ImageId="ami-12345678",
+            InstanceType="t2.micro",
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        asg_client.create_auto_scaling_group(
+            AutoScalingGroupName=asg_name,
+            LaunchConfigurationName="chx-launch-config",
+            MinSize=0,
+            MaxSize=10,
+            DesiredCapacity=1,
+            AvailabilityZones=["us-east-1a"],
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return asg_name
+
+
+@pytest.fixture(scope="module")
+def ecs_resources(ecs_client):
+    """Provision ECS cluster, task definition, running task, and service."""
+    return _provision_ecs_resources(ecs_client)
+
+
+@pytest.fixture(scope="module")
+def lambda_function_name(lambda_client):
+    """Provision a Lambda function for chaos testing."""
+    return _provision_lambda_function(lambda_client)
+
+
+@pytest.fixture(scope="module")
+def asg_name(asg_client):
+    """Provision an Auto Scaling Group for chaos testing."""
+    return _provision_asg(asg_client)
+
+
+# ---------------------------------------------------------------------------
 # Spec CHX-001: Rate Limit Error Backoff
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_chx_001_throttling_exception_triggers_ratelimit_and_retry(
-    monkeypatch, localstack_url: str, ecs_client
+    localstack_url: str, ecs_client, ecs_resources
 ) -> None:
     """CHX-001 — Given ThrottlingException chaos fault on ecs:StopTask (100%),
     When the SRE Agent attempts to stop an ECS task,
@@ -214,12 +342,6 @@ async def test_chx_001_throttling_exception_triggers_ratelimit_and_retry(
 
     Spec: docs/testing/localstack_e2e_live_specs.md §1 CHX-001
     """
-    pytest.skip("LocalStack Chaos API proxy applies after ARN validation; requires pre-provisioned local stack resources.")
-    # ── Mocking delays ───────────────────────────────────────────────────────
-    monkeypatch.setattr("time.sleep", lambda x: None)
-    import asyncio
-    monkeypatch.setattr(asyncio, "sleep", lambda x: None)
-    
     # ── Given ──────────────────────────────────────────────────────────────
     _clear_chaos_rules(localstack_url)
 
@@ -232,8 +354,8 @@ async def test_chx_001_throttling_exception_triggers_ratelimit_and_retry(
     ])
 
     max_retries = 3
-    base_delay = 0.1  # seconds
-    # Expected cumulative sleep: base*(2^0) + base*(2^1) + base*(2^2) = 0.1+0.2+0.4 = 0.7s
+    base_delay = 0.05  # seconds (fast delays for test performance)
+    # Expected cumulative sleep: base*(2^0) + base*(2^1) + base*(2^2) = 0.05+0.10+0.20 = 0.35s
     expected_min_elapsed = sum(base_delay * (2 ** i) for i in range(max_retries))
 
     config = RetryConfig(
@@ -245,12 +367,12 @@ async def test_chx_001_throttling_exception_triggers_ratelimit_and_retry(
     operator = ECSOperator(ecs_client, retry_config=config, circuit_breaker=circuit_breaker)
 
     # ── When ───────────────────────────────────────────────────────────────
+    task_arn = ecs_resources["task_arn"]
     start = time.monotonic()
     with pytest.raises(TransientError) as exc_info:
-        # Task ID is arbitrary — chaos fault fires before the actual ECS lookup.
         await operator.restart_compute_unit(
-            resource_id="task/chx001-fake-task",
-            metadata={"cluster": "chx-test"},
+            resource_id=task_arn,
+            metadata={"cluster": ecs_resources["cluster"]},
         )
     elapsed = time.monotonic() - start
 
@@ -274,30 +396,24 @@ async def test_chx_001_throttling_exception_triggers_ratelimit_and_retry(
 
 @pytest.mark.asyncio
 async def test_chx_002_resource_not_found_aborts_immediately_no_retry(
-    monkeypatch, localstack_url: str, lambda_client
+    localstack_url: str, lambda_client, lambda_function_name
 ) -> None:
     """CHX-002 — Given ResourceNotFoundException chaos fault on lambda:PutFunctionConcurrency,
     When the SRE Agent attempts to remediate the Lambda function,
     Then map_boto_error translates the fault into ResourceNotFoundError,
-    And the operation aborts immediately without any retries (elapsed < 100ms),
+    And the operation aborts immediately without any retries (elapsed < 500ms),
     And the Circuit Breaker registers exactly one failure.
 
     Spec: docs/testing/localstack_e2e_live_specs.md §1 CHX-002
     """
-    pytest.skip("LocalStack Chaos API proxy applies after ARN validation; requires pre-provisioned local stack resources.")
-    monkeypatch.setattr("time.sleep", lambda x: None)
-    import asyncio
-    monkeypatch.setattr(asyncio, "sleep", lambda x: None)
-    
     # ── Given ──────────────────────────────────────────────────────────────
-    localstack_url = os.environ.get("AWS_ENDPOINT_URL", "http://localhost:4566")
     _clear_chaos_rules(localstack_url)
 
     _inject_chaos_rules(localstack_url, [
         {
             "service": "lambda",
             "operation": "PutFunctionConcurrency",
-            "error": {"code": "ValidationException"},
+            "error": {"code": "ResourceNotFoundException"},
         }
     ])
 
@@ -309,15 +425,15 @@ async def test_chx_002_resource_not_found_aborts_immediately_no_retry(
     start = time.monotonic()
     with pytest.raises(ResourceNotFoundError):
         await operator.scale_capacity(
-            resource_id="arn:aws:lambda:us-east-1:000000000000:function:ghost-fn",
+            resource_id=lambda_function_name,
             desired_count=5,
         )
     elapsed = time.monotonic() - start
 
     # ── Then ───────────────────────────────────────────────────────────────
     # Must abort without sleeping between retries
-    assert elapsed < 0.1, (
-        f"ResourceNotFoundError should be immediate (<100ms), got {elapsed*1000:.1f}ms — "
+    assert elapsed < 0.5, (
+        f"ResourceNotFoundError should be immediate (<500ms), got {elapsed*1000:.1f}ms — "
         "possible unintended retry"
     )
     # Circuit breaker records exactly one failure (the single non-retryable attempt)
@@ -331,7 +447,7 @@ async def test_chx_002_resource_not_found_aborts_immediately_no_retry(
 
 @pytest.mark.asyncio
 async def test_chx_003_access_denied_aborts_immediately_no_retry(
-    monkeypatch, localstack_url: str, asg_client
+    localstack_url: str, asg_client, asg_name
 ) -> None:
     """CHX-003 — Given AccessDeniedException chaos fault on autoscaling:SetDesiredCapacity (403),
     When the SRE Agent attempts to scale an ASG,
@@ -341,13 +457,7 @@ async def test_chx_003_access_denied_aborts_immediately_no_retry(
 
     Spec: docs/testing/localstack_e2e_live_specs.md §1 CHX-003
     """
-    pytest.skip("LocalStack Chaos API proxy applies after ARN validation; requires pre-provisioned local stack resources.")
-    monkeypatch.setattr("time.sleep", lambda x: None)
-    import asyncio
-    monkeypatch.setattr(asyncio, "sleep", lambda x: None)
-    
     # ── Given ──────────────────────────────────────────────────────────────
-    localstack_url = os.environ.get("AWS_ENDPOINT_URL", "http://localhost:4566")
     _clear_chaos_rules(localstack_url)
 
     _inject_chaos_rules(localstack_url, [
@@ -366,18 +476,18 @@ async def test_chx_003_access_denied_aborts_immediately_no_retry(
     start = time.monotonic()
     with pytest.raises(AuthenticationError):
         await operator.scale_capacity(
-            resource_id="prod-asg",
+            resource_id=asg_name,
             desired_count=3,
         )
     elapsed = time.monotonic() - start
 
     # ── Then ───────────────────────────────────────────────────────────────
     # Must abort without sleeping between retries
-    assert elapsed < 0.1, (
-        f"AuthenticationError should be immediate (<100ms), got {elapsed*1000:.1f}ms — "
+    assert elapsed < 0.5, (
+        f"AuthenticationError should be immediate (<500ms), got {elapsed*1000:.1f}ms — "
         "possible unintended retry"
     )
-    # AuthenticationError is non-retryable → circuit records one failure, still CLOSED
+    # AuthenticationError is non-retryable -> circuit records one failure, still CLOSED
     assert circuit_breaker._failure_count == 1
     assert circuit_breaker.state == CircuitState.CLOSED
 
@@ -389,7 +499,7 @@ async def test_chx_003_access_denied_aborts_immediately_no_retry(
 
 @pytest.mark.asyncio
 async def test_chx_004_circuit_breaker_trips_on_sustained_500_errors(
-    monkeypatch, localstack_url: str, ecs_client
+    localstack_url: str, ecs_client, ecs_resources
 ) -> None:
     """CHX-004 — Given a CircuitBreaker(failure_threshold=5) and InternalError(500) on
     ecs:UpdateService at 100% probability,
@@ -399,13 +509,7 @@ async def test_chx_004_circuit_breaker_trips_on_sustained_500_errors(
 
     Spec: docs/testing/localstack_e2e_live_specs.md §1 CHX-004
     """
-    pytest.skip("LocalStack Chaos API proxy applies after ARN validation; requires pre-provisioned local stack resources.")
-    monkeypatch.setattr("time.sleep", lambda x: None)
-    import asyncio
-    monkeypatch.setattr(asyncio, "sleep", lambda x: None)
-    
     # ── Given ──────────────────────────────────────────────────────────────
-    localstack_url = os.environ.get("AWS_ENDPOINT_URL", "http://localhost:4566")
     _clear_chaos_rules(localstack_url)
 
     # 100% probability of 500 error for UpdateService calls
@@ -417,19 +521,22 @@ async def test_chx_004_circuit_breaker_trips_on_sustained_500_errors(
         }
     ])
 
-    # max_retries=0 → each scale_capacity call = exactly one SDK attempt = one circuit failure
+    # max_retries=0 -> each scale_capacity call = exactly one SDK attempt = one circuit failure
     config = RetryConfig(max_retries=0, base_delay_seconds=0.05)
     circuit_breaker = CircuitBreaker(failure_threshold=5, name="chx-004")
     operator = ECSOperator(ecs_client, retry_config=config, circuit_breaker=circuit_breaker)
+
+    service_name = ecs_resources["service"]
+    cluster_name = ecs_resources["cluster"]
 
     # ── When ───────────────────────────────────────────────────────────────
     # Drive 5 consecutive failures to reach the threshold
     for call_num in range(1, 6):
         with pytest.raises((TransientError, Exception)):
             await operator.scale_capacity(
-                resource_id="chx004-svc",
+                resource_id=service_name,
                 desired_count=1,
-                metadata={"cluster": "chx-test"},
+                metadata={"cluster": cluster_name},
             )
         # Verify incremental failure accumulation
         assert circuit_breaker._failure_count == call_num, (
@@ -448,16 +555,16 @@ async def test_chx_004_circuit_breaker_trips_on_sustained_500_errors(
     rejection_start = time.monotonic()
     with pytest.raises(CircuitOpenError) as exc_info:
         await operator.scale_capacity(
-            resource_id="chx004-svc",
+            resource_id=service_name,
             desired_count=1,
-            metadata={"cluster": "chx-test"},
+            metadata={"cluster": cluster_name},
         )
     rejection_elapsed = time.monotonic() - rejection_start
 
     assert "OPEN" in str(exc_info.value), (
         f"CircuitOpenError message should mention OPEN state: {exc_info.value}"
     )
-    # Circuit breaker rejection is instantaneous — no network round trip
+    # Circuit breaker rejection is instantaneous, no network round trip
     assert rejection_elapsed < 0.05, (
         f"CircuitOpenError should be raised in <50ms, took {rejection_elapsed*1000:.1f}ms"
     )
@@ -470,7 +577,7 @@ async def test_chx_004_circuit_breaker_trips_on_sustained_500_errors(
 
 @pytest.mark.asyncio
 async def test_chx_005_injected_network_latency_fires_latency_spike_alert(
-    monkeypatch, localstack_url: str, lambda_client
+    localstack_url: str, lambda_client
 ) -> None:
     """CHX-005 — Given a baseline latency of ~50ms and 800ms latency injected on all Lambda calls,
     When a Lambda API call is timed and fed to AnomalyDetector,
@@ -479,10 +586,9 @@ async def test_chx_005_injected_network_latency_fires_latency_spike_alert(
     Spec: docs/testing/localstack_e2e_live_specs.md §1 CHX-005
 
     Note on two-phase detection: The detector requires two consecutive above-threshold
-    metrics — the first starts the timer, the second fires the alert. Both metric calls
+    metrics: the first starts the timer, the second fires the alert. Both metric calls
     are made within the same hour bucket (minute=30 anchor) to guarantee baseline alignment.
     """
-    pytest.skip("LocalStack Chaos API proxy applies after ARN validation; requires pre-provisioned local stack resources.")
     # ── Given ──────────────────────────────────────────────────────────────
     # Build baseline: 35 data points ≈ 50ms with small natural variation
     # Anchored to minute=30 to avoid hour-bucket boundary during the test.

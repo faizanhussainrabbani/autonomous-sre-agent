@@ -27,7 +27,9 @@ def map_boto_error(exc: Exception) -> CloudOperatorError:
     status_code = getattr(exc, "response", {}).get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
 
     # 1. Authentication / Authorization
-    if status_code in (401, 403) or error_code in ("AccessDenied", "AuthFailure", "UnauthorizedOperation"):
+    if status_code in (401, 403) or error_code in (
+        "AccessDenied", "AccessDeniedException", "AuthFailure", "UnauthorizedOperation",
+    ):
         return AuthenticationError(f"AWS Auth Error ({error_code}): {exc}")
 
     # 2. Not Found
