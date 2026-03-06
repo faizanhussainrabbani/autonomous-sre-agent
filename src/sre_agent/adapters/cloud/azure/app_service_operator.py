@@ -18,10 +18,10 @@ except ImportError:
 
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.cloud_operator import CloudOperatorPort
+from sre_agent.adapters.cloud.azure.error_mapper import map_azure_error
 from sre_agent.adapters.cloud.resilience import (
     CircuitBreaker,
     RetryConfig,
-    TransientError,
     retry_with_backoff,
 )
 
@@ -61,7 +61,7 @@ class AppServiceOperator(CloudOperatorPort):
             try:
                 self._web.web_apps.restart(resource_group, resource_id)
             except _AZURE_ERRORS as exc:
-                raise TransientError(f"App Service restart failed: {exc}") from exc
+                raise map_azure_error(exc) from exc
             return {"action": "restart", "app": resource_id, "resource_group": resource_group}
 
         return await retry_with_backoff(
@@ -86,7 +86,7 @@ class AppServiceOperator(CloudOperatorPort):
                 plan.sku.capacity = desired_count
                 self._web.app_service_plans.create_or_update(resource_group, plan_name, plan)
             except _AZURE_ERRORS as exc:
-                raise TransientError(f"App Service scale failed: {exc}") from exc
+                raise map_azure_error(exc) from exc
             return {"action": "scale", "plan": plan_name, "desired_count": desired_count}
 
         return await retry_with_backoff(

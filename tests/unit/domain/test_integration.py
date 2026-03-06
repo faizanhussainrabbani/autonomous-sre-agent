@@ -87,6 +87,8 @@ class TestMultiDimensionalCorrelation:
     async def detector_with_baselines(self, detector: AnomalyDetector) -> AnomalyDetector:
         """Feed baselines in the SAME hour segment so they're found at detection time."""
         now = datetime.now(timezone.utc)
+        # Anchor to avoid crossing hour boundaries during 350-second subtraction
+        now = now.replace(minute=30, second=0, microsecond=0)
         for i in range(35):
             # Stay in the same hour by using seconds offset, not hours
             ts = now - timedelta(seconds=i * 10)
@@ -99,6 +101,7 @@ class TestMultiDimensionalCorrelation:
     ):
         """Both latency +50% and error rate +80% simultaneously → MULTI_DIMENSIONAL alert."""
         detector = detector_with_baselines
+        now = datetime.now(timezone.utc).replace(minute=30, second=0, microsecond=0)
 
         # Inject latency metric that IS detected by _detect_latency_spike but returns None
         # (first detection starts timer, doesn't fire alert yet). This puts it through
@@ -106,14 +109,14 @@ class TestMultiDimensionalCorrelation:
         latency_metric = CanonicalMetric(
             name="http_request_duration_seconds",
             value=160.0,  # ~57% above mean of ~102
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now,
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
         # Error metric similarly sub-threshold (below 200% surge but above +80%)
         error_metric = CanonicalMetric(
             name="http_errors_total",
             value=11.0,  # ~83% above mean of ~6
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now,
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
 
@@ -133,11 +136,12 @@ class TestMultiDimensionalCorrelation:
     ):
         """Only latency elevated (no error rate shift) → no MULTI_DIMENSIONAL alert."""
         detector = detector_with_baselines
+        now = datetime.now(timezone.utc).replace(minute=30, second=0, microsecond=0)
 
         latency_metric = CanonicalMetric(
             name="http_request_duration_seconds",
             value=165.0,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now,
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
 
@@ -405,18 +409,16 @@ class TestPerStageLatency:
         detector = AnomalyDetector(baseline, config)
 
         # Build baseline in SAME hour segment as detection
-        now = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc).replace(minute=30, second=0, microsecond=0)
         for i in range(35):
             ts = now - timedelta(seconds=i * 10)
             await baseline.ingest("svc-A", "http_request_duration_seconds", 100 + (i % 5), ts)
-
-        now2 = datetime.now(timezone.utc)
 
         # First spike: starts the duration timer (returns None)
         spike1 = CanonicalMetric(
             name="http_request_duration_seconds",
             value=900.0,
-            timestamp=now2,
+            timestamp=now,
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
         result1 = await detector.detect("svc-A", [spike1])
@@ -425,7 +427,7 @@ class TestPerStageLatency:
         spike2 = CanonicalMetric(
             name="http_request_duration_seconds",
             value=900.0,
-            timestamp=now2 + timedelta(seconds=1),
+            timestamp=now + timedelta(seconds=1),
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
         result2 = await detector.detect("svc-A", [spike2])

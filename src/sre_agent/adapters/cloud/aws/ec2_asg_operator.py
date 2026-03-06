@@ -18,10 +18,10 @@ except ImportError:
 
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.cloud_operator import CloudOperatorPort
+from sre_agent.adapters.cloud.aws.error_mapper import map_boto_error
 from sre_agent.adapters.cloud.resilience import (
     CircuitBreaker,
     RetryConfig,
-    TransientError,
     retry_with_backoff,
 )
 
@@ -71,7 +71,7 @@ class EC2ASGOperator(CloudOperatorPort):
                     DesiredCapacity=desired_count,
                 )
             except _AWS_ERRORS as exc:
-                raise TransientError(f"ASG SetDesiredCapacity failed: {exc}") from exc
+                raise map_boto_error(exc) from exc
             return {"action": "set_desired_capacity", "asg": resource_id, "desired": desired_count, "response": response}
 
         return await retry_with_backoff(

@@ -18,10 +18,10 @@ except ImportError:  # boto3 not installed
 
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.cloud_operator import CloudOperatorPort
+from sre_agent.adapters.cloud.aws.error_mapper import map_boto_error
 from sre_agent.adapters.cloud.resilience import (
     CircuitBreaker,
     RetryConfig,
-    TransientError,
     retry_with_backoff,
 )
 
@@ -61,7 +61,7 @@ class ECSOperator(CloudOperatorPort):
             try:
                 response = self._ecs.stop_task(cluster=cluster, task=resource_id)
             except _AWS_ERRORS as exc:
-                raise TransientError(f"ECS StopTask failed: {exc}") from exc
+                raise map_boto_error(exc) from exc
             return {"action": "stop_task", "task": resource_id, "response": response}
 
         return await retry_with_backoff(
@@ -85,7 +85,7 @@ class ECSOperator(CloudOperatorPort):
                     cluster=cluster, service=resource_id, desiredCount=desired_count,
                 )
             except _AWS_ERRORS as exc:
-                raise TransientError(f"ECS UpdateService failed: {exc}") from exc
+                raise map_boto_error(exc) from exc
             return {"action": "update_service", "service": resource_id, "desired_count": desired_count, "response": response}
 
         return await retry_with_backoff(

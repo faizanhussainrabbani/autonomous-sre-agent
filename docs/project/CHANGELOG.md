@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-03-05 — Phase 1.5.1: Cloud Operator Error Mapping & LocalStack Pro Testing Plan)
+- **`src/sre_agent/adapters/cloud/aws/error_mapper.py`:** New `map_boto_error()` function — maps `ClientError` to `AuthenticationError`, `ResourceNotFoundError`, `RateLimitError`, or `TransientError` based on HTTP status code and error code
+- **`src/sre_agent/adapters/cloud/azure/error_mapper.py`:** New `map_azure_error()` function — same canonical mapping for Azure `HttpResponseError`
+- **`tests/unit/adapters/test_aws_error_mapper.py`:** 7 unit tests for AWS mapper (all pass)
+- **`tests/unit/adapters/test_azure_error_mapper.py`:** 6 unit tests for Azure mapper (all pass)
+- **`docs/testing/localstack_pro_live_testing_plan.md`:** Detailed live testing plan covering Chaos API (CHX-001–005), Cloud Pods (POD-001–002), Ephemeral Instances (EPH-001–002), Advanced API (ADS-001–002), and IAM enforcement (IAM-001–002)
+
+### Changed (2026-03-05)
+- **`ECSOperator`**, **`LambdaOperator`**, **`EC2ASGOperator`**: replaced `raise TransientError(...)` with `raise map_boto_error(exc)` in all error catch blocks
+- **`AppServiceOperator`**, **`FunctionsOperator`**: replaced `raise TransientError(...)` with `raise map_azure_error(exc)` in all error catch blocks
+- **`tests/unit/domain/test_integration.py`**: fixed timestamp anchoring (`replace(minute=30)`) to prevent hour-boundary flakiness in multi-dimensional correlation tests
+
+---
+
 ### Added (2026-03-04 — Integration Testing & Docs Restructure)
 - **LocalStack Pro integration:** Activated Pro license (`LOCALSTACK_AUTH_TOKEN`) enabling full AWS service emulation (EC2 ASG, ECS, Lambda) in integration tests.
 - **`docs/testing/localstack_pro_guide.md`:** Comprehensive setup and authentication guide for local AWS mocking via Testcontainers.
