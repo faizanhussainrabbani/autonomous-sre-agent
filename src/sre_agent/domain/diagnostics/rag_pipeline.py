@@ -26,7 +26,7 @@ from sre_agent.domain.diagnostics.confidence import ConfidenceScorer
 from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.diagnostics.timeline import TimelineConstructor
 from sre_agent.domain.diagnostics.validator import SecondOpinionValidator
-from sre_agent.domain.models.canonical import CorrelatedSignals, Severity
+from sre_agent.domain.models.canonical import CorrelatedSignals, DomainEvent, EventTypes, Severity
 from sre_agent.domain.models.diagnosis import (
     AuditEntry,
     ConfidenceLevel,
@@ -36,6 +36,7 @@ from sre_agent.domain.models.diagnosis import (
 )
 from sre_agent.ports.diagnostics import DiagnosisRequest, DiagnosisResult, DiagnosticPort
 from sre_agent.ports.embedding import EmbeddingPort
+from sre_agent.ports.events import EventBus, EventStore
 from sre_agent.ports.llm import (
     EvidenceContext,
     HypothesisRequest,
@@ -67,6 +68,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         confidence_scorer: ConfidenceScorer | None = None,
         timeline_constructor: TimelineConstructor | None = None,
         context_budget: int = 4000,
+        event_bus: EventBus | None = None,
+        event_store: EventStore | None = None,
     ) -> None:
         self._vector_store = vector_store
         self._embedding = embedding
@@ -76,6 +79,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         self._confidence_scorer = confidence_scorer or ConfidenceScorer()
         self._timeline = timeline_constructor or TimelineConstructor()
         self._context_budget = context_budget
+        self._event_bus = event_bus
+        self._event_store = event_store
 
     async def diagnose(self, request: DiagnosisRequest) -> DiagnosisResult:
         """Execute the full RAG diagnostic pipeline.
@@ -90,6 +95,17 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         diagnosis = Diagnosis(alert_id=request.alert.alert_id)
 
         try:
+            # Stage 0: Emit IncidentDetected event (Engineering Standards §1.4)
+            await self._emit(DomainEvent(
+                event_type=EventTypes.INCIDENT_DETECTED,
+                aggregate_id=request.alert.alert_id,
+                payload={
+                    "service": request.alert.service,
+                    "anomaly_type": request.alert.anomaly_type.value,
+                    "description": request.alert.description,
+                },
+            ))
+
             # Stage 1: Embed alert description
             diagnosis.state = DiagnosticState.RETRIEVING
             audit.append(AuditEntry(stage="retrieval", action="embedding_alert"))
@@ -157,6 +173,17 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 },
             ))
 
+            # Emit DiagnosisGenerated event
+            await self._emit(DomainEvent(
+                event_type=EventTypes.DIAGNOSIS_GENERATED,
+                aggregate_id=request.alert.alert_id,
+                payload={
+                    "root_cause": hypothesis.root_cause,
+                    "llm_confidence": hypothesis.confidence,
+                    "evidence_count": len(trimmed_evidence),
+                },
+            ))
+
             # Stage 6: Validate hypothesis
             diagnosis.state = DiagnosticState.VALIDATING
             validation_result = await self._validator.validate(
@@ -171,6 +198,16 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 details={
                     "agrees": validation_result.agrees,
                     "reasoning": validation_result.reasoning[:100],
+                },
+            ))
+
+            # Emit SecondOpinionCompleted event
+            await self._emit(DomainEvent(
+                event_type=EventTypes.SECOND_OPINION_COMPLETED,
+                aggregate_id=request.alert.alert_id,
+                payload={
+                    "agrees": validation_result.agrees,
+                    "validation_confidence": validation_result.confidence,
                 },
             ))
 
@@ -217,6 +254,17 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                     "severity": severity.name,
                     "confidence": confidence,
                     "requires_approval": requires_approval,
+                },
+            ))
+
+            # Emit SeverityAssigned event
+            await self._emit(DomainEvent(
+                event_type=EventTypes.SEVERITY_ASSIGNED,
+                aggregate_id=request.alert.alert_id,
+                payload={
+                    "severity": severity.name,
+                    "confidence": confidence,
+                    "requires_human_approval": requires_approval,
                 },
             ))
 
@@ -284,6 +332,24 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             return vs_ok and emb_ok and llm_ok
         except Exception:  # noqa: BLE001
             return False
+
+    async def _emit(self, event: DomainEvent) -> None:
+        """Fire-and-forget domain event emission (Engineering Standards §1.4).
+
+        Emits to both EventStore (persistence) and EventBus (pub/sub).
+        Failures are logged as warnings — never allowed to abort the pipeline.
+        """
+        try:
+            if self._event_store is not None:
+                await self._event_store.append(event)
+            if self._event_bus is not None:
+                await self._event_bus.publish(event)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "event_emission_failed",
+                event_type=event.event_type,
+                error=str(exc),
+            )
 
     def _handle_novel_incident(
         self,

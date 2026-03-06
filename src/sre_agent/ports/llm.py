@@ -51,6 +51,7 @@ class HypothesisRequest:
     timeline: str
     evidence: list[EvidenceContext] = field(default_factory=list)
     system_context: str = ""
+    priority: int = 3  # §5.3 priority queue: 1=highest (SEV1), 4=lowest (SEV4)
 
 
 @dataclass(frozen=True)

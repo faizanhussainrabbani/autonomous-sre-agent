@@ -20,6 +20,7 @@ from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.diagnostics.timeline import TimelineConstructor
 from sre_agent.domain.diagnostics.validator import SecondOpinionValidator, ValidationStrategy
 from sre_agent.domain.models.diagnosis import ServiceTier
+from sre_agent.adapters.llm.throttled_adapter import ThrottledLLMAdapter
 from sre_agent.ports.embedding import EmbeddingPort
 from sre_agent.ports.llm import LLMConfig, LLMProvider, LLMReasoningPort
 from sre_agent.ports.vector_store import VectorStorePort
@@ -113,7 +114,14 @@ def create_diagnostic_pipeline(
     """
     vs = vector_store or create_vector_store()
     emb = embedding or create_embedding()
-    llm_adapter = llm or create_llm()
+    # Wrap in ThrottledLLMAdapter to enforce §5.3: max 10 concurrent LLM calls
+    # with priority ordering by severity.
+    raw_llm = llm or create_llm()
+    llm_adapter: LLMReasoningPort = (
+        raw_llm
+        if isinstance(raw_llm, ThrottledLLMAdapter)
+        else ThrottledLLMAdapter(raw_llm)
+    )
 
     severity_classifier = SeverityClassifier(service_tiers=service_tiers)
     validator = SecondOpinionValidator(

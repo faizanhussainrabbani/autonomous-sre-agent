@@ -385,6 +385,7 @@ class DomainEvent:
 # Pre-defined event types for Phase 1
 class EventTypes:
     """Constants for domain event types."""
+    # Phase 1 — Detection layer
     ANOMALY_DETECTED = "anomaly.detected"
     ANOMALY_CORRELATED = "anomaly.correlated"
     ALERT_SUPPRESSED = "alert.suppressed"
@@ -393,3 +394,9 @@ class EventTypes:
     DEPENDENCY_GRAPH_UPDATED = "dependency_graph.updated"
     BASELINE_UPDATED = "baseline.updated"
     INCIDENT_CREATED = "incident.created"
+
+    # Phase 2 — Intelligence layer (Engineering Standards §1.4 / §1.5)
+    INCIDENT_DETECTED = "incident.detected"
+    DIAGNOSIS_GENERATED = "diagnosis.generated"
+    SECOND_OPINION_COMPLETED = "second_opinion.completed"
+    SEVERITY_ASSIGNED = "severity.assigned"

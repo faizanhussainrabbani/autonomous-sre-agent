@@ -103,3 +103,22 @@ class SeverityOverrideService:
     def has_active_override(self, alert_id: UUID) -> bool:
         """Check whether an alert has an active override."""
         return alert_id in self._overrides
+
+    def revoke_override(self, alert_id: UUID) -> bool:
+        """Revoke an active severity override, restoring auto-classification.
+
+        Args:
+            alert_id: The alert whose override should be removed.
+
+        Returns:
+            True if an override existed and was removed; False otherwise.
+        """
+        if alert_id not in self._overrides:
+            return False
+        removed = self._overrides.pop(alert_id)
+        logger.info(
+            "severity_override_revoked",
+            alert_id=str(alert_id),
+            override_severity=removed.override_severity.name,
+        )
+        return True
