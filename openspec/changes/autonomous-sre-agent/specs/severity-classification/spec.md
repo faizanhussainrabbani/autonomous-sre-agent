@@ -76,3 +76,20 @@ The system SHALL compute a composite impact score from multiple dimensions to in
   - Financial impact (estimated revenue at risk per minute)
   - Remediation reversibility (is the known fix idempotent?)
 - **AND** classify severity based on the composite score according to configurable thresholds
+
+### Requirement: Multi-Dimensional Impact Scoring Formula
+The system SHALL utilize a deterministic formula to calculate the composite impact score, normalizing across the 5 dimensions.
+
+#### Scenario: Calculating the final numerical severity
+- **WHEN** the system calculates multi-dimensional impact
+- **THEN** it SHALL use a weighted sum formula: `Score = (W1 * UserImpact) + (W2 * TierCrit) + (W3 * BlastRadius) + (W4 * FinImpact) - (W5 * Reversibility)`
+- **AND** the weights (`W1` through `W5`) SHALL be configurable globally via the agent settings
+- **AND** incidents with a `Score > Threshold_Sev1` become Sev 1, `Threshold_Sev2` become Sev 2, etc.
+
+### Requirement: Service Tier Data Sourcing
+The system SHALL obtain authoritative service tier classifications from a dedicated, reliable external system of record.
+
+#### Scenario: Resolving service tiers during incident classification
+- **WHEN** an incident occurs on a specific service
+- **THEN** the system SHALL query external metadata annotations (e.g., Kubernetes `metadata.labels['service-tier']` or an external service catalog like Backstage)
+- **AND** if the service tier is missing or unreachable, the system SHALL default to Tier 1 (fail-safe) to avoid inadvertently classifying critical apps as low priority

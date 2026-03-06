@@ -26,8 +26,23 @@ testcontainers>=3.7
 ruff>=0.3
 mypy>=1.8
 
+[intelligence]
+chromadb>=0.4
+sentence-transformers>=2.2
+openai>=1.0
+anthropic>=0.20
+tiktoken>=0.5
+
+[llm]
+openai>=1.0
+anthropic>=0.20
+tiktoken>=0.5
+
 [newrelic]
 newrelic-telemetry-sdk>=0.5
 
 [vault]
 hvac>=2.1
+
+[vectordb]
+chromadb>=0.4

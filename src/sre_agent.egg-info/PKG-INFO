@@ -25,6 +25,18 @@ Requires-Dist: azure-storage-blob>=12.19; extra == "azure"
 Requires-Dist: azure-mgmt-web>=7.0; extra == "azure"
 Provides-Extra: vault
 Requires-Dist: hvac>=2.1; extra == "vault"
+Provides-Extra: intelligence
+Requires-Dist: chromadb>=0.4; extra == "intelligence"
+Requires-Dist: sentence-transformers>=2.2; extra == "intelligence"
+Requires-Dist: openai>=1.0; extra == "intelligence"
+Requires-Dist: anthropic>=0.20; extra == "intelligence"
+Requires-Dist: tiktoken>=0.5; extra == "intelligence"
+Provides-Extra: vectordb
+Requires-Dist: chromadb>=0.4; extra == "vectordb"
+Provides-Extra: llm
+Requires-Dist: openai>=1.0; extra == "llm"
+Requires-Dist: anthropic>=0.20; extra == "llm"
+Requires-Dist: tiktoken>=0.5; extra == "llm"
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.23; extra == "dev"

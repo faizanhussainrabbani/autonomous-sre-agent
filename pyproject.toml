@@ -30,6 +30,15 @@ newrelic = ["newrelic-telemetry-sdk>=0.5"]
 aws = ["boto3>=1.34"]
 azure = ["azure-identity>=1.15", "azure-keyvault-secrets>=4.8", "azure-storage-blob>=12.19", "azure-mgmt-web>=7.0"]
 vault = ["hvac>=2.1"]
+intelligence = [
+    "chromadb>=0.4",
+    "sentence-transformers>=2.2",
+    "openai>=1.0",
+    "anthropic>=0.20",
+    "tiktoken>=0.5",
+]
+vectordb = ["chromadb>=0.4"]
+llm = ["openai>=1.0", "anthropic>=0.20", "tiktoken>=0.5"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",

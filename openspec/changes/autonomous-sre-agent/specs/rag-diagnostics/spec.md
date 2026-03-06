@@ -56,3 +56,35 @@ The system SHALL maintain a full audit trail of which documents, data sources, a
 - **WHEN** an operator reviews a resolved incident
 - **THEN** the system SHALL display the exact post-mortems, runbooks, and telemetry queries that informed the diagnosis
 - **AND** the reasoning chain from evidence to conclusion SHALL be fully inspectable
+
+### Requirement: Embedding Strategy and Document Chunking
+The system SHALL standardize the embedding model, dimensionality, and chunking strategy for vectorizing historical incidents and runbooks.
+
+#### Scenario: Document ingestion and chunking
+- **WHEN** a new post-mortem or runbook is added to the knowledge base
+- **THEN** the system SHALL chunk the document using semantic boundaries (e.g., Markdown headers) rather than strict token counts
+- **AND** the vectors SHALL be generated using a configurable embedding model (defaulting to `sentence-transformers` for development, structured via a `VectorStorePort`)
+- **AND** the vector representations SHALL be updated on a 90-day rolling cadence to prevent TTL staleness
+
+### Requirement: LLM Prompt Engineering and Token Budgets
+The system SHALL strictly define LLM prompt templates, enforce token budgets per diagnosis, and handle rate-limiting fallbacks.
+
+#### Scenario: Enforcing token budgets during RAG formulation
+- **WHEN** constructing the context window for a root cause hypothesis request
+- **THEN** the system SHALL allocate a strict token budget (e.g., max 4000 tokens for context)
+- **AND** prioritize the most recent, highest-similarity evidence blocks if the context size exceeds the budget
+- **AND** include specific system instructions demanding structured output with mandatory confidence score and exact evidence citations
+
+#### Scenario: Handling LLM rate limits and fallbacks
+- **WHEN** the primary LLM provider (e.g., OpenAI/Anthropic) returns a 429 RateLimitExceeded or 503 ServiceUnavailable
+- **THEN** the system SHALL implement exponential backoff
+- **AND** if retries are exhausted within the configured SLA (e.g., 30s), transition gracefully to a degraded state
+- **AND** escalate the incident to a human without hallucinating a low-confidence diagnosis
+
+### Requirement: Intelligence Layer Port Interfaces
+The system SHALL implement the Intelligence Layer strictly through abstract Port definitions, preserving the Hexagonal Architecture and Dependency Inversion.
+
+#### Scenario: Swapping vector databases or LLM providers
+- **WHEN** the system orchestrates the RAG diagnostic pipeline
+- **THEN** it SHALL rely exclusively on abstract ports (`DiagnosticPort`, `VectorStorePort`, `LLMReasoningPort`)
+- **AND** the concrete adapters (e.g., ChromaDB, OpenAI, Anthropic, Pinescone) SHALL be injected at runtime via the bootstrap configuration
