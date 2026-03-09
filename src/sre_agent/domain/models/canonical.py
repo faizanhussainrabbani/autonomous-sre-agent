@@ -349,6 +349,7 @@ class AnomalyAlert:
     baseline_value: float = 0.0
     deviation_sigma: float = 0.0
     description: str = ""
+    blast_radius_ratio: float = 0.0  # Ratio of affected downstream services [0, 1]
 
     # Correlation
     correlated_incident_id: UUID | None = None  # Set by alert correlation engine

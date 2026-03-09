@@ -151,6 +151,27 @@ class SeverityClassifier:
             )
             severity = elevated
 
+        # Certificate expiry: dynamically floor severity based on hours remaining
+        if alert.anomaly_type == AnomalyType.CERTIFICATE_EXPIRY:
+            hours_remaining = alert.current_value
+            if hours_remaining < 2.0:
+                cert_floor: Severity | None = Severity.SEV1
+            elif hours_remaining < 6.0:
+                cert_floor = Severity.SEV2
+            elif hours_remaining < 24.0:
+                cert_floor = Severity.SEV3
+            else:
+                cert_floor = None
+            if cert_floor is not None and severity.value > cert_floor.value:
+                logger.info(
+                    "severity_certificate_expiry_floor",
+                    service=alert.service,
+                    hours_remaining=hours_remaining,
+                    original=severity.name,
+                    floor=cert_floor.name,
+                )
+                severity = cert_floor
+
         logger.info(
             "severity_classified",
             service=alert.service,
@@ -160,3 +181,20 @@ class SeverityClassifier:
         )
 
         return severity, impact
+
+    def get_service_tier(self, service: str) -> "ServiceTier":
+        """Resolve the tier for a given service name.
+
+        Returns the configured tier for the service, or the default tier
+        when the service is not found in the configured mapping.
+
+        Args:
+            service: The service name to look up.
+
+        Returns:
+            The ServiceTier for the service.
+        """
+        from sre_agent.domain.models.diagnosis import ServiceTier  # local to avoid circular
+        raw = self._service_tiers.get(service, self._default_tier)
+        # _service_tiers values are already ServiceTier instances
+        return raw

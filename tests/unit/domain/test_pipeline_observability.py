@@ -246,6 +246,7 @@ async def test_severity_assigned_incremented():
 
     result = await pipeline.diagnose(request)
     severity_name = result.severity.name
-    counter = SEVERITY_ASSIGNED.labels(severity=severity_name, service_tier="unknown")
+    # SeverityClassifier defaults unknown services to TIER_1; label is now "TIER_1"
+    counter = SEVERITY_ASSIGNED.labels(severity=severity_name, service_tier="TIER_1")
     # Counter value is >= 1 after at least one diagnose() call
     assert counter._value.get() >= 1, "SEVERITY_ASSIGNED counter was not incremented"

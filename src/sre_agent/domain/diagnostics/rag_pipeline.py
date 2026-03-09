@@ -36,6 +36,7 @@ from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.diagnostics.timeline import TimelineConstructor
 from sre_agent.domain.diagnostics.validator import SecondOpinionValidator
 from sre_agent.domain.models.canonical import CorrelatedSignals, DomainEvent, EventTypes, Severity
+from sre_agent.domain.models.diagnosis import ServiceTier
 from sre_agent.domain.models.diagnosis import (
     AuditEntry,
     ConfidenceLevel,
@@ -288,14 +289,15 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             severity, impact = self._severity_classifier.classify(
                 alert=request.alert,
                 llm_confidence=confidence,
-                blast_radius_ratio=0.0,  # Computed externally if available
+                blast_radius_ratio=request.alert.blast_radius_ratio,  # propagated from alert
             )
 
-            # OBS-001: Observe severity counter
-            service_tier = getattr(request.alert, "service_tier", "unknown")
+            # OBS-001: Observe severity counter — use classifier's resolved tier for accuracy
+            resolved_tier = self._severity_classifier.get_service_tier(request.alert.service)
+            service_tier_label = f"TIER_{resolved_tier.value}"
             SEVERITY_ASSIGNED.labels(
                 severity=severity.name,
-                service_tier=str(service_tier),
+                service_tier=service_tier_label,
             ).inc()
 
             # Build evidence citations
@@ -309,11 +311,16 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 for r in search_results
             ]
 
-            # Determine approval requirement
+            # Determine approval requirement.
+            # Tier 1/2 services always require human approval regardless of
+            # confidence level, preventing autonomous execution on critical
+            # infrastructure when severity is underscored (e.g. missing
+            # blast_radius → SEV3 despite Tier 1 classification).
             confidence_level = ConfidenceLevel.from_score(confidence)
             requires_approval = (
                 severity in (Severity.SEV1, Severity.SEV2)
                 or confidence_level != "AUTONOMOUS"
+                or resolved_tier in (ServiceTier.TIER_1, ServiceTier.TIER_2)
             )
 
             diagnosis.state = DiagnosticState.COMPLETE
