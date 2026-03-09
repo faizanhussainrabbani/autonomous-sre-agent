@@ -227,3 +227,180 @@ pipeline = create_diagnostic_pipeline(
 ---
 
 *Report generated from live run output captured at 2026-03-09 13:35:52 UTC.*
+
+---
+
+## 7. Demo 2 — Flash Sale Cascade Failure (2026-03-09)
+
+**Script:** `scripts/live_demo_cascade_failure.py`
+**LLM Provider:** Anthropic Claude (claude-sonnet-4-20250514)
+**Total Token Usage:** 4,148 prompt / 1,905 completion / 6,053 total
+
+### 7.1 Scenario Summary
+
+Three simultaneous Black Friday incidents: order-service OOM, downstream checkout-service HTTP 503 surge, and api-gateway latency spike. Designed to validate multi-incident isolation, cross-service cascade tracing, and event store isolation.
+
+### 7.2 Results
+
+| Service | Anomaly Type | Severity | Confidence | Approval | Diagnosis Time |
+|---|---|---|---|---|---|
+| order-service | OOM kill | SEV3 | 72.6% | Required | ~16 s |
+| checkout-service | HTTP 503 surge | SEV3 | 78.2% | Required | ~14 s |
+| api-gateway | Latency spike | SEV3 | 70.9% | Required | ~15 s |
+
+### 7.3 LLM Response Quality
+
+**order-service:** "Unbounded in-memory shopping cart object pool accumulation during flash sale event" — exact root cause match to the ingested post-mortem. Remediation correctly called for pod restart + JVM heap limit patch.
+
+**checkout-service:** "order-service unavailable or crashing, likely due to resource exhaustion (OOM)" — correctly traced the cascade origin upstream without being told the two incidents were related.
+
+**api-gateway:** "Upstream order-service degradation causing cascade through checkout-service to api-gateway." Remediation explicitly advised: "Do NOT restart api-gateway pods until upstream root cause is fixed" — matching runbook guidance verbatim.
+
+**Overall:** Cascade chain reasoning is strong. The LLM identified the root → intermediate → symptom chain purely from evidence context, with no explicit cross-incident signal in the alert payloads.
+
+### 7.4 Event Isolation Verification
+
+Each incident used an isolated `InMemoryEventBus` and `InMemoryEventStore`. Post-run checks confirmed:
+
+- 4 events per incident (INCIDENT_DETECTED → DIAGNOSIS_GENERATED → SECOND_OPINION_COMPLETED → SEVERITY_ASSIGNED)
+- Zero cross-contamination across 3 aggregate IDs
+- `await es.get_events(str(alert_id))` pattern confirmed as the correct API call signature
+
+### 7.5 Improvement Areas Discovered
+
+**[CRITICAL] — Blast Radius Not Propagated to Severity Classifier**
+
+All three Tier 1/Tier 2 services received SEV3 despite a flash sale affecting thousands of users. `RAGDiagnosticPipeline` always passes `blast_radius_ratio=0.0` to `SeverityClassifier.classify()`. For a flash sale scenario, `blast_radius_ratio` should be `1.0` (all users affected), which would push the ImpactDimensions score from ~0.46 into the SEV1/SEV2 band.
+
+**Fix:**
+
+```python
+# In rag_pipeline.py — DiagnosisRequest should include blast_radius
+blast_radius = getattr(request.alert, "blast_radius_ratio", 0.0)
+severity = self._severity.classify(
+    SeverityRequest(
+        service=request.alert.service,
+        deviation_sigma=request.alert.deviation_sigma,
+        blast_radius_ratio=blast_radius,   # ← propagate from alert
+        ...
+    )
+)
+```
+
+**[MEDIUM] — SEVERITY_ASSIGNED Metric Always Shows `service_tier=unknown`**
+
+The Prometheus counter uses `getattr(request.alert, "service_tier", "unknown")` but `AnomalyAlert` has no `service_tier` attribute. The tier lives only inside `SeverityClassifier._service_tiers`.
+
+**Fix:** After calling `self._severity.classify()`, use the returned tier label as the metric tag rather than reading from the alert object.
+
+---
+
+## 8. Demo 3 — Deployment Regression and Infrastructure Fragility (2026-03-09)
+
+**Script:** `scripts/live_demo_deployment_regression.py`
+**LLM Provider:** Anthropic Claude (claude-sonnet-4-20250514)
+**Total Token Usage:** 3,219 prompt / 1,353 completion / 4,572 total
+
+### 8.1 Scenario Summary
+
+Three-act demo covering: (1) a bad canary deployment detected via error rate surge, (2) circuit breaker state machine trip and recovery under simulated cloud operator failure, and (3) TLS certificate expiry advisory 5.8 hours before deadline.
+
+### 8.2 Results
+
+| Act | Scenario | Severity | Confidence | LLM Agreed | Approval |
+|---|---|---|---|---|---|
+| 1 | Deployment regression (checkout v2.3.1) | SEV2 | 73.4% | No (−7.5 pp) | Required |
+| 2 | Circuit breaker CLOSED→OPEN→HALF_OPEN→CLOSED | — | — | — | — |
+| 3 | TLS certificate expiry (5.8 h) | SEV3 | 80.7% | Yes | Required |
+
+### 8.3 Act 1 — LLM Response Quality
+
+Root cause identified: "Pydantic v3 field serialization changed default encoding for UUID fields in checkout-service v2.3.1, causing 400+ legacy API clients to receive malformed responses and generate HTTP 503 errors."
+
+Recommended action: `kubectl rollout undo deployment/checkout-service` — the exact command from the ingested deployment runbook.
+
+Key observation: The validator disagreed with the hypothesis (`validation_agrees=False`), correctly applying the 30% penalty (LLM confidence: 0.92 → Composite: 0.7337). This confirms that the confidence scoring disagreement penalty operates correctly in live conditions.
+
+The pipeline's `severity_deployment_elevation` log shows `elevated=SEV2 original=SEV3` — confirming the deployment-induced elevation override is functioning. Checkout-service (TIER_2) scored SEV3 on impact dimensions alone, but the pipeline correctly elevated to SEV2 because a deployment was detected in the alert metadata.
+
+### 8.4 Act 2 — Circuit Breaker State Machine
+
+The complete CLOSED → OPEN → HALF_OPEN → CLOSED cycle was observed with correct Prometheus gauge values:
+
+| Transition | Trigger | State | Gauge |
+|---|---|---|---|
+| Initial | — | CLOSED | 0 |
+| After 5 failures | Failure threshold crossed | OPEN | 2 |
+| After 3 s timeout | Recovery window elapsed | HALF_OPEN | 1 |
+| After successful probe | Cloud operator recovered | CLOSED | 0 |
+
+Intermediate remediation call during OPEN state correctly raised `CircuitOpenError` with the remaining recovery time, confirming the fail-fast mechanism blocks wasted latency on a known-failing operator.
+
+### 8.5 Act 3 — LLM Response Quality
+
+Root cause: "Let's Encrypt rate limit exceeded preventing cert-manager from automatically renewing the TLS certificate for api-gateway, requiring manual intervention before expiry at 22:00 UTC." — specific and directly actionable.
+
+Renewal steps returned: `kubectl describe certificate api-gateway-tls -n prod`, manual CSR generation path, and `openssl s_client -connect api.example.com:443` post-renewal validation — all from the ingested runbook.
+
+**Observation:** `circuit-breaker-fragility.md` was returned as evidence citation [2] for a certificate expiry alert. This demonstrates a retrieval noise issue: the runbook ranked highly due to term overlap ("fragility", "recovery"), not semantic relevance to certificate management.
+
+### 8.6 Improvement Areas Discovered
+
+**[HIGH] — Certificate Expiry Severity Should Scale Dynamically with Hours Remaining**
+
+Current behavior: any `CERTIFICATE_EXPIRY` alert is diagnosed at a static severity regardless of the urgency window. A certificate expiring in 5.8 hours and one expiring in 5 days receive identical treatment.
+
+**Proposed fix:**
+
+```python
+# In SeverityClassifier.classify() or rag_pipeline.py pre-processing
+if alert.anomaly_type == AnomalyType.CERTIFICATE_EXPIRY:
+    hours_remaining = alert.current_value  # current_value encodes hours
+    if hours_remaining < 2:
+        severity_floor = Severity.SEV1
+    elif hours_remaining < 6:
+        severity_floor = Severity.SEV2
+    elif hours_remaining < 24:
+        severity_floor = Severity.SEV3
+    severity = min(severity, severity_floor)
+```
+
+**[MEDIUM] — Evidence Ranking Noise for Anomaly-Type Mismatches**
+
+`circuit-breaker-fragility.md` appearing in certificate expiry results indicates that the vector retrieval stage does not filter by anomaly type affinity. Adding a lightweight metadata filter (`anomaly_type` tag at ingestion time) would increase evidence precision.
+
+**[CRITICAL / Design Gap] — Tier 1 + SEV3 + AUTONOMOUS Confidence Bypasses Approval**
+
+Documented in the E2E test suite (`TestS8ConfidenceThresholdBoundary`): the approval logic in `rag_pipeline.py` is:
+
+```python
+requires_approval = severity in (SEV1, SEV2) or confidence_level != "AUTONOMOUS"
+```
+
+A Tier 1 service that receives SEV3 (due to missing blast radius) and achieves confidence ≥ 0.85 (AUTONOMOUS) would be cleared for autonomous execution with no human check. This is incorrect for any Tier 1 or Tier 2 service.
+
+**Proposed fix:**
+
+```python
+requires_approval = (
+    severity in (Severity.SEV1, Severity.SEV2)
+    or confidence_level != "AUTONOMOUS"
+    or service_tier in (ServiceTier.TIER_1, ServiceTier.TIER_2)  # ← add tier guard
+)
+```
+
+---
+
+## 9. Combined Improvement Roadmap (All Demos)
+
+| Priority | Gap | Demo | Effort | Phase Target |
+|---|---|---|---|---|
+| P0 | Tier 1/2 approval guard missing in pipeline | Demo 2, Demo 3 | S | Phase 3 sprint 1 |
+| P0 | Blast radius not propagated to severity classifier | Demo 2 | S | Phase 3 sprint 1 |
+| P1 | Certificate expiry severity floor based on hours_remaining | Demo 3 | S | Phase 3 sprint 1 |
+| P1 | SEVERITY_ASSIGNED metric always reports service_tier=unknown | Demo 2 | S | Phase 3 sprint 1 |
+| P2 | Evidence ranking noise — anomaly-type metadata filtering | Demo 3 | M | Phase 3 sprint 2 |
+| P2 | Sequential LLM calls add ~15 s per diagnosis (two round trips) | Demo 2, Demo 3 | M | Phase 3 sprint 2 |
+| P3 | Deployment elevation covers TIER_2 only — not Tier 1 with high sigma | Demo 3 | S | Phase 3 sprint 2 |
+
+*Sections 7–9 added from live demo runs on 2026-03-09.*
