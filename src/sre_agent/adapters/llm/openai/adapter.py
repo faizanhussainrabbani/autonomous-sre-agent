@@ -11,12 +11,18 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 import structlog
 
 from sre_agent.adapters.llm.prompts import (
     HYPOTHESIS_SYSTEM_PROMPT,
     VALIDATION_SYSTEM_PROMPT,
+)
+from sre_agent.adapters.telemetry.metrics import (
+    LLM_CALL_DURATION,
+    LLM_PARSE_FAILURES,
+    LLM_TOKENS_USED,
 )
 from sre_agent.ports.llm import (
     EvidenceContext,
@@ -82,6 +88,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
 
         user_prompt = self._build_hypothesis_prompt(request)
 
+        _t0 = time.monotonic()
         response = await self._client.chat.completions.create(
             model=self._config.model_name,
             messages=[
@@ -92,12 +99,21 @@ class OpenAILLMAdapter(LLMReasoningPort):
             max_tokens=self._config.max_tokens,
             response_format={"type": "json_object"},
         )
+        LLM_CALL_DURATION.labels(provider="openai", call_type="hypothesis").observe(
+            time.monotonic() - _t0
+        )
 
         # Track token usage
         if response.usage:
             self._usage.add(
                 response.usage.prompt_tokens,
                 response.usage.completion_tokens,
+            )
+            LLM_TOKENS_USED.labels(provider="openai", token_type="prompt").inc(
+                response.usage.prompt_tokens
+            )
+            LLM_TOKENS_USED.labels(provider="openai", token_type="completion").inc(
+                response.usage.completion_tokens
             )
 
         content = response.choices[0].message.content or "{}"
@@ -112,6 +128,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
 
         user_prompt = self._build_validation_prompt(request)
 
+        _t0 = time.monotonic()
         response = await self._client.chat.completions.create(
             model=self._config.model_name,
             messages=[
@@ -122,11 +139,20 @@ class OpenAILLMAdapter(LLMReasoningPort):
             max_tokens=self._config.max_tokens,
             response_format={"type": "json_object"},
         )
+        LLM_CALL_DURATION.labels(provider="openai", call_type="validation").observe(
+            time.monotonic() - _t0
+        )
 
         if response.usage:
             self._usage.add(
                 response.usage.prompt_tokens,
                 response.usage.completion_tokens,
+            )
+            LLM_TOKENS_USED.labels(provider="openai", token_type="prompt").inc(
+                response.usage.prompt_tokens
+            )
+            LLM_TOKENS_USED.labels(provider="openai", token_type="completion").inc(
+                response.usage.completion_tokens
             )
 
         content = response.choices[0].message.content or "{}"
@@ -220,6 +246,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
         try:
             data = json.loads(cleaned)
         except json.JSONDecodeError:
+            LLM_PARSE_FAILURES.labels(provider="openai").inc()
             logger.warning("hypothesis_parse_failed", raw_content=content[:200])
             return Hypothesis(
                 root_cause="Failed to parse LLM response.",
@@ -242,6 +269,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
         try:
             data = json.loads(cleaned)
         except json.JSONDecodeError:
+            LLM_PARSE_FAILURES.labels(provider="openai").inc()
             logger.warning("validation_parse_failed", raw_content=content[:200])
             return ValidationResult(
                 agrees=False,

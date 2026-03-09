@@ -9,6 +9,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-03-09 — Phase 2.1: Observability Foundation)
+
+#### OBS-001: Centralized Prometheus Metrics Registry
+
+- **New file** `src/sre_agent/adapters/telemetry/metrics.py`  
+  12 Prometheus metrics defined in a single registry with idempotent `_get_or_create()` helper:
+  - `sre_agent_diagnosis_duration_seconds` (Histogram — labels: service, severity)
+  - `sre_agent_diagnosis_errors_total` (Counter — label: error_type)
+  - `sre_agent_severity_assigned_total` (Counter — labels: severity, service_tier)
+  - `sre_agent_evidence_relevance_score` (Histogram)
+  - `sre_agent_llm_call_duration_seconds` (Histogram — labels: provider, call_type)
+  - `sre_agent_llm_tokens_total` (Counter — labels: provider, token_type)
+  - `sre_agent_llm_parse_failures_total` (Counter — label: provider)
+  - `sre_agent_llm_queue_depth` (Gauge)
+  - `sre_agent_llm_queue_wait_seconds` (Histogram)
+  - `sre_agent_embedding_duration_seconds` (Histogram)
+  - `sre_agent_embedding_cold_start_seconds` (Gauge)
+  - `sre_agent_circuit_breaker_state` (Gauge — labels: provider, resource_type)
+- `_current_alert_id` `ContextVar` defined here for OBS-007 correlation ID propagation.
+- Added `prometheus-client>=0.20` to core dependencies in `pyproject.toml`.
+
+#### OBS-003: `/healthz` Deep Readiness Probe + `/metrics` Endpoint
+
+- **`src/sre_agent/api/main.py`**
+  - Added `GET /healthz` — deep readiness probe that checks all three adapter modules
+    (vector store, embedding, LLM) are importable.  Returns `200 {"status": "ok"}` when
+    healthy, `503 {"status": "degraded"}` with per-component error detail when not.
+    Makes **no external API calls** (safe for k8s liveness interval).
+  - Added `GET /metrics` — exposes Prometheus text exposition format via
+    `prometheus_client.generate_latest()`.
+
+#### OBS-004: HTTP Request Logging Middleware
+
+- **`src/sre_agent/api/main.py`**  
+  Added `log_requests` ASGI middleware that:
+  - Generates a `uuid4` per-request correlation ID.
+  - Emits `request_received` and `request_completed` structured log events.
+  - Attaches `X-Request-ID` to every HTTP response header.
+
+#### OBS-006: LLM Token Prometheus Counters
+
+- **`src/sre_agent/adapters/llm/openai/adapter.py`**  
+  - Observes `LLM_CALL_DURATION` (Histogram) for every `generate_hypothesis()` and
+    `validate_hypothesis()` call with `provider="openai"`.
+  - Increments `LLM_TOKENS_USED` for prompt and completion token counts.
+  - Increments `LLM_PARSE_FAILURES` on `json.JSONDecodeError`.
+- **`src/sre_agent/adapters/llm/anthropic/adapter.py`**  
+  Same instrumentation with `provider="anthropic"`.
+
+#### OBS-007: Correlation ID Propagation
+
+- **`src/sre_agent/domain/diagnostics/rag_pipeline.py`**  
+  - Sets `_current_alert_id` contextvar at the top of `diagnose()` and resets it in a
+    `finally` block — guarantees cleanup even on exception.
+  - Emits all 8 structured log events with `alert_id` bound:
+    `diagnosis_started`, `embed_alert`, `vector_search_complete`, `token_budget_trim`,
+    `llm_hypothesis_start`, `validation_start`, `confidence_scored`, `diagnosis_completed`.
+- **`src/sre_agent/config/logging.py`**  
+  Added `_bind_alert_id` structlog processor registered in the shared processor chain.
+  Reads `_current_alert_id` and injects `alert_id` key into every log event dict when
+  a `diagnose()` call is in scope.
+
+#### OBS-008: Prometheus SLO Alert Rules
+
+- **New file** `infra/prometheus/rules/sre_agent_slo.yaml`  
+  8 alert rules + 1 recording rule:
+  - **Recording:** `sre_agent:diagnosis_latency:p99`
+  - **Alerts:** `DiagnosisLatencySLOBreach`, `LLMAPIErrors`, `LLMParseFailureSpike`,
+    `ThrottleQueueSaturation`, `EvidenceQualityDrop`, `LLMTokenRateTooHigh`,
+    `EmbeddingColdStartHigh`, `CircuitBreakerOpen`
+  - All alerts carry `severity`, `team`, `summary`, `description`, and `runbook_url` labels.
+
+#### OBS-009: Circuit Breaker State Gauge
+
+- **`src/sre_agent/adapters/cloud/resilience.py`**  
+  Added `_set_state_gauge()` method to `CircuitBreaker` that exports
+  `sre_agent_circuit_breaker_state` on every state transition:
+  `0 = CLOSED`, `1 = HALF_OPEN`, `2 = OPEN`.
+
+#### OBS-001 (Embedding): Embedding Metrics
+
+- **`src/sre_agent/adapters/embedding/sentence_transformers_adapter.py`**  
+  - Sets `EMBEDDING_COLD_START` gauge on first model load.
+  - Observes `EMBEDDING_DURATION` on every `embed_text()` and `embed_batch()` call.
+
+### OpenSpec
+
+- **`openspec/changes/phase-2-1-observability/`** — Full phase spec:
+  `.openspec.yaml`, `proposal.md`, `design.md`, `tasks.md`,
+  `specs/agent-self-observability/spec.md`
+
+### Tests
+
+- **`tests/unit/adapters/test_metrics.py`** — 5 tests: import safety, registry
+  completeness, circuit breaker gauge values (CLOSED/OPEN/HALF_OPEN).
+- **`tests/unit/adapters/test_prometheus_rules.py`** — 6 tests: YAML validity,
+  group structure, recording rule, all 8 alert names, severity labels, runbook URLs.
+- **`tests/unit/domain/test_pipeline_observability.py`** — 8 tests: 8 log events,
+  alert_id in every record, contextvar cleanup on success and exception,
+  DIAGNOSIS_DURATION/EVIDENCE_RELEVANCE/SEVERITY_ASSIGNED metric assertions.
+- **`tests/unit/api/test_healthz.py`** — 7 tests: 200 healthy, 503 degraded,
+  no external calls, X-Request-ID header, per-request uniqueness, middleware log events.
+
+**Total unit tests: 417 (all passing).**
+
+---
+
 ### Fixed (2026-03-09 — LLM Response Parser & Demo Display)
 
 #### Root Cause

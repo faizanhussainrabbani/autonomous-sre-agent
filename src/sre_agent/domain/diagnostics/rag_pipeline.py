@@ -18,10 +18,19 @@ Phase 2: Intelligence Layer — Sprint 2 (Reasoning & Inference)
 
 from __future__ import annotations
 
+import time
+from contextvars import ContextVar
 from datetime import datetime, timezone
 
 import structlog
 
+from sre_agent.adapters.telemetry.metrics import (
+    DIAGNOSIS_DURATION,
+    DIAGNOSIS_ERRORS,
+    EVIDENCE_RELEVANCE,
+    SEVERITY_ASSIGNED,
+    _current_alert_id,
+)
 from sre_agent.domain.diagnostics.confidence import ConfidenceScorer
 from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.diagnostics.timeline import TimelineConstructor
@@ -94,7 +103,19 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         audit: list[AuditEntry] = []
         diagnosis = Diagnosis(alert_id=request.alert.alert_id)
 
+        # OBS-007: bind alert_id to the current async context so every log line
+        # emitted within this call carries the correlation field automatically.
+        _token = _current_alert_id.set(request.alert.alert_id)
+        _start = time.monotonic()
+
         try:
+            logger.info(
+                "diagnosis_started",
+                alert_id=request.alert.alert_id,
+                service=request.alert.service,
+                anomaly_type=request.alert.anomaly_type.value,
+            )
+
             # Stage 0: Emit IncidentDetected event (Engineering Standards §1.4)
             await self._emit(DomainEvent(
                 event_type=EventTypes.INCIDENT_DETECTED,
@@ -116,6 +137,12 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 f"metric={request.alert.metric_name} "
                 f"value={request.alert.current_value}"
             )
+
+            logger.debug(
+                "embed_alert",
+                alert_id=request.alert.alert_id,
+                text_length=len(alert_text),
+            )
             alert_embedding = await self._embedding.embed_text(alert_text)
 
             # Stage 2: Search vector store for evidence
@@ -126,14 +153,25 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             )
             search_results = await self._vector_store.search(search_query)
 
+            logger.info(
+                "vector_search_complete",
+                alert_id=request.alert.alert_id,
+                results_count=len(search_results),
+                top_score=round(search_results[0].score, 4) if search_results else None,
+            )
             audit.append(AuditEntry(
                 stage="retrieval",
                 action="vector_search_complete",
                 details={"results_count": len(search_results)},
             ))
 
+            # OBS-001: Observe top-1 evidence relevance score
+            if search_results:
+                EVIDENCE_RELEVANCE.observe(search_results[0].score)
+
             # Novel incident detection: no relevant evidence found
             if not search_results:
+                DIAGNOSIS_ERRORS.labels(error_type="novel_incident").inc()
                 return self._handle_novel_incident(request, audit)
 
             # Stage 3: Build timeline from correlated signals
@@ -146,6 +184,13 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             evidence_contexts = self._build_evidence_contexts(search_results)
             trimmed_evidence = self._apply_token_budget(evidence_contexts)
 
+            logger.debug(
+                "token_budget_trim",
+                alert_id=request.alert.alert_id,
+                total_evidence=len(evidence_contexts),
+                after_trim=len(trimmed_evidence),
+                budget_tokens=self._context_budget,
+            )
             audit.append(AuditEntry(
                 stage="reasoning",
                 action="evidence_prepared",
@@ -156,6 +201,11 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             ))
 
             # Stage 5: Generate hypothesis via LLM
+            logger.info(
+                "llm_hypothesis_start",
+                alert_id=request.alert.alert_id,
+                evidence_count=len(trimmed_evidence),
+            )
             hypothesis_request = HypothesisRequest(
                 alert_description=alert_text,
                 service_name=request.alert.service,
@@ -185,6 +235,11 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             ))
 
             # Stage 6: Validate hypothesis
+            logger.info(
+                "validation_start",
+                alert_id=request.alert.alert_id,
+                hypothesis_confidence=hypothesis.confidence,
+            )
             diagnosis.state = DiagnosticState.VALIDATING
             validation_result = await self._validator.validate(
                 hypothesis=hypothesis,
@@ -220,6 +275,14 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 evidence_count=len(search_results),
             )
 
+            logger.info(
+                "confidence_scored",
+                alert_id=request.alert.alert_id,
+                composite_confidence=round(confidence, 4),
+                llm_confidence=hypothesis.confidence,
+                validation_agrees=validation_result.agrees,
+            )
+
             # Stage 8: Classify severity
             diagnosis.state = DiagnosticState.CLASSIFYING
             severity, impact = self._severity_classifier.classify(
@@ -227,6 +290,13 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 llm_confidence=confidence,
                 blast_radius_ratio=0.0,  # Computed externally if available
             )
+
+            # OBS-001: Observe severity counter
+            service_tier = getattr(request.alert, "service_tier", "unknown")
+            SEVERITY_ASSIGNED.labels(
+                severity=severity.name,
+                service_tier=str(service_tier),
+            ).inc()
 
             # Build evidence citations
             citations = [
@@ -268,6 +338,21 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 },
             ))
 
+            _elapsed = time.monotonic() - _start
+            DIAGNOSIS_DURATION.labels(
+                service=request.alert.service,
+                severity=severity.name,
+            ).observe(_elapsed)
+
+            logger.info(
+                "diagnosis_completed",
+                alert_id=request.alert.alert_id,
+                severity=severity.name,
+                confidence=round(confidence, 4),
+                elapsed_seconds=round(_elapsed, 3),
+                requires_approval=requires_approval,
+            )
+
             return DiagnosisResult(
                 root_cause=hypothesis.root_cause,
                 confidence=confidence,
@@ -284,6 +369,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             )
 
         except ConnectionError as exc:
+            DIAGNOSIS_ERRORS.labels(error_type="connection_error").inc()
             logger.error("diagnostic_pipeline_connection_error", error=str(exc))
             audit.append(AuditEntry(
                 stage="error",
@@ -304,6 +390,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             )
 
         except TimeoutError as exc:
+            DIAGNOSIS_ERRORS.labels(error_type="timeout").inc()
             logger.error("diagnostic_pipeline_timeout", error=str(exc))
             audit.append(AuditEntry(
                 stage="error",
@@ -322,6 +409,10 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                     f"{a.stage}/{a.action}: {a.details}" for a in audit
                 ],
             )
+
+        finally:
+            # OBS-007: always reset the correlation ID even if an exception propagated
+            _current_alert_id.reset(_token)
 
     async def health_check(self) -> bool:
         """Verify all pipeline dependencies are operational."""

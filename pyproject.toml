@@ -18,6 +18,7 @@ dependencies = [
 
     # Telemetry adapters
     "prometheus-api-client>=0.5",
+    "prometheus-client>=0.20",
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
 

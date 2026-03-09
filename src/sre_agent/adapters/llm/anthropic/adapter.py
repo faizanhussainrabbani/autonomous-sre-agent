@@ -10,6 +10,7 @@ Phase 2: Intelligence Layer — Sprint 2 (Reasoning & Inference)
 from __future__ import annotations
 
 import json
+import time
 
 import structlog
 
@@ -18,6 +19,11 @@ from sre_agent.adapters.llm.prompts import (
     VALIDATION_SYSTEM_PROMPT,
 )
 from sre_agent.adapters.llm.openai.adapter import OpenAILLMAdapter
+from sre_agent.adapters.telemetry.metrics import (
+    LLM_CALL_DURATION,
+    LLM_PARSE_FAILURES,
+    LLM_TOKENS_USED,
+)
 from sre_agent.ports.llm import (
     Hypothesis,
     HypothesisRequest,
@@ -64,6 +70,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
 
         user_prompt = OpenAILLMAdapter._build_hypothesis_prompt(request)
 
+        _t0 = time.monotonic()
         response = await self._client.messages.create(
             model=self._config.model_name,
             system=HYPOTHESIS_SYSTEM_PROMPT,
@@ -71,15 +78,28 @@ class AnthropicLLMAdapter(LLMReasoningPort):
             temperature=self._config.temperature,
             max_tokens=self._config.max_tokens,
         )
+        LLM_CALL_DURATION.labels(provider="anthropic", call_type="hypothesis").observe(
+            time.monotonic() - _t0
+        )
 
         if response.usage:
             self._usage.add(
                 response.usage.input_tokens,
                 response.usage.output_tokens,
             )
+            LLM_TOKENS_USED.labels(provider="anthropic", token_type="prompt").inc(
+                response.usage.input_tokens
+            )
+            LLM_TOKENS_USED.labels(provider="anthropic", token_type="completion").inc(
+                response.usage.output_tokens
+            )
 
         content = response.content[0].text if response.content else "{}"
-        return OpenAILLMAdapter._parse_hypothesis(content)
+        try:
+            return OpenAILLMAdapter._parse_hypothesis(content)
+        except Exception:
+            LLM_PARSE_FAILURES.labels(provider="anthropic").inc()
+            raise
 
     async def validate_hypothesis(
         self,
@@ -90,6 +110,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
 
         user_prompt = OpenAILLMAdapter._build_validation_prompt(request)
 
+        _t0 = time.monotonic()
         response = await self._client.messages.create(
             model=self._config.model_name,
             system=VALIDATION_SYSTEM_PROMPT,
@@ -97,15 +118,28 @@ class AnthropicLLMAdapter(LLMReasoningPort):
             temperature=self._config.temperature,
             max_tokens=self._config.max_tokens,
         )
+        LLM_CALL_DURATION.labels(provider="anthropic", call_type="validation").observe(
+            time.monotonic() - _t0
+        )
 
         if response.usage:
             self._usage.add(
                 response.usage.input_tokens,
                 response.usage.output_tokens,
             )
+            LLM_TOKENS_USED.labels(provider="anthropic", token_type="prompt").inc(
+                response.usage.input_tokens
+            )
+            LLM_TOKENS_USED.labels(provider="anthropic", token_type="completion").inc(
+                response.usage.output_tokens
+            )
 
         content = response.content[0].text if response.content else "{}"
-        return OpenAILLMAdapter._parse_validation(content)
+        try:
+            return OpenAILLMAdapter._parse_validation(content)
+        except Exception:
+            LLM_PARSE_FAILURES.labels(provider="anthropic").inc()
+            raise
 
     def count_tokens(self, text: str) -> int:
         """Approximate token count (Claude uses ~4 chars per token)."""

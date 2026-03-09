@@ -9,8 +9,27 @@ from __future__ import annotations
 
 import logging
 import sys
+from typing import Any
 
 import structlog
+
+
+def _bind_alert_id(logger: Any, method: str, event_dict: dict) -> dict:
+    """Structlog processor — inject the current alert correlation ID (OBS-007).
+
+    Reads ``_current_alert_id`` from the metrics contextvar and adds it to the
+    event dict under the ``alert_id`` key.  When no diagnose() is in scope the
+    contextvar holds an empty string, so the key is omitted to keep non-pipeline
+    log lines clean.
+    """
+    try:
+        from sre_agent.adapters.telemetry.metrics import _current_alert_id  # local import avoids circular dep
+        value = _current_alert_id.get("")
+        if value:
+            event_dict["alert_id"] = value
+    except Exception:  # noqa: BLE001
+        pass
+    return event_dict
 
 
 def configure_logging(
@@ -26,6 +45,7 @@ def configure_logging(
     """
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
+        _bind_alert_id,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.stdlib.PositionalArgumentsFormatter(),

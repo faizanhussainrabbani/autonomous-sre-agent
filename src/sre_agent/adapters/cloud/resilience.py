@@ -19,6 +19,8 @@ from typing import Any, Callable, TypeVar
 
 import structlog
 
+from sre_agent.adapters.telemetry.metrics import CIRCUIT_BREAKER_STATE
+
 logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
@@ -76,12 +78,30 @@ class CircuitBreaker:
     _failure_count: int = field(default=0, init=False)
     _last_failure_time: float = field(default=0.0, init=False)
 
+    def _set_state_gauge(self) -> None:
+        """Export current circuit breaker state to Prometheus (OBS-009).
+
+        Gauge values:  0 = CLOSED,  1 = HALF_OPEN,  2 = OPEN.
+        Labels use the breaker ``name`` as ``resource_type``; provider defaults
+        to "cloud" since circuit breakers are not provider-specific here.
+        """
+        _state_values = {
+            CircuitState.CLOSED: 0,
+            CircuitState.HALF_OPEN: 1,
+            CircuitState.OPEN: 2,
+        }
+        CIRCUIT_BREAKER_STATE.labels(
+            provider="cloud",
+            resource_type=self.name,
+        ).set(_state_values.get(self._state, 0))
+
     @property
     def state(self) -> CircuitState:
         if self._state == CircuitState.OPEN:
             elapsed = time.monotonic() - self._last_failure_time
             if elapsed >= self.recovery_timeout_seconds:
                 self._state = CircuitState.HALF_OPEN
+                self._set_state_gauge()
                 logger.info(
                     "circuit_half_open",
                     breaker=self.name,
@@ -94,12 +114,14 @@ class CircuitBreaker:
         if self._state != CircuitState.CLOSED:
             logger.info("circuit_closed", breaker=self.name)
         self._state = CircuitState.CLOSED
+        self._set_state_gauge()
 
     def record_failure(self) -> None:
         self._failure_count += 1
         self._last_failure_time = time.monotonic()
         if self._failure_count >= self.failure_threshold:
             self._state = CircuitState.OPEN
+            self._set_state_gauge()
             logger.warning(
                 "circuit_opened",
                 breaker=self.name,

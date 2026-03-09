@@ -3,6 +3,8 @@ FastAPI Application — HTTP entrypoint for the SRE Agent.
 
 Exposes:
   GET  /health              — Liveness probe (always 200 if process is alive)
+  GET  /healthz             — Deep readiness probe (checks component health)
+  GET  /metrics             — Prometheus metrics endpoint
   GET  /api/v1/status       — Readiness probe (checks all providers are healthy)
   POST /api/v1/system/halt  — Global kill switch (halts all auto-remediations)
   POST /api/v1/system/resume — Resume after halt (dual-approver required)
@@ -14,16 +16,23 @@ Phase 2 will add:
 from __future__ import annotations
 
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 try:
-    from fastapi import FastAPI, HTTPException, status
+    from fastapi import FastAPI, HTTPException, Request, Response, status
     from fastapi.responses import JSONResponse
     from pydantic import BaseModel
     _FASTAPI_AVAILABLE = True
 except ImportError:
     _FASTAPI_AVAILABLE = False
+
+try:
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _PROMETHEUS_AVAILABLE = False
 
 try:
     from sre_agent.api.rest.severity_override_router import router as _severity_override_router
@@ -53,6 +62,9 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
             "Install it with: pip install 'sre-agent[api]'"
         )
 
+    import structlog as _structlog
+    _log = _structlog.get_logger(__name__)
+
     app = FastAPI(
         title="Autonomous SRE Agent",
         description="AI-powered incident detection, diagnosis, and remediation.",
@@ -60,6 +72,31 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         docs_url="/docs",
         redoc_url="/redoc",
     )
+
+    # ── Request logging middleware (OBS-004) ─────────────────────────────────
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        """Emit structured logs for every HTTP request with a correlation ID."""
+        request_id = str(uuid.uuid4())
+        _log.info(
+            "request_received",
+            method=request.method,
+            path=request.url.path,
+            request_id=request_id,
+        )
+        t0 = time.monotonic()
+        response: Response = await call_next(request)
+        elapsed = round(time.monotonic() - t0, 4)
+        response.headers["X-Request-ID"] = request_id
+        _log.info(
+            "request_completed",
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_seconds=elapsed,
+            request_id=request_id,
+        )
+        return response
 
     # Register routers
     if _OVERRIDE_ROUTER_AVAILABLE:
@@ -73,6 +110,63 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
     async def health() -> dict[str, str]:
         """Kubernetes/ECS liveness probe. Returns 200 as long as the process is alive."""
         return {"status": "ok"}
+
+    # ── Deep readiness / health-z probe (OBS-003) ─────────────────────────────
+    @app.get("/healthz", tags=["Observability"])
+    async def healthz() -> JSONResponse:
+        """Deep readiness probe — checks all agent components are initialised.
+
+        Never makes external API calls (avoids billable Anthropic/OpenAI calls
+        on every k8s probe interval).  Checks that adapters are importable and
+        their lazy-init state is valid.
+        """
+        checks: dict[str, str] = {}
+        overall_ok = True
+
+        # Vector store — check the adapter module is importable
+        try:
+            from sre_agent.adapters.vectordb.chroma.adapter import ChromaVectorStoreAdapter  # noqa: F401
+            checks["vector_store"] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            checks["vector_store"] = f"error: {exc}"
+            overall_ok = False
+
+        # Embedding — check the adapter module is importable
+        try:
+            from sre_agent.adapters.embedding.sentence_transformers_adapter import (  # noqa: F401
+                SentenceTransformersEmbeddingAdapter,
+            )
+            checks["embedding"] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            checks["embedding"] = f"error: {exc}"
+            overall_ok = False
+
+        # LLM — check at least one adapter module is importable
+        try:
+            from sre_agent.adapters.llm.openai.adapter import OpenAILLMAdapter  # noqa: F401
+            checks["llm"] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            try:
+                from sre_agent.adapters.llm.anthropic.adapter import AnthropicLLMAdapter  # noqa: F401
+                checks["llm"] = "ok"
+            except Exception as exc2:  # noqa: BLE001
+                checks["llm"] = f"error: {exc2}"
+                overall_ok = False
+
+        http_status = status.HTTP_200_OK if overall_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+        return JSONResponse(
+            status_code=http_status,
+            content={"status": "ok" if overall_ok else "degraded", "checks": checks},
+        )
+
+    # ── Prometheus metrics endpoint (OBS-003) ─────────────────────────────────
+    @app.get("/metrics", tags=["Observability"], include_in_schema=False)
+    async def metrics() -> Response:
+        """Expose Prometheus metrics in text/plain exposition format."""
+        if not _PROMETHEUS_AVAILABLE:
+            return Response(content="prometheus_client not installed", status_code=503)
+        data = generate_latest()
+        return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
     # ── Readiness / status ────────────────────────────────────────────────────
     @app.get("/api/v1/status", tags=["Observability"])

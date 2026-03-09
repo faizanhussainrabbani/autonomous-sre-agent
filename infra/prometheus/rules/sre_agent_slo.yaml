@@ -1,0 +1,163 @@
+# Prometheus Recording Rules and Alert Rules — SRE Agent SLO Instrumentation
+# Phase 2.1: OBS-008
+#
+# Usage:
+#   kubectl create configmap sre-agent-rules --from-file=sre_agent_slo.yaml -n monitoring
+#   OR load directly into a local Prometheus instance via --config.file rule_files path.
+#
+# All alerts follow the Google SRE / Prometheus naming conventions:
+#   - severity: critical | warning | info
+#   - team: sre-platform
+#   - runbook_url: link to the operational runbook
+
+groups:
+  - name: sre_agent_recording_rules
+    interval: 30s
+    rules:
+      # P99 diagnosis latency — used by the DiagnosisLatencySLOBreach alert below
+      - record: sre_agent:diagnosis_latency:p99
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum(rate(sre_agent_diagnosis_duration_seconds_bucket[5m])) by (le, service)
+          )
+
+  - name: sre_agent_slo_alerts
+    rules:
+      # ── OBS-008-A: Diagnosis Latency SLO Breach ───────────────────────────
+      # Fires when P99 diagnosis latency exceeds 30 s for more than 5 minutes.
+      - alert: DiagnosisLatencySLOBreach
+        expr: sre_agent:diagnosis_latency:p99 > 30
+        for: 5m
+        labels:
+          severity: critical
+          team: sre-platform
+        annotations:
+          summary: "SRE Agent P99 diagnosis latency is above SLO (30 s)."
+          description: >-
+            Service {{ $labels.service }} has P99 diagnosis latency of
+            {{ $value | humanizeDuration }} — exceeds the 30 s SLO threshold.
+            Check LLM API response times and vector store search latency.
+          runbook_url: "https://wiki.internal/sre-agent/runbooks/diagnosis-latency"
+
+      # ── OBS-008-B: LLM API Error Spike ────────────────────────────────────
+      # Fires when the error-to-call ratio for any provider exceeds 10 %.
+      - alert: LLMAPIErrors
+        expr: |
+          (
+            rate(sre_agent_llm_parse_failures_total[5m])
+            /
+            (rate(sre_agent_llm_call_duration_seconds_count[5m]) + 1)
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          team: sre-platform
+        annotations:
+          summary: "LLM API error rate is above 10 % for provider {{ $labels.provider }}."
+          description: >-
+            Provider {{ $labels.provider }} error ratio is {{ $value | humanizePercentage }}
+            over the last 5 minutes. Verify API key validity and quota limits.
+          runbook_url: "https://wiki.internal/sre-agent/runbooks/llm-api-errors"
+
+      # ── OBS-008-C: LLM Parse Failure Spike ────────────────────────────────
+      # Fires when JSON parse failures exceed 5 per minute.
+      - alert: LLMParseFailureSpike
+        expr: rate(sre_agent_llm_parse_failures_total[5m]) * 60 > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: sre-platform
+        annotations:
+          summary: "LLM parse failures spiking for provider {{ $labels.provider }}."
+          description: >-
+            {{ $labels.provider }} is producing {{ $value | printf "%.1f" }} parse
+            failures/minute. The model may be returning unexpected output format.
+          runbook_url: "https://wiki.internal/sre-agent/runbooks/llm-parse-failures"
+
+      # ── OBS-008-D: Throttle Queue Saturation ──────────────────────────────
+      # Fires when the LLM request queue depth stays above 20 for 3 minutes.
+      - alert: ThrottleQueueSaturation
+        expr: sre_agent_llm_queue_depth > 20
+        for: 3m
+        labels:
+          severity: warning
+          team: sre-platform
+        annotations:
+          summary: "LLM throttle queue is saturated (depth {{ $value }})."
+          description: >-
+            The LLM request queue has been deeper than 20 for more than 3 minutes.
+            Diagnosis pipeline throughput will degrade. Consider increasing rate limits
+            or scaling the LLM adapter.
+          runbook_url: "https://wiki.internal/sre-agent/runbooks/queue-saturation"
+
+      # ── OBS-008-E: Evidence Quality Drop ──────────────────────────────────
+      # Fires when the median relevance score of the top-retrieved evidence
+      # drops below 0.4, indicating vector store drift or embedding mismatch.
+      - alert: EvidenceQualityDrop
+        expr: |
+          histogram_quantile(
+            0.50,
+            rate(sre_agent_evidence_relevance_score_bucket[15m])
+          ) < 0.4
+        for: 10m
+        labels:
+          severity: warning
+          team: sre-platform
+        annotations:
+          summary: "Median evidence relevance score dropped below 0.4."
+          description: >-
+            The P50 evidence relevance score has been {{ $value | printf "%.2f" }} for
+            10 minutes. This suggests the runbook knowledge base is stale or the
+            embedding model has drifted. Consider re-ingesting runbooks.
+          runbook_url: "https://wiki.internal/sre-agent/runbooks/evidence-quality"
+
+      # ── OBS-008-F: LLM Token Rate Too High ────────────────────────────────
+      # Fires when the token ingestion rate exceeds budget thresholds.
+      - alert: LLMTokenRateTooHigh
+        expr: |
+          sum(rate(sre_agent_llm_tokens_total[5m])) by (provider) * 60 > 100000
+        for: 5m
+        labels:
+          severity: warning
+          team: sre-platform
+        annotations:
+          summary: "LLM token consumption rate exceeds budget for {{ $labels.provider }}."
+          description: >-
+            {{ $labels.provider }} is consuming {{ $value | printf "%.0f" }} tokens/minute.
+            At current rates the monthly quota may be exhausted prematurely.
+          runbook_url: "https://wiki.internal/sre-agent/runbooks/token-budget"
+
+      # ── OBS-008-G: Embedding Cold-Start High ──────────────────────────────
+      # Fires after a pod restart if model load takes more than 60 s.
+      - alert: EmbeddingColdStartHigh
+        expr: sre_agent_embedding_cold_start_seconds > 60
+        for: 0m
+        labels:
+          severity: info
+          team: sre-platform
+        annotations:
+          summary: "Embedding model cold-start took {{ $value | humanizeDuration }}."
+          description: >-
+            The sentence-transformers model took more than 60 s to load on startup.
+            First diagnose() calls will be delayed. Consider using a smaller model
+            or pre-loading via an init container.
+          runbook_url: "https://wiki.internal/sre-agent/runbooks/embedding-cold-start"
+
+      # ── OBS-008-H: Circuit Breaker Open ───────────────────────────────────
+      # Fires when any cloud-provider circuit breaker enters the OPEN state.
+      - alert: CircuitBreakerOpen
+        expr: sre_agent_circuit_breaker_state == 2
+        for: 1m
+        labels:
+          severity: critical
+          team: sre-platform
+        annotations:
+          summary: >-
+            Circuit breaker OPEN for {{ $labels.provider }}/{{ $labels.resource_type }}.
+          description: >-
+            The circuit breaker for {{ $labels.resource_type }} on provider
+            {{ $labels.provider }} has been in OPEN state for more than 1 minute.
+            All automated remediation calls to this resource are being rejected.
+            Verify the upstream cloud API is healthy.
+          runbook_url: "https://wiki.internal/sre-agent/runbooks/circuit-breaker-open"

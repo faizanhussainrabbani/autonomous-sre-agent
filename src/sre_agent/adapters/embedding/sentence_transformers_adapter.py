@@ -9,8 +9,11 @@ Phase 2: Intelligence Layer — Sprint 1 (Foundation & Dependency Injection)
 
 from __future__ import annotations
 
+import time
+
 import structlog
 
+from sre_agent.adapters.telemetry.metrics import EMBEDDING_COLD_START, EMBEDDING_DURATION
 from sre_agent.ports.embedding import EmbeddingConfig, EmbeddingPort
 
 logger = structlog.get_logger(__name__)
@@ -40,30 +43,38 @@ class SentenceTransformersEmbeddingAdapter(EmbeddingPort):
                 )
                 raise ImportError(msg) from exc
 
+            _t0 = time.monotonic()
             self._model = SentenceTransformer(self._config.model_name)
+            _cold_start = time.monotonic() - _t0
+            EMBEDDING_COLD_START.set(_cold_start)
             logger.info(
                 "embedding_model_loaded",
                 model=self._config.model_name,
                 dimensions=self._config.dimensions,
+                cold_start_seconds=round(_cold_start, 3),
             )
 
     async def embed_text(self, text: str) -> list[float]:
         """Embed a single text string."""
         self._load_model()
+        _t0 = time.monotonic()
         embedding = self._model.encode(
             text,
             normalize_embeddings=self._config.normalize,
         )
+        EMBEDDING_DURATION.observe(time.monotonic() - _t0)
         return embedding.tolist()
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple texts in a batch."""
         self._load_model()
+        _t0 = time.monotonic()
         embeddings = self._model.encode(
             texts,
             batch_size=self._config.batch_size,
             normalize_embeddings=self._config.normalize,
         )
+        EMBEDDING_DURATION.observe(time.monotonic() - _t0)
         return [e.tolist() for e in embeddings]
 
     def get_dimensions(self) -> int:
