@@ -10,6 +10,7 @@ Phase 2: Intelligence Layer — Sprint 2 (Reasoning & Inference)
 from __future__ import annotations
 
 import json
+import re
 
 import structlog
 
@@ -191,11 +192,35 @@ class OpenAILLMAdapter(LLMReasoningPort):
         return "\n".join(parts)
 
     @staticmethod
+    def _strip_code_fences(content: str) -> str:
+        """Strip markdown code fences from LLM output.
+
+        Some models (e.g. Claude) wrap JSON responses in ```json ... ``` blocks
+        even when instructed to return raw JSON. This helper extracts the inner
+        JSON text so that json.loads() can succeed.
+        """
+        match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", content, re.DOTALL)
+        return match.group(1).strip() if match else content.strip()
+
+    @staticmethod
+    def _normalize_reasoning(reasoning: object) -> str:
+        """Normalize reasoning to a plain string.
+
+        The LLM may return reasoning as a list of step strings or a single
+        string.  Either form is accepted and converted to a numbered list.
+        """
+        if isinstance(reasoning, list):
+            return "\n".join(f"{i}. {step}" for i, step in enumerate(reasoning, 1))
+        return str(reasoning) if reasoning else ""
+
+    @staticmethod
     def _parse_hypothesis(content: str) -> Hypothesis:
         """Parse JSON response into a Hypothesis."""
+        cleaned = OpenAILLMAdapter._strip_code_fences(content)
         try:
-            data = json.loads(content)
+            data = json.loads(cleaned)
         except json.JSONDecodeError:
+            logger.warning("hypothesis_parse_failed", raw_content=content[:200])
             return Hypothesis(
                 root_cause="Failed to parse LLM response.",
                 confidence=0.0,
@@ -205,7 +230,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
         return Hypothesis(
             root_cause=data.get("root_cause", "Unknown"),
             confidence=float(data.get("confidence", 0.0)),
-            reasoning=data.get("reasoning", ""),
+            reasoning=OpenAILLMAdapter._normalize_reasoning(data.get("reasoning", "")),
             evidence_citations=data.get("evidence_citations", []),
             suggested_remediation=data.get("suggested_remediation", ""),
         )
@@ -213,9 +238,11 @@ class OpenAILLMAdapter(LLMReasoningPort):
     @staticmethod
     def _parse_validation(content: str) -> ValidationResult:
         """Parse JSON response into a ValidationResult."""
+        cleaned = OpenAILLMAdapter._strip_code_fences(content)
         try:
-            data = json.loads(content)
+            data = json.loads(cleaned)
         except json.JSONDecodeError:
+            logger.warning("validation_parse_failed", raw_content=content[:200])
             return ValidationResult(
                 agrees=False,
                 confidence=0.0,
@@ -225,6 +252,6 @@ class OpenAILLMAdapter(LLMReasoningPort):
         return ValidationResult(
             agrees=bool(data.get("agrees", False)),
             confidence=float(data.get("confidence", 0.0)),
-            reasoning=data.get("reasoning", ""),
+            reasoning=OpenAILLMAdapter._normalize_reasoning(data.get("reasoning", "")),
             contradictions=data.get("contradictions", []),
         )
