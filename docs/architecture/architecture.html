@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autonomous SRE Agent — Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c12;
+    --panel: #0d1420;
+    --border: #1a2540;
+    --accent: #00e5ff;
+    --green: #00ff9d;
+    --orange: #ff6b35;
+    --purple: #b06cff;
+    --yellow: #ffd166;
+    --red: #ff4757;
+    --text: #c8d6f0;
+    --muted: #5a7090;
+    --white: #e8f0ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    font-family: 'Space Mono', monospace;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+/* Animated grid background */
+body::before {
+content: ‘’;
+position: fixed;
+inset: 0;
+background-image:
+linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+background-size: 40px 40px;
+pointer-events: none;
+z-index: 0;
+}
+
+.page {
+position: relative;
+z-index: 1;
+max-width: 1200px;
+margin: 0 auto;
+padding: 40px 24px 60px;
+}
+
+/* Header */
+.header {
+text-align: center;
+margin-bottom: 48px;
+animation: fadeDown 0.6s ease both;
+}
+.header-tag {
+font-size: 10px;
+letter-spacing: 4px;
+text-transform: uppercase;
+color: var(–accent);
+margin-bottom: 10px;
+}
+.header h1 {
+font-family: ‘Syne’, sans-serif;
+font-size: clamp(24px, 4vw, 42px);
+font-weight: 800;
+color: var(–white);
+line-height: 1.1;
+margin-bottom: 8px;
+}
+.header h1 span { color: var(–accent); }
+.header p {
+font-size: 11px;
+color: var(–muted);
+letter-spacing: 1px;
+}
+
+/* Phase badge */
+.phase-row {
+display: flex;
+justify-content: center;
+gap: 12px;
+flex-wrap: wrap;
+margin-bottom: 44px;
+animation: fadeDown 0.6s 0.1s ease both;
+}
+.phase {
+border: 1px solid var(–border);
+border-radius: 4px;
+padding: 6px 14px;
+font-size: 10px;
+letter-spacing: 1px;
+color: var(–muted);
+position: relative;
+}
+.phase.active {
+border-color: var(–orange);
+color: var(–orange);
+}
+.phase.active::before {
+content: ’▶ ’;
+}
+
+/* Main diagram */
+.diagram {
+display: grid;
+gap: 24px;
+animation: fadeUp 0.7s 0.15s ease both;
+}
+
+/* Row layouts */
+.row { display: grid; gap: 16px; align-items: stretch; }
+.row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.row-2 { grid-template-columns: 1fr 1fr; }
+.row-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.row-center { display: flex; justify-content: center; }
+
+/* Section labels */
+.section-label {
+font-size: 9px;
+letter-spacing: 3px;
+text-transform: uppercase;
+color: var(–muted);
+margin-bottom: 10px;
+padding-left: 2px;
+}
+
+/* Arrow connectors */
+.arrows {
+display: flex;
+justify-content: center;
+align-items: center;
+gap: 0;
+position: relative;
+height: 32px;
+}
+.arrow-down {
+display: flex;
+flex-direction: column;
+align-items: center;
+color: var(–muted);
+font-size: 18px;
+animation: pulse-arrow 2s infinite;
+}
+.arrow-down-line {
+width: 1px;
+height: 20px;
+background: linear-gradient(to bottom, var(–border), var(–accent));
+}
+.arrow-down-head { color: var(–accent); font-size: 12px; }
+
+/* Cards */
+.card {
+background: var(–panel);
+border: 1px solid var(–border);
+border-radius: 8px;
+padding: 16px;
+position: relative;
+overflow: hidden;
+transition: border-color 0.2s, transform 0.2s;
+}
+.card:hover {
+transform: translateY(-2px);
+}
+.card::after {
+content: ‘’;
+position: absolute;
+top: 0; left: 0; right: 0;
+height: 2px;
+}
+.card.accent::after { background: var(–accent); border-color: rgba(0,229,255,0.2); }
+.card.green::after { background: var(–green); }
+.card.orange::after { background: var(–orange); }
+.card.purple::after { background: var(–purple); }
+.card.yellow::after { background: var(–yellow); }
+.card.red::after { background: var(–red); }
+
+.card:hover { border-color: rgba(0,229,255,0.3); }
+
+.card-icon { font-size: 20px; margin-bottom: 8px; }
+.card-title {
+font-family: ‘Syne’, sans-serif;
+font-size: 13px;
+font-weight: 600;
+color: var(–white);
+margin-bottom: 6px;
+}
+.card-sub {
+font-size: 9px;
+color: var(–muted);
+letter-spacing: 1px;
+margin-bottom: 8px;
+}
+.card-tags {
+display: flex;
+flex-wrap: wrap;
+gap: 4px;
+margin-top: 8px;
+}
+.tag {
+background: rgba(255,255,255,0.04);
+border: 1px solid var(–border);
+border-radius: 3px;
+font-size: 8px;
+padding: 2px 6px;
+color: var(–muted);
+letter-spacing: 0.5px;
+}
+.tag.accent { border-color: rgba(0,229,255,0.3); color: var(–accent); }
+.tag.green { border-color: rgba(0,255,157,0.3); color: var(–green); }
+.tag.orange { border-color: rgba(255,107,53,0.3); color: var(–orange); }
+.tag.purple { border-color: rgba(176,108,255,0.3); color: var(–purple); }
+.tag.yellow { border-color: rgba(255,209,102,0.3); color: var(–yellow); }
+.tag.red { border-color: rgba(255,71,87,0.3); color: var(–red); }
+
+/* Core Agent — featured card */
+.core-card {
+background: linear-gradient(135deg, #0d1f35 0%, #0a1624 100%);
+border: 1px solid rgba(0,229,255,0.25);
+border-radius: 12px;
+padding: 28px 32px;
+width: 100%;
+max-width: 680px;
+position: relative;
+overflow: hidden;
+}
+.core-card::before {
+content: ‘’;
+position: absolute;
+inset: 0;
+background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.07) 0%, transparent 65%);
+}
+.core-card::after {
+content: ‘’;
+position: absolute;
+top: 0; left: 0; right: 0;
+height: 2px;
+background: linear-gradient(90deg, transparent, var(–accent), transparent);
+}
+.core-header {
+display: flex;
+align-items: center;
+gap: 14px;
+margin-bottom: 20px;
+}
+.core-icon { font-size: 32px; }
+.core-title {
+font-family: ‘Syne’, sans-serif;
+font-size: 20px;
+font-weight: 800;
+color: var(–white);
+}
+.core-sub { font-size: 10px; color: var(–accent); letter-spacing: 2px; }
+.core-pipeline {
+display: flex;
+align-items: center;
+gap: 0;
+flex-wrap: wrap;
+row-gap: 8px;
+margin-bottom: 16px;
+}
+.pipe-step {
+display: flex;
+align-items: center;
+gap: 6px;
+font-size: 10px;
+color: var(–text);
+letter-spacing: 1px;
+}
+.pipe-dot {
+width: 28px; height: 28px;
+border-radius: 50%;
+display: flex; align-items: center; justify-content: center;
+font-size: 12px;
+border: 1px solid;
+flex-shrink: 0;
+}
+.pipe-dot.d { border-color: var(–red); background: rgba(255,71,87,0.1); }
+.pipe-dot.i { border-color: var(–yellow); background: rgba(255,209,102,0.1); }
+.pipe-dot.g { border-color: var(–purple); background: rgba(176,108,255,0.1); }
+.pipe-dot.r { border-color: var(–green); background: rgba(0,255,157,0.1); }
+.pipe-arrow { color: var(–muted); font-size: 14px; margin: 0 6px; }
+.core-models {
+display: flex; gap: 8px; flex-wrap: wrap;
+}
+
+/* Safety card */
+.safety-card {
+background: linear-gradient(135deg, #1a0f1f 0%, #120d1a 100%);
+border: 1px solid rgba(176,108,255,0.25);
+border-radius: 8px;
+padding: 16px;
+position: relative;
+overflow: hidden;
+}
+.safety-card::after {
+content: ‘’;
+position: absolute;
+top: 0; left: 0; right: 0; height: 2px;
+background: var(–purple);
+}
+.safety-tiers {
+display: flex; gap: 8px; margin-top: 10px;
+}
+.safety-tier {
+flex: 1;
+background: rgba(176,108,255,0.06);
+border: 1px solid rgba(176,108,255,0.15);
+border-radius: 6px;
+padding: 10px 8px;
+text-align: center;
+}
+.safety-tier .icon { font-size: 14px; margin-bottom: 4px; }
+.safety-tier .name { font-size: 8px; letter-spacing: 1px; color: var(–purple); }
+.safety-tier .desc { font-size: 8px; color: var(–muted); margin-top: 3px; }
+
+/* Flow arrows between major sections */
+.flow-arrow {
+display: flex;
+justify-content: center;
+align-items: center;
+padding: 4px 0;
+color: var(–muted);
+font-size: 10px;
+letter-spacing: 2px;
+gap: 12px;
+}
+.flow-line {
+flex: 1;
+height: 1px;
+max-width: 120px;
+background: linear-gradient(to right, transparent, var(–border));
+}
+.flow-line.r {
+background: linear-gradient(to left, transparent, var(–border));
+}
+
+/* Legend */
+.legend {
+display: flex;
+justify-content: center;
+gap: 20px;
+flex-wrap: wrap;
+margin-top: 40px;
+padding-top: 24px;
+border-top: 1px solid var(–border);
+}
+.legend-item {
+display: flex; align-items: center; gap: 6px;
+font-size: 9px; color: var(–muted); letter-spacing: 1px;
+}
+.legend-dot {
+width: 8px; height: 8px; border-radius: 50%;
+}
+
+/* Animations */
+@keyframes fadeDown {
+from { opacity: 0; transform: translateY(-16px); }
+to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeUp {
+from { opacity: 0; transform: translateY(20px); }
+to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-arrow {
+0%, 100% { opacity: 0.5; }
+50% { opacity: 1; }
+}
+@keyframes glow {
+0%, 100% { box-shadow: 0 0 12px rgba(0,229,255,0.1); }
+50% { box-shadow: 0 0 24px rgba(0,229,255,0.25); }
+}
+.core-card { animation: glow 3s ease-in-out infinite; }
+
+@media (max-width: 700px) {
+.row-3, .row-4 { grid-template-columns: 1fr 1fr; }
+.row-2 { grid-template-columns: 1fr; }
+.safety-tiers { flex-direction: column; }
+}
+@media (max-width: 480px) {
+.row-3, .row-4 { grid-template-columns: 1fr; }
+}
+</style>
+
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+
+  <div class="header">
+    <div class="header-tag">System Architecture</div>
+    <h1>Autonomous <span>SRE</span> Agent</h1>
+    <p>AI-powered detect → investigate → diagnose → remediate pipeline</p>
+  </div>
+
+  <!-- Phases -->
+
+  <div class="phase-row">
+    <div class="phase active">Phase 1 — Shadow Mode (Current)</div>
+    <div class="phase">Phase 1.5 — Compute Agnosticism</div>
+    <div class="phase">Phase 2 — RAG Diagnostics</div>
+    <div class="phase">Phase 3 — Autonomous Remediation</div>
+  </div>
+
+  <div class="diagram">
+
+```
+<!-- TELEMETRY INGESTION -->
+<div>
+  <div class="section-label">01 — Telemetry Ingestion</div>
+  <div class="row row-4">
+    <div class="card accent">
+      <div class="card-icon">📡</div>
+      <div class="card-title">Distributed Traces</div>
+      <div class="card-tags">
+        <span class="tag accent">Jaeger</span>
+        <span class="tag accent">OTLP</span>
+      </div>
+    </div>
+    <div class="card accent">
+      <div class="card-icon">📊</div>
+      <div class="card-title">Metrics</div>
+      <div class="card-tags">
+        <span class="tag accent">Prometheus</span>
+        <span class="tag accent">OpenTelemetry</span>
+      </div>
+    </div>
+    <div class="card accent">
+      <div class="card-icon">📋</div>
+      <div class="card-title">Structured Logs</div>
+      <div class="card-tags">
+        <span class="tag accent">Loki</span>
+        <span class="tag accent">OTLP</span>
+      </div>
+    </div>
+    <div class="card accent">
+      <div class="card-icon">🔬</div>
+      <div class="card-title">Kernel Events</div>
+      <div class="card-tags">
+        <span class="tag accent">eBPF</span>
+        <span class="tag accent">Cilium/bcc</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Arrow -->
+<div class="flow-arrow">
+  <div class="flow-line"></div>
+  <span>▼ multi-signal correlation</span>
+  <div class="flow-line r"></div>
+</div>
+
+<!-- CORE AGENT -->
+<div class="section-label">02 — Core AI Agent</div>
+<div class="row-center">
+  <div class="core-card">
+    <div class="core-header">
+      <div class="core-icon">🤖</div>
+      <div>
+        <div class="core-title">Autonomous SRE Agent</div>
+        <div class="core-sub">Python 3.11 · LangChain / LlamaIndex</div>
+      </div>
+    </div>
+    <div class="core-pipeline">
+      <div class="pipe-step">
+        <div class="pipe-dot d">🔍</div>
+        <span>DETECT</span>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-dot i">🔎</div>
+        <span>INVESTIGATE</span>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-dot g">🧠</div>
+        <span>DIAGNOSE</span>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-dot r">⚡</div>
+        <span>REMEDIATE</span>
+      </div>
+    </div>
+    <div class="core-models">
+      <span class="tag accent">Claude (Primary LLM)</span>
+      <span class="tag accent">OpenAI (Fallback)</span>
+      <span class="tag">RAG Grounding</span>
+      <span class="tag">Provider-Agnostic Adapters</span>
+    </div>
+  </div>
+</div>
+
+<!-- Arrow -->
+<div class="flow-arrow">
+  <div class="flow-line"></div>
+  <span>▼ retrieval + action</span>
+  <div class="flow-line r"></div>
+</div>
+
+<!-- INTELLIGENCE + COORDINATION -->
+<div>
+  <div class="section-label">03 — Intelligence & Coordination</div>
+  <div class="row row-3">
+    <div class="card purple">
+      <div class="card-icon">🗄️</div>
+      <div class="card-title">RAG Vector Store</div>
+      <div class="card-sub">Historical post-mortems embedded for grounded reasoning</div>
+      <div class="card-tags">
+        <span class="tag purple">Pinecone</span>
+        <span class="tag purple">Embeddings</span>
+        <span class="tag purple">Semantic Search</span>
+      </div>
+    </div>
+    <div class="card yellow">
+      <div class="card-icon">🔐</div>
+      <div class="card-title">Distributed Coordination</div>
+      <div class="card-sub">Mutual exclusion locks to prevent agent conflicts</div>
+      <div class="card-tags">
+        <span class="tag yellow">Redis</span>
+        <span class="tag yellow">etcd</span>
+        <span class="tag yellow">FinOps Agent</span>
+        <span class="tag yellow">SecOps Agent</span>
+      </div>
+    </div>
+    <div class="safety-card">
+      <div class="card-icon">🛡️</div>
+      <div class="card-title" style="font-family:Syne,sans-serif;font-size:13px;font-weight:600;color:var(--white);margin-bottom:4px;">Safety Guardrails</div>
+      <div class="card-sub" style="font-size:9px;color:var(--muted);">3-tier blast-radius enforcement</div>
+      <div class="safety-tiers">
+        <div class="safety-tier">
+          <div class="icon">⚙️</div>
+          <div class="name">EXECUTION</div>
+          <div class="desc">≤20% fleet restarts</div>
+        </div>
+        <div class="safety-tier">
+          <div class="icon">📚</div>
+          <div class="name">KNOWLEDGE</div>
+          <div class="desc">Post-mortem grounding</div>
+        </div>
+        <div class="safety-tier">
+          <div class="icon">🔒</div>
+          <div class="name">SECURITY</div>
+          <div class="desc">Audit trails</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Arrow -->
+<div class="flow-arrow">
+  <div class="flow-line"></div>
+  <span>▼ remediation output</span>
+  <div class="flow-line r"></div>
+</div>
+
+<!-- ACTION LAYER -->
+<div>
+  <div class="section-label">04 — Action & Notification Layer</div>
+  <div class="row row-3">
+    <div class="card green">
+      <div class="card-icon">☸️</div>
+      <div class="card-title">Kubernetes Actions</div>
+      <div class="card-sub">Direct cluster state changes via K8s Python Client</div>
+      <div class="card-tags">
+        <span class="tag green">K8s Python Client</span>
+        <span class="tag green">Pod Restart</span>
+        <span class="tag green">Scale / Rollback</span>
+      </div>
+    </div>
+    <div class="card green">
+      <div class="card-icon">🔁</div>
+      <div class="card-title">GitOps Remediation</div>
+      <div class="card-sub">Safe, auditable config rollbacks via ArgoCD</div>
+      <div class="card-tags">
+        <span class="tag green">ArgoCD</span>
+        <span class="tag green">Git Revert</span>
+        <span class="tag green">Pull Requests</span>
+      </div>
+    </div>
+    <div class="card orange">
+      <div class="card-icon">🔔</div>
+      <div class="card-title">Human Escalation</div>
+      <div class="card-sub">Sev 1/2 always escalated; Sev 3/4 auto-remediated (Phase 3)</div>
+      <div class="card-tags">
+        <span class="tag orange">Slack Alerts</span>
+        <span class="tag orange">Diagnosis Report</span>
+        <span class="tag orange">Runbook Link</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- INFRASTRUCTURE -->
+<div>
+  <div class="section-label">05 — Infrastructure & Testing</div>
+  <div class="row row-3">
+    <div class="card">
+      <div class="card-icon">🐳</div>
+      <div class="card-title">Local Dev Cluster</div>
+      <div class="card-tags">
+        <span class="tag">k3d</span>
+        <span class="tag">Docker</span>
+        <span class="tag">Mock Observability Stack</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🧪</div>
+      <div class="card-title">Test Suite</div>
+      <div class="card-tags">
+        <span class="tag">pytest</span>
+        <span class="tag">BDD Scenarios</span>
+        <span class="tag">openspec/</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📝</div>
+      <div class="card-title">Agent Constitution</div>
+      <div class="card-tags">
+        <span class="tag">Claude Code</span>
+        <span class="tag">.claude/commands</span>
+        <span class="tag">Safety Rules</span>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+  </div>
+
+  <!-- Legend -->
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Telemetry / Observability</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>Intelligence / RAG</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>Coordination / Locks</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Remediation Actions</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>Human Escalation</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Detection / Alerts</div>
+  </div>
+
+</div>
+</body>
+</html>
