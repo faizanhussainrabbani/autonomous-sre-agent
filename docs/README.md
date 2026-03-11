@@ -198,4 +198,5 @@ All documents in this repository follow the standards defined in [FAANG_Document
 | `docker-compose.deps.yml` | Docker Compose for LocalStack, Prometheus, Jaeger |
 | `scripts/localstack_bridge.py` | SNS → AnomalyAlert incident bridge for LocalStack live demo |
 | `scripts/mock_lambda.py` | Vulnerable Lambda handler for LocalStack live demo |
+| `scripts/live_demo_localstack_incident.py` | Single-script orchestrator: runs all 10 demo phases end-to-end |
 | `.env.example` | Environment variable template (copy to `.env`) |

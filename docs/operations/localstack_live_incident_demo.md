@@ -88,10 +88,25 @@ Before starting, confirm the following tools are installed and accessible:
 
 ## Step 1: Start LocalStack
 
-Open a dedicated terminal and start LocalStack in detached mode:
+> [!IMPORTANT]
+> **Lambda v2 asynchronous creation (the 30-minute hang):** Since LocalStack 2.0, `create-function` returns HTTP 201 immediately and places the function in `Pending` state. It becomes `Active` only after LocalStack initialises the Docker runtime container. Any `invoke` call issued while the function is still `Pending` throws a `ResourceConflictException` and the AWS CLI retries indefinitely with no visible output — causing an apparent infinite hang.
+>
+> **The fix:** start LocalStack with `LOCALSTACK_LAMBDA_SYNCHRONOUS_CREATE=1`. The `LOCALSTACK_` prefix is required when passing the variable through the LocalStack CLI:
+>
+> ```bash
+> LOCALSTACK_LAMBDA_SYNCHRONOUS_CREATE=1 localstack start -d
+> ```
+>
+> **Or**, if LocalStack is already running, always follow `create-function` with an explicit boto3/CLI wait (covered in Step 2.3 below). Never invoke the function before confirming `State: Active`.
+
+> [!NOTE]
+> **AWS region:** LocalStack Pro derives the default region from your `~/.aws/config` or the `AWS_DEFAULT_REGION` environment variable. All ARNs produced by LocalStack will use that region (e.g. `eu-west-3`). Run `aws configure get region` to see yours, then substitute it wherever `us-east-1` appears in command examples below.
+
+Open a dedicated terminal and start LocalStack Pro in detached mode:
 
 ```bash
-localstack start -d
+localstack auth set-token <your-token>
+LOCALSTACK_LAMBDA_SYNCHRONOUS_CREATE=1 localstack start -d
 ```
 
 Verify it is healthy:
@@ -131,7 +146,7 @@ When `induce_error` is truthy, the function raises a `RuntimeError` that mimics 
 
 ```bash
 cd scripts
-zip function.zip mock_lambda.py
+zip -j function.zip mock_lambda.py
 cd ..
 
 awslocal lambda create-function \
@@ -139,16 +154,41 @@ awslocal lambda create-function \
     --runtime python3.11 \
     --role arn:aws:iam::000000000000:role/lambda-role \
     --handler mock_lambda.handler \
-    --zip-file fileb://scripts/function.zip
+    --zip-file fileb://scripts/function.zip \
+    --no-cli-pager
 ```
 
-### 2.3 Verify deployment
+> [!NOTE]
+> `create-function` returns immediately with `"State": "Pending"`. Do **not** invoke it yet — doing so causes `ResourceConflictException` and the CLI retries silently forever.
+
+### 2.3 Wait for the function to become Active
+
+Always run this immediately after `create-function`:
+
+```bash
+awslocal lambda wait function-active-v2 --function-name payment-processor
+```
+
+The waiter polls `GetFunction` every 5 seconds for up to 300 seconds. With a pre-pulled `python:3.11` image it completes in under 15 seconds. If it times out, check LocalStack logs:
+
+```bash
+docker logs localstack-main 2>&1 | grep -i "lambda\|error\|failed" | tail -20
+```
+
+Pre-pull the image once to eliminate the delay on future runs:
+
+```bash
+docker pull public.ecr.aws/lambda/python:3.11
+```
+
+### 2.4 Verify deployment
 
 ```bash
 awslocal lambda invoke \
     --function-name payment-processor \
     --cli-binary-format raw-in-base64-out \
     --payload '{}' \
+    --no-cli-pager \
     /dev/stdout
 ```
 
@@ -159,10 +199,17 @@ You should see `{"statusCode": 200, "body": "{\"message\": \"Payment processed s
 ### 3.1 Create the SNS topic
 
 ```bash
-awslocal sns create-topic --name sre-agent-alerts
+awslocal sns create-topic --name sre-agent-alerts --no-cli-pager
 ```
 
-Note the returned `TopicArn`. It will be `arn:aws:sns:us-east-1:000000000000:sre-agent-alerts`.
+Note the returned `TopicArn`. The region in the ARN matches your configured AWS region:
+
+```bash
+# Capture it for use in subsequent commands:
+TOPIC_ARN=$(awslocal sns create-topic --name sre-agent-alerts --query TopicArn --output text)
+echo $TOPIC_ARN
+# Example output: arn:aws:sns:eu-west-3:000000000000:sre-agent-alerts
+```
 
 ### 3.2 Create the CloudWatch alarm
 
@@ -179,40 +226,55 @@ awslocal cloudwatch put-metric-alarm \
     --threshold 1 \
     --comparison-operator GreaterThanOrEqualToThreshold \
     --dimensions Name=FunctionName,Value=payment-processor \
-    --alarm-actions arn:aws:sns:us-east-1:000000000000:sre-agent-alerts \
-    --treat-missing-data notBreaching
+    --alarm-actions "$TOPIC_ARN" \
+    --treat-missing-data notBreaching \
+    --no-cli-pager
 ```
 
 ### 3.3 Verify the alarm exists
 
 ```bash
 awslocal cloudwatch describe-alarms \
-    --alarm-names PaymentProcessorErrorSpike
+    --alarm-names PaymentProcessorErrorSpike \
+    --query 'MetricAlarms[0].{State:StateValue,Actions:AlarmActions}' \
+    --no-cli-pager
 ```
 
 The `StateValue` should be `INSUFFICIENT_DATA` or `OK` (no errors yet).
 
 ## Step 4: Start the SRE Agent FastAPI Server
 
-Open a second terminal, activate the virtual environment, and start the agent:
+Open a second terminal and start the server directly via `uvicorn`. Do **not** use `python scripts/live_demo_http_server.py` here — that script is self-contained and shuts the server down after one request.
 
 ```bash
 source .venv/bin/activate
-python scripts/live_demo_http_server.py
+.venv/bin/uvicorn sre_agent.api.main:app --host 127.0.0.1 --port 8181
 ```
 
-Wait until you see `✔  FastAPI server is up and responding to /health`.
+For background operation (so the terminal stays free for other commands):
+
+```bash
+nohup .venv/bin/uvicorn sre_agent.api.main:app --host 127.0.0.1 --port 8181 \
+    > /tmp/sre_agent.log 2>&1 &
+echo "Agent PID: $!"
+```
+
+Verify it is healthy:
+
+```bash
+curl -s http://127.0.0.1:8181/health
+```
 
 The server listens on `http://127.0.0.1:8181` and exposes:
 
-| Endpoint                  | Purpose                                           |
-|---------------------------|---------------------------------------------------|
-| `GET  /health`            | Liveness probe                                    |
-| `POST /api/v1/diagnose`  | Trigger the RAG diagnostic pipeline               |
+| Endpoint                       | Purpose                                      |
+|--------------------------------|----------------------------------------------|
+| `GET  /health`                 | Liveness probe                               |
+| `POST /api/v1/diagnose`        | Trigger the RAG diagnostic pipeline          |
 | `POST /api/v1/diagnose/ingest` | Seed runbooks into the vector database       |
 
 > [!TIP]
-> If you want to pre-seed the knowledge base with relevant runbooks before the demo, send a POST to `/api/v1/diagnose/ingest` with your payment-processor runbook content. This enables the RAG pipeline to retrieve more targeted evidence during diagnosis.
+> Seed the knowledge base with a payment-processor runbook before the demo. The RAG pipeline retrieves more targeted evidence during diagnosis when the runbook is present.
 
 ## Step 5: Start the Incident Bridge
 
@@ -244,15 +306,17 @@ Subscribe:
 
 ```bash
 awslocal sns subscribe \
-    --topic-arn arn:aws:sns:us-east-1:000000000000:sre-agent-alerts \
+    --topic-arn "$TOPIC_ARN" \
     --protocol http \
-    --notification-endpoint http://host.docker.internal:8080/sns/webhook
+    --notification-endpoint http://host.docker.internal:8080/sns/webhook \
+    --no-cli-pager
 ```
 
 > [!NOTE]
 > If LocalStack is running natively on the host (not in Docker), replace `host.docker.internal` with `127.0.0.1`.
 
-You should see a `SubscriptionConfirmation` message in the bridge terminal, followed by `✔  Subscription confirmed.`
+> [!NOTE]
+> **LocalStack Pro** auto-confirms HTTP subscriptions and returns a full `SubscriptionArn` immediately. You will **not** see a separate `SubscriptionConfirmation` request in the bridge log. A `"pending confirmation"` response means the SNS delivery to the bridge endpoint failed — check that the endpoint URL is reachable from inside the LocalStack container.
 
 ## Step 6: Induce Chaos
 
@@ -265,24 +329,39 @@ awslocal lambda invoke \
     --function-name payment-processor \
     --cli-binary-format raw-in-base64-out \
     --payload '{"induce_error": true}' \
-    output.txt
+    --no-cli-pager \
+    output.txt && cat output.txt
 ```
 
-The invocation returns a `FunctionError` because the handler raised `RuntimeError`.
+The invocation returns `"FunctionError": "Unhandled"` because the handler raised `RuntimeError`. The `output.txt` file contains the error details including `errorMessage: Database connection pool exhausted`.
 
-### 6.2 What happens automatically
+### 6.2 Force the CloudWatch alarm to ALARM state
 
-The following chain executes without any further manual intervention:
+LocalStack does not automatically evaluate metric alarms on a 60-second schedule during demos. Use `set-alarm-state` to instantly trigger the SNS notification chain:
+
+```bash
+awslocal cloudwatch set-alarm-state \
+    --alarm-name PaymentProcessorErrorSpike \
+    --state-value ALARM \
+    --state-reason "Threshold Crossed: 1 datapoint [1.0] was >= threshold (1.0)" \
+    --no-cli-pager
+```
+
+This immediately publishes the alarm state-change to SNS, which delivers the HTTP notification to the bridge, which forwards the `AnomalyAlert` to the SRE Agent.
+
+### 6.3 What happens automatically
+
+After `set-alarm-state`, the following chain executes without any further manual intervention:
 
 ```text
  1. Lambda ──────────────▶ Raises RuntimeError("Database connection pool exhausted")
                            CloudWatch Errors metric incremented to 1
 
- 2. CloudWatch ──────────▶ Evaluates PaymentProcessorErrorSpike alarm
-                           Errors (1) >= Threshold (1) → transitions to ALARM
+ 2. set-alarm-state ─────▶ Forces PaymentProcessorErrorSpike → ALARM
+                           (bypasses the 60 s evaluation window)
 
  3. SNS ─────────────────▶ Publishes alarm state-change notification
-                           HTTP POST → http://...:8080/sns/webhook
+                           HTTP POST → http://host.docker.internal:8080/sns/webhook
 
  4. Incident Bridge ─────▶ Parses AWS Alarm JSON
                            Builds canonical AnomalyAlert payload
@@ -300,26 +379,35 @@ The following chain executes without any further manual intervention:
                              • Audit trail
 ```
 
-### 6.3 Expected terminal output
+### 6.4 Expected terminal output
 
 In the **Bridge terminal** you will see:
 
 ```text
 🚨 CloudWatch Alarm Triggered: PaymentProcessorErrorSpike
-   NewStateReason: Threshold Crossed: 1 datapoint [1.0] >= 1.0
+   NewStateReason: Threshold Crossed: 1 datapoint [1.0] was >= threshold (1.0). Lambda Errors exceeded.
    → Forwarding to SRE Agent at http://127.0.0.1:8181/api/v1/diagnose ...
 
 🤖 Agent Diagnosis Output:
 {
   "status": "success",
-  "alert_id": "...",
-  "severity": "SEV2",
-  "confidence": 0.85,
-  "root_cause": "Lambda function payment-processor experienced a runtime crash...",
-  "remediation": "1. Increase database connection pool limits...",
-  "requires_approval": false,
-  "citations": [...],
-  "audit_trail": [...]
+  "alert_id": "136a7ca7-58aa-49a8-8a99-213d203931ed",
+  "severity": "SEV3",
+  "confidence": 0.722,
+  "root_cause": "Database connection pool exhaustion due to high Lambda concurrency during peak load,
+                 causing payment-processor Lambda invocations to fail with RuntimeError",
+  "remediation": "Immediately throttle Lambda concurrency to 50 to reduce database pressure,
+                  then implement RDS Proxy for connection multiplexing, increase max_connections,
+                  and add exponential backoff with jitter for database connection retries",
+  "requires_approval": true,
+  "citations": [{"source": "runbooks/payment-processor-oom.md", "relevance_score": 0.764}],
+  "audit_trail": [
+    "retrieval/embedding_alert: {}",
+    "retrieval/vector_search_complete: {'results_count': 1}",
+    "reasoning/hypothesis_generated: {'confidence': 0.76}",
+    "validation/hypothesis_validated: {'agrees': True}",
+    "classification/diagnosis_complete: {'severity': 'SEV3', 'confidence': 0.722}"
+  ]
 }
 ```
 
@@ -359,6 +447,50 @@ awslocal lambda invoke \
 
 This succeeds without errors. Once the CloudWatch alarm re-evaluates, it transitions back to `OK` and SNS fires a non-alarm notification that the bridge safely ignores.
 
+## Running the Complete Demo as a Single Script
+
+A fully automated orchestrator script executes every phase sequentially with
+colour-coded output and interactive ENTER-key pauses between phases, so you
+can narrate each step during a live presentation.
+
+```bash
+source .venv/bin/activate
+python scripts/live_demo_localstack_incident.py
+```
+
+The script handles everything in order:
+
+| Phase | Action |
+|-------|--------|
+| 0     | Pre-flight: verify LocalStack, packages, ports |
+| 1     | Package and deploy the Lambda; wait for `Active` |
+| 2     | Create the SNS topic and CloudWatch alarm |
+| 3     | Start the SRE Agent FastAPI server (port 8181) |
+| 4     | Start the Incident Bridge webhook server (port 8080) |
+| 5     | Subscribe the bridge to the SNS topic |
+| 6     | Seed the knowledge base with the payment-processor runbook |
+| 7     | Invoke the Lambda with the destructive payload |
+| 8     | Force the CloudWatch alarm and fire the full detection chain |
+| 9     | Display the structured LLM diagnosis with full audit trail |
+| 10    | Clean up: delete Lambda, alarm, SNS topic; terminate servers |
+
+To skip pauses (CI/non-interactive mode):
+
+```bash
+SKIP_PAUSES=1 python scripts/live_demo_localstack_incident.py
+```
+
+To override defaults:
+
+```bash
+LOCALSTACK_ENDPOINT=http://localhost:4566 \
+AWS_DEFAULT_REGION=eu-west-3 \
+python scripts/live_demo_localstack_incident.py
+```
+
+> [!IMPORTANT]
+> LocalStack must already be running before you start the script. Start it in a separate terminal with `LOCALSTACK_LAMBDA_SYNCHRONOUS_CREATE=1 localstack start -d` and wait for it to become healthy (`localstack wait -t 60`) before running the demo.
+
 ## Terminal Layout Reference
 
 For a live demo presentation, arrange four terminal panes:
@@ -380,12 +512,14 @@ For a live demo presentation, arrange four terminal panes:
 
 | Symptom                                    | Cause                                              | Resolution                                                                       |
 |--------------------------------------------|-----------------------------------------------------|---------------------------------------------------------------------------------|
-| Bridge never receives a webhook            | SNS subscription endpoint is unreachable            | Use `http://host.docker.internal:8080` if LocalStack runs in Docker.             |
-| Agent returns HTTP 500 on `/api/v1/diagnose` | `ANTHROPIC_API_KEY` is missing or invalid         | Set the key in your `.env` or export it: `export ANTHROPIC_API_KEY=sk-...`       |
+| `create-function` or invoke hangs forever  | Function is in `Pending` state; CLI retries `ResourceConflictException` silently | Always run `awslocal lambda wait function-active-v2 --function-name payment-processor` before invoking. Start LocalStack with `LOCALSTACK_LAMBDA_SYNCHRONOUS_CREATE=1`. |
+| Lambda stays `Pending` longer than 2 min   | Runtime Docker image not cached on host             | Pre-pull: `docker pull public.ecr.aws/lambda/python:3.11`                        |
+| No alarm fires after `lambda invoke`       | LocalStack does not auto-evaluate alarms on schedule | Force the alarm: `awslocal cloudwatch set-alarm-state --alarm-name PaymentProcessorErrorSpike --state-value ALARM --state-reason "manual"` |
+| Agent returns HTTP 500 on `/api/v1/diagnose` | `ANTHROPIC_API_KEY` is missing or invalid         | Export it: `export ANTHROPIC_API_KEY=sk-...`                                     |
 | `awslocal: command not found`              | `awscli-local` is not installed                     | Run `pip install awscli-local`.                                                  |
-| CloudWatch alarm stays `INSUFFICIENT_DATA` | Lambda error metric was not recorded by LocalStack  | Invoke the Lambda with `induce_error` first, then wait up to 60 seconds.         |
-| `ConnectionRefused` on port 8181           | SRE Agent server is not running                     | Start it: `python scripts/live_demo_http_server.py`.                             |
-| Bridge confirms subscription but no alarm fires | Alarm period has not elapsed yet                | Wait 60 seconds after the Lambda error for the alarm evaluation period to pass.  |
+| `ConnectionRefused` on port 8181           | Used `live_demo_http_server.py` which self-terminates | Use `nohup .venv/bin/uvicorn sre_agent.api.main:app --host 127.0.0.1 --port 8181 > /tmp/sre_agent.log 2>&1 &` instead. |
+| SNS subscription stays `pending confirmation` | Bridge endpoint unreachable from LocalStack container | Use `http://host.docker.internal:8080` on macOS/Docker Desktop. Check bridge is listening: `curl http://127.0.0.1:8080/health`. |
+| ARN region mismatch errors                 | LocalStack uses your configured AWS region, not `us-east-1` | Run `aws configure get region` and substitute that region in all ARNs. Use `$TOPIC_ARN` variable from Step 3.1. |
 
 ## Cleanup
 
@@ -393,8 +527,13 @@ Remove all LocalStack resources and stop services:
 
 ```bash
 awslocal lambda delete-function --function-name payment-processor
-awslocal sns delete-topic --topic-arn arn:aws:sns:us-east-1:000000000000:sre-agent-alerts
+awslocal sns delete-topic --topic-arn "$TOPIC_ARN"
 awslocal cloudwatch delete-alarms --alarm-names PaymentProcessorErrorSpike
+
+# Stop background processes
+lsof -ti :8181 | xargs kill -9 2>/dev/null
+lsof -ti :8080 | xargs kill -9 2>/dev/null
+
 localstack stop
 ```
 
