@@ -156,23 +156,95 @@ def sns_client():     return boto3.client("sns",        **_boto_kwargs)
 
 
 # ---------------------------------------------------------------------------
-# Phase 0 — Pre-flight checks
+# Phase 0 — Pre-flight checks (with auto-start)
 # ---------------------------------------------------------------------------
+LOCALSTACK_AUTH_TOKEN = os.getenv(
+    "LOCALSTACK_AUTH_TOKEN",
+    os.getenv("LOCALSTACK_API_KEY", "ls-lOhUCOmo-2254-TUgA-3042-FotejUda838a"),
+)
+
+
+def _localstack_healthy() -> bool:
+    """Return True if LocalStack is reachable and reports healthy status."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(LOCALSTACK_ENDPOINT + "/_localstack/health", timeout=3) as r:
+            data = json.loads(r.read())
+            # LocalStack health returns {"status": "running"} or {"services": {...}}
+            return data.get("status") in ("running", "ok") or bool(data.get("services"))
+    except Exception:
+        return False
+
+
+def _start_localstack() -> None:
+    """Auto-start LocalStack Pro in the background and wait up to 90 s for it."""
+    step("LocalStack not running — attempting auto-start")
+
+    # Set auth token so LocalStack Pro activates correctly
+    env = os.environ.copy()
+    env["LOCALSTACK_AUTH_TOKEN"] = LOCALSTACK_AUTH_TOKEN
+    # Keep Lambda in synchronous create mode so our waiter works correctly
+    env["LAMBDA_SYNCHRONOUS_CREATE"] = "1"
+
+    info(f"Running: localstack start -d  (token: {LOCALSTACK_AUTH_TOKEN[:12]}...)")
+    result = subprocess.run(
+        ["localstack", "start", "-d"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode not in (0, 1):  # returncode 1 is ok (already starting)
+        abort(
+            f"localstack start failed (exit {result.returncode}).\n"
+            f"stdout: {result.stdout.strip()}\n"
+            f"stderr: {result.stderr.strip()}\n"
+            f"Install LocalStack CLI:  pip install localstack"
+        )
+
+    info("Waiting for LocalStack to become healthy (up to 90 s)...")
+    deadline = time.time() + 90
+    while time.time() < deadline:
+        if _localstack_healthy():
+            ok(f"LocalStack is UP at {LOCALSTACK_ENDPOINT}")
+            return
+        time.sleep(3)
+        print(".", end="", flush=True)
+    print()
+    abort(
+        "LocalStack did not become healthy within 90 s.\n"
+        "Check logs:  localstack logs\n"
+        "Or start manually:  LAMBDA_SYNCHRONOUS_CREATE=1 LOCALSTACK_AUTH_TOKEN=<token> localstack start -d"
+    )
+
+
+def _kill_stale_port(port: int) -> None:
+    """Kill whatever process is listening on *port* so the demo can own it."""
+    result = subprocess.run(
+        ["lsof", "-ti", f":{port}"],
+        capture_output=True,
+        text=True,
+    )
+    pids = result.stdout.strip().split()
+    if pids:
+        info(f"Port {port} in use by PID(s): {', '.join(pids)} — sending SIGKILL")
+        subprocess.run(["kill", "-9"] + pids, capture_output=True)
+        time.sleep(1)
+        ok(f"Port {port} freed")
+    else:
+        ok(f"Port {port} — free")
+
+
 def phase0_preflight() -> None:
     phase(0, "Pre-flight Checks")
 
+    # ── LocalStack ──────────────────────────────────────────────────────────
     step("Verify LocalStack is reachable")
-    try:
-        import urllib.request
-        urllib.request.urlopen(LOCALSTACK_ENDPOINT + "/_localstack/health", timeout=3)
+    if _localstack_healthy():
         ok(f"LocalStack reachable at {LOCALSTACK_ENDPOINT}")
-    except Exception as exc:
-        abort(
-            f"LocalStack is NOT reachable at {LOCALSTACK_ENDPOINT}.\n"
-            f"      Start it first:  LAMBDA_SYNCHRONOUS_CREATE=1 localstack start -d\n"
-            f"      Error: {exc}"
-        )
+    else:
+        _start_localstack()
 
+    # ── Python packages ─────────────────────────────────────────────────────
     step("Verify required Python packages")
     missing = []
     for pkg in ("boto3", "httpx", "uvicorn", "fastapi"):
@@ -185,6 +257,7 @@ def phase0_preflight() -> None:
     if missing:
         abort(f"Install missing packages:  pip install {' '.join(missing)}")
 
+    # ── awslocal CLI ────────────────────────────────────────────────────────
     step("Verify awslocal CLI")
     result = subprocess.run(["awslocal", "--version"], capture_output=True, text=True)
     if result.returncode == 0:
@@ -192,19 +265,27 @@ def phase0_preflight() -> None:
     else:
         abort("awslocal not found. Install it:  pip install awscli-local")
 
+    # ── mock_lambda.py ──────────────────────────────────────────────────────
     step("Verify mock_lambda.py exists")
     if MOCK_LAMBDA_PATH.exists():
         ok(f"mock_lambda.py found at {MOCK_LAMBDA_PATH}")
     else:
         abort(f"mock_lambda.py not found at {MOCK_LAMBDA_PATH}")
 
-    step("Verify ports 8080 and 8181 are free")
+    # ── Ports ───────────────────────────────────────────────────────────────
+    step("Verify ports 8080 and 8181 are free (auto-kill stale processes)")
     import socket
     for port in (BRIDGE_PORT, AGENT_PORT):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             in_use = s.connect_ex(("127.0.0.1", port)) == 0
         if in_use:
-            fail(f"Port {port} is already in use. Free it:  lsof -ti :{port} | xargs kill -9")
+            fail(f"Port {port} is already in use — killing stale process...")
+            _kill_stale_port(port)
+            # Confirm now free
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                still_in_use = s.connect_ex(("127.0.0.1", port)) == 0
+            if still_in_use:
+                abort(f"Could not free port {port}. Kill manually:  lsof -ti :{port} | xargs kill -9")
         else:
             ok(f"Port {port} — free")
 
@@ -687,8 +768,41 @@ def phase9_show_diagnosis() -> None:
     audit = diagnosis.get("audit_trail") or []
     if audit:
         print(f"\n   {C.CYAN}Audit Trail (Pipeline Stages):{C.RESET}")
+        _llm_stages = []
         for entry in audit:
+            stage  = entry.get("stage", "") if isinstance(entry, dict) else ""
+            action = entry.get("action", "") if isinstance(entry, dict) else ""
+            details = entry.get("details", {}) if isinstance(entry, dict) else {}
+            if action == "hypothesis_generated":
+                _llm_stages.append(("Anthropic Claude — hypothesis_generated", details))
+            elif action == "hypothesis_validated":
+                _llm_stages.append(("Anthropic Claude — hypothesis_validated (cross-check)", details))
             print(f"      {C.DIM}→{C.RESET}  {entry}")
+
+        if _llm_stages:
+            print(f"\n   {C.BOLD}{C.MAGENTA}🧠  LLM Calls Made (Anthropic Claude):{C.RESET}")
+            for label, det in _llm_stages:
+                print(f"      {C.MAGENTA}◆{C.RESET}  {C.BOLD}{label}{C.RESET}")
+                if "confidence" in det:
+                    print(f"         Confidence returned by LLM : {det['confidence']:.2f}")
+                if "root_cause" in det:
+                    rc = det["root_cause"][:100]
+                    print(f"         Root-cause excerpt         : {rc}...")
+                if "agrees" in det:
+                    agreed = det["agrees"]
+                    tag = f"{C.GREEN}✔ agrees{C.RESET}" if agreed else f"{C.RED}✖ disagrees{C.RESET}"
+                    print(f"         Validator agreement        : {tag}")
+                if "reasoning" in det:
+                    rsn = det["reasoning"][:100]
+                    is_llm = "Rule-based" not in rsn
+                    source_tag = (
+                        f"{C.GREEN}LLM cross-check{C.RESET}" if is_llm
+                        else f"{C.YELLOW}rule-based fallback{C.RESET}"
+                    )
+                    print(f"         Reasoning source           : {source_tag}")
+                    print(f"         Reasoning excerpt          : {rsn}...")
+        else:
+            print(f"\n   {C.YELLOW}ℹ  No LLM call entries found in audit trail.{C.RESET}")
 
     print(f"\n   {C.BOLD}{C.GREEN}{'─' * width}{C.RESET}\n")
 
