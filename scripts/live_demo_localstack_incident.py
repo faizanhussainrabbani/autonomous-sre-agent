@@ -770,13 +770,30 @@ def phase9_show_diagnosis() -> None:
         print(f"\n   {C.CYAN}Audit Trail (Pipeline Stages):{C.RESET}")
         _llm_stages = []
         for entry in audit:
-            stage  = entry.get("stage", "") if isinstance(entry, dict) else ""
-            action = entry.get("action", "") if isinstance(entry, dict) else ""
-            details = entry.get("details", {}) if isinstance(entry, dict) else {}
+            # Audit entries arrive as formatted strings: "stage/action: {details}"
+            # or as dicts depending on serialisation path — handle both.
+            if isinstance(entry, dict):
+                action  = entry.get("action", "")
+                details = entry.get("details", {})
+            else:
+                entry_str = str(entry)
+                # Parse "stage/action: {details}"
+                action = ""
+                details: dict = {}
+                if "/" in entry_str and ":" in entry_str:
+                    try:
+                        action_part, _, rest = entry_str.partition(": ")
+                        action = action_part.split("/")[-1].strip()
+                        import ast as _ast
+                        details = _ast.literal_eval(rest.strip())
+                    except Exception:
+                        pass
+
             if action == "hypothesis_generated":
-                _llm_stages.append(("Anthropic Claude — hypothesis_generated", details))
+                _llm_stages.append(("Anthropic Claude — hypothesis generation", details))
             elif action == "hypothesis_validated":
-                _llm_stages.append(("Anthropic Claude — hypothesis_validated (cross-check)", details))
+                _llm_stages.append(("Anthropic Claude — hypothesis cross-validation", details))
+
             print(f"      {C.DIM}→{C.RESET}  {entry}")
 
         if _llm_stages:
@@ -784,16 +801,19 @@ def phase9_show_diagnosis() -> None:
             for label, det in _llm_stages:
                 print(f"      {C.MAGENTA}◆{C.RESET}  {C.BOLD}{label}{C.RESET}")
                 if "confidence" in det:
-                    print(f"         Confidence returned by LLM : {det['confidence']:.2f}")
+                    try:
+                        print(f"         Confidence returned by LLM : {float(det['confidence']):.2f}")
+                    except (TypeError, ValueError):
+                        print(f"         Confidence returned by LLM : {det['confidence']}")
                 if "root_cause" in det:
-                    rc = det["root_cause"][:100]
+                    rc = str(det["root_cause"])[:100]
                     print(f"         Root-cause excerpt         : {rc}...")
                 if "agrees" in det:
                     agreed = det["agrees"]
-                    tag = f"{C.GREEN}✔ agrees{C.RESET}" if agreed else f"{C.RED}✖ disagrees{C.RESET}"
+                    tag = f"{C.GREEN}✔ agrees{C.RESET}" if agreed else f"{C.RED}✖ disagrees (raises confidence penalty){C.RESET}"
                     print(f"         Validator agreement        : {tag}")
                 if "reasoning" in det:
-                    rsn = det["reasoning"][:100]
+                    rsn = str(det["reasoning"])[:120]
                     is_llm = "Rule-based" not in rsn
                     source_tag = (
                         f"{C.GREEN}LLM cross-check{C.RESET}" if is_llm
