@@ -82,6 +82,10 @@ Day-to-day operational procedures, SLOs, and incident playbooks.
 | [runbooks/phase_management.md](operations/runbooks/phase_management.md) | Procedures for graduating the agent across phases |
 | [runbooks/agent_failure_runbook.md](operations/runbooks/agent_failure_runbook.md) | Runbook for responding to agent crash or stuck state |
 
+| **Live Demos** | Description |
+|---|---|
+| [localstack_live_incident_demo.md](operations/localstack_live_incident_demo.md) | End-to-end LocalStack incident response demo: Lambda crash → CloudWatch → SNS → Agent diagnosis |
+
 | **Operational Metrics** | Description |
 |---|---|
 | [slos_and_error_budgets.md](operations/slos_and_error_budgets.md) | Service Level Objectives, error budgets, burn rate alerts |
@@ -192,4 +196,6 @@ All documents in this repository follow the standards defined in [FAANG_Document
 | `scripts/run.sh` | Unified run script: server, test, lint, setup |
 | `scripts/setup_deps.sh` | Start/stop Docker-based development dependencies |
 | `docker-compose.deps.yml` | Docker Compose for LocalStack, Prometheus, Jaeger |
+| `scripts/localstack_bridge.py` | SNS → AnomalyAlert incident bridge for LocalStack live demo |
+| `scripts/mock_lambda.py` | Vulnerable Lambda handler for LocalStack live demo |
 | `.env.example` | Environment variable template (copy to `.env`) |
