@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import load_dotenv
+
+# Load .env file if present (python-dotenv best practice: call once at config load)
+# System environment variables take precedence over .env values.
+load_dotenv()
 
 
 class TelemetryProviderType(Enum):

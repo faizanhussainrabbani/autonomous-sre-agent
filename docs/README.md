@@ -1,7 +1,7 @@
 # Autonomous SRE Agent — Documentation Index
 
-> **Version:** Phase 1.5  
-> **Last Updated:** March 4, 2026  
+> **Version:** Phase 2 (Intelligence Layer)  
+> **Last Updated:** March 10, 2026  
 > **Maintainer:** SRE Agent Engineering Team
 
 This index is the canonical entry point for all project documentation. Every document in the `docs/` tree is listed here with its purpose and audience.
@@ -87,6 +87,7 @@ Day-to-day operational procedures, SLOs, and incident playbooks.
 | [slos_and_error_budgets.md](operations/slos_and_error_budgets.md) | Service Level Objectives, error budgets, burn rate alerts |
 | [ci_cd_pipeline.md](operations/ci_cd_pipeline.md) | CI/CD pipeline design, stages, and quality gates |
 | [operational_readiness.md](operations/operational_readiness.md) | Production readiness checklist |
+| [external_dependencies.md](operations/external_dependencies.md) | External deps: Docker, LocalStack, LLM keys, ChromaDB |
 | [graduation_criteria.md](operations/graduation_criteria.md) | Criteria for graduating from each phase to the next |
 
 ---
@@ -181,3 +182,14 @@ All documents in this repository follow the standards defined in [FAANG_Document
 | Kubernetes infra manifests | [infra/k8s/](../infra/k8s/) |
 | Phase specs and proposals | [openspec/](../openspec/) |
 | Phase 1 data foundation | [phases/phase-1-data-foundation/](../phases/phase-1-data-foundation/) |
+
+---
+
+## Developer Scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/run.sh` | Unified run script: server, test, lint, setup |
+| `scripts/setup_deps.sh` | Start/stop Docker-based development dependencies |
+| `docker-compose.deps.yml` | Docker Compose for LocalStack, Prometheus, Jaeger |
+| `.env.example` | Environment variable template (copy to `.env`) |

@@ -24,6 +24,9 @@ dependencies = [
 
     # Event bus
     "aiokafka>=0.10",
+
+    # Environment management
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -86,6 +89,7 @@ filterwarnings = [
     "ignore::DeprecationWarning:botocore.*",
     "ignore::DeprecationWarning:pydantic.*",
     "ignore::DeprecationWarning:testcontainers.*",
+    "ignore::ResourceWarning",
 ]
 addopts = [
     "--strict-markers",

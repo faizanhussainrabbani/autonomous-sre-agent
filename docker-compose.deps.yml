@@ -1,0 +1,77 @@
+version: "3.8"
+
+# ===========================================================================
+# SRE Agent — Development Dependencies
+#
+# Usage:
+#   docker compose -f docker-compose.deps.yml up -d      # start all
+#   docker compose -f docker-compose.deps.yml down        # stop all
+#
+# Or use the helper script:
+#   ./scripts/setup_deps.sh start
+#   ./scripts/setup_deps.sh stop
+# ===========================================================================
+
+services:
+
+  # ── LocalStack Pro ────────────────────────────────────────────────────────
+  # Emulates AWS APIs locally (ECS, EC2, Lambda, IAM, S3, SecretsManager).
+  # Required for: integration tests, chaos specs, IAM specs.
+  # Set LOCALSTACK_AUTH_TOKEN in your .env for Pro features.
+  localstack:
+    image: localstack/localstack-pro:latest
+    container_name: sre-localstack
+    ports:
+      - "4566:4566"       # Gateway (all AWS services)
+      - "4510-4559:4510-4559"  # Service port range
+    environment:
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
+      - DEBUG=0
+      - SERVICES=ecs,ec2,iam,lambda,s3,secretsmanager,sts,autoscaling
+      - DEFAULT_REGION=us-east-1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Prometheus ────────────────────────────────────────────────────────────
+  # Metrics collection and querying.
+  # Required for: OTel adapter tests, detection pipeline tests.
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: sre-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus:/etc/prometheus:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=1d"
+      - "--web.enable-lifecycle"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Jaeger ────────────────────────────────────────────────────────────────
+  # Distributed trace backend.
+  # Required for: trace ingestion tests, OTel adapter tests.
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: sre-jaeger
+    ports:
+      - "16686:16686"   # UI
+      - "14268:14268"   # Collector HTTP
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
+volumes:
+  localstack_data:

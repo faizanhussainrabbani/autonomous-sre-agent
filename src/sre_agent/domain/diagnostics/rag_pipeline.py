@@ -2,18 +2,23 @@
 RAG Diagnostic Pipeline — Retrieval-Augmented Generation for incident diagnosis.
 
 Orchestrates the full diagnostic flow:
+0. Check semantic cache for recurring incident
 1. Embed alert description
 2. Search vector store for relevant runbook/post-mortem evidence
-3. Construct a chronological timeline of correlated signals
-4. Generate a hypothesis via LLM
-5. Validate via second-opinion cross-check
-6. Compute composite confidence score
-7. Classify severity
-8. Return structured DiagnosisResult
+2.5. Cross-encoder reranking of evidence (Phase 2.2)
+3. Construct a filtered chronological timeline (Phase 2.2)
+4. Compress evidence chunks (Phase 2.2)
+5. Generate a hypothesis via LLM
+6. Validate via second-opinion cross-check
+7. Compute composite confidence score
+8. Classify severity
+9. Store result in cache
+10. Return structured DiagnosisResult
 
 Implements DiagnosticPort from the ports layer.
 
 Phase 2: Intelligence Layer — Sprint 2 (Reasoning & Inference)
+Phase 2.2: Token Optimization
 """
 
 from __future__ import annotations
@@ -44,6 +49,8 @@ from sre_agent.domain.models.diagnosis import (
     DiagnosticState,
     EvidenceCitation,
 )
+from sre_agent.domain.diagnostics.cache import DiagnosticCache
+from sre_agent.ports.compressor import CompressorPort
 from sre_agent.ports.diagnostics import DiagnosisRequest, DiagnosisResult, DiagnosticPort
 from sre_agent.ports.embedding import EmbeddingPort
 from sre_agent.ports.events import EventBus, EventStore
@@ -52,6 +59,7 @@ from sre_agent.ports.llm import (
     HypothesisRequest,
     LLMReasoningPort,
 )
+from sre_agent.ports.reranker import RerankerPort
 from sre_agent.ports.vector_store import SearchQuery, VectorStorePort
 
 logger = structlog.get_logger(__name__)
@@ -80,6 +88,9 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         context_budget: int = 4000,
         event_bus: EventBus | None = None,
         event_store: EventStore | None = None,
+        compressor: CompressorPort | None = None,
+        reranker: RerankerPort | None = None,
+        cache: DiagnosticCache | None = None,
     ) -> None:
         self._vector_store = vector_store
         self._embedding = embedding
@@ -91,6 +102,9 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         self._context_budget = context_budget
         self._event_bus = event_bus
         self._event_store = event_store
+        self._compressor = compressor
+        self._reranker = reranker
+        self._cache = cache
 
     async def diagnose(self, request: DiagnosisRequest) -> DiagnosisResult:
         """Execute the full RAG diagnostic pipeline.
@@ -116,6 +130,21 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 service=request.alert.service,
                 anomaly_type=request.alert.anomaly_type.value,
             )
+
+            # Stage 0.5: Check semantic cache (Phase 2.2)
+            if self._cache is not None:
+                cached = self._cache.get(
+                    service=request.alert.service,
+                    anomaly_type=request.alert.anomaly_type.value,
+                    metric=request.alert.metric_name,
+                )
+                if cached is not None:
+                    logger.info(
+                        "diagnosis_cache_hit",
+                        alert_id=request.alert.alert_id,
+                        service=request.alert.service,
+                    )
+                    return cached
 
             # Stage 0: Emit IncidentDetected event (Engineering Standards §1.4)
             await self._emit(DomainEvent(
@@ -175,14 +204,62 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 DIAGNOSIS_ERRORS.labels(error_type="novel_incident").inc()
                 return self._handle_novel_incident(request, audit)
 
-            # Stage 3: Build timeline from correlated signals
+            # Stage 2.5: Cross-encoder reranking (Phase 2.2)
+            if self._reranker is not None:
+                reranked = self._reranker.rerank(
+                    query=alert_text,
+                    documents=[
+                        {
+                            "content": r.content,
+                            "source": r.source,
+                            "score": r.score,
+                            "doc_id": r.doc_id,
+                        }
+                        for r in search_results
+                    ],
+                    top_k=request.max_evidence_items,
+                )
+                # Convert back to search result-like objects for downstream
+                from types import SimpleNamespace
+                search_results = [
+                    SimpleNamespace(
+                        content=rd.content,
+                        source=rd.source,
+                        score=rd.rerank_score,
+                        doc_id=rd.doc_id,
+                    )
+                    for rd in reranked
+                ]
+                audit.append(AuditEntry(
+                    stage="retrieval",
+                    action="evidence_reranked",
+                    details={
+                        "reranked_count": len(search_results),
+                        "top_rerank_score": round(reranked[0].rerank_score, 4) if reranked else None,
+                    },
+                ))
+                logger.debug(
+                    "evidence_reranked",
+                    alert_id=request.alert.alert_id,
+                    count=len(search_results),
+                )
+
+            # Stage 3: Build timeline from correlated signals (Phase 2.2: filtered)
             diagnosis.state = DiagnosticState.REASONING
             timeline_text = ""
             if request.correlated_signals:
-                timeline_text = self._timeline.build(request.correlated_signals)
+                timeline_text = self._timeline.build(
+                    request.correlated_signals,
+                    anomaly_type=request.alert.anomaly_type.value,
+                )
 
-            # Stage 4: Build evidence context with token budgeting
+            # Stage 4: Build evidence context with compression + token budgeting
             evidence_contexts = self._build_evidence_contexts(search_results)
+
+            # Phase 2.2: Compress evidence chunks before budget allocation
+            if self._compressor is not None:
+                evidence_contexts = self._compress_evidence(evidence_contexts)
+
             trimmed_evidence = self._apply_token_budget(evidence_contexts)
 
             logger.debug(
@@ -198,6 +275,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 details={
                     "total_evidence": len(evidence_contexts),
                     "after_budget_trim": len(trimmed_evidence),
+                    "compressed": self._compressor is not None,
                 },
             ))
 
@@ -345,6 +423,30 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 },
             ))
 
+            # Phase 2.2: Store result in cache for future hits
+            result = DiagnosisResult(
+                root_cause=hypothesis.root_cause,
+                confidence=confidence,
+                severity=severity,
+                reasoning=hypothesis.reasoning,
+                suggested_remediation=hypothesis.suggested_remediation,
+                is_novel=False,
+                requires_human_approval=requires_approval,
+                diagnosed_at=datetime.now(timezone.utc),
+                evidence_citations=[c.source for c in citations],
+                audit_trail=[
+                    f"{a.stage}/{a.action}: {a.details}" for a in audit
+                ],
+            )
+
+            if self._cache is not None:
+                self._cache.put(
+                    service=request.alert.service,
+                    anomaly_type=request.alert.anomaly_type.value,
+                    metric=request.alert.metric_name,
+                    result=result,
+                )
+
             _elapsed = time.monotonic() - _start
             DIAGNOSIS_DURATION.labels(
                 service=request.alert.service,
@@ -360,20 +462,9 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 requires_approval=requires_approval,
             )
 
-            return DiagnosisResult(
-                root_cause=hypothesis.root_cause,
-                confidence=confidence,
-                severity=severity,
-                reasoning=hypothesis.reasoning,
-                evidence_citations=[c.source for c in citations],
-                suggested_remediation=hypothesis.suggested_remediation,
-                is_novel=False,
-                requires_human_approval=requires_approval,
-                diagnosed_at=datetime.now(timezone.utc),
-                audit_trail=[
-                    f"{a.stage}/{a.action}: {a.details}" for a in audit
-                ],
-            )
+
+            return result
+
 
         except ConnectionError as exc:
             DIAGNOSIS_ERRORS.labels(error_type="connection_error").inc()
@@ -491,6 +582,21 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             )
             for r in search_results
         ]
+
+    def _compress_evidence(
+        self,
+        evidence: list[EvidenceContext],
+    ) -> list[EvidenceContext]:
+        """Compress evidence chunks using the compressor port (Phase 2.2)."""
+        compressed: list[EvidenceContext] = []
+        for ctx in evidence:
+            result = self._compressor.compress(ctx.content, target_ratio=0.5)
+            compressed.append(EvidenceContext(
+                content=result.compressed_text,
+                source=ctx.source,
+                relevance_score=ctx.relevance_score,
+            ))
+        return compressed
 
     def _apply_token_budget(
         self,

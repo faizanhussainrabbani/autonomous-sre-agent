@@ -199,7 +199,11 @@ class OpenAILLMAdapter(LLMReasoningPort):
 
     @staticmethod
     def _build_validation_prompt(request: ValidationRequest) -> str:
-        """Build the user prompt for hypothesis validation."""
+        """Build the user prompt for hypothesis validation.
+
+        Phase 2.2: Sends only citation summaries (≤150 chars) instead of
+        full evidence content to reduce validation call token usage.
+        """
         h = request.hypothesis
         parts = [
             f"## Hypothesis\nRoot cause: {h.root_cause}",
@@ -211,9 +215,13 @@ class OpenAILLMAdapter(LLMReasoningPort):
             parts.append(f"\n## Original Alert\n{request.alert_description}")
 
         if request.original_evidence:
-            parts.append("\n## Original Evidence")
+            parts.append("\n## Evidence Citations (summaries)")
             for i, e in enumerate(request.original_evidence, 1):
-                parts.append(f"\n### Evidence {i}\n{e.content}")
+                snippet = e.content[:150].strip()
+                parts.append(
+                    f"- [Evidence {i}] (source: {e.source}, "
+                    f"relevance: {e.relevance_score:.2f}): {snippet}..."
+                )
 
         return "\n".join(parts)
 
