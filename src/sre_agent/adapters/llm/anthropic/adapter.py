@@ -94,6 +94,16 @@ class AnthropicLLMAdapter(LLMReasoningPort):
                 response.usage.output_tokens
             )
 
+        logger.info(
+            "llm_api_called",
+            provider="anthropic",
+            model=self._config.model_name,
+            call_type="hypothesis",
+            input_tokens=response.usage.input_tokens if response.usage else None,
+            output_tokens=response.usage.output_tokens if response.usage else None,
+            duration_ms=round((time.monotonic() - _t0) * 1000),
+        )
+
         content = response.content[0].text if response.content else "{}"
         try:
             return OpenAILLMAdapter._parse_hypothesis(content)
@@ -133,6 +143,16 @@ class AnthropicLLMAdapter(LLMReasoningPort):
             LLM_TOKENS_USED.labels(provider="anthropic", token_type="completion").inc(
                 response.usage.output_tokens
             )
+
+        logger.info(
+            "llm_api_called",
+            provider="anthropic",
+            model=self._config.model_name,
+            call_type="validation",
+            input_tokens=response.usage.input_tokens if response.usage else None,
+            output_tokens=response.usage.output_tokens if response.usage else None,
+            duration_ms=round((time.monotonic() - _t0) * 1000),
+        )
 
         content = response.content[0].text if response.content else "{}"
         try:

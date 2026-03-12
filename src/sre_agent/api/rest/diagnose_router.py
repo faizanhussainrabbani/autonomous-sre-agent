@@ -1,59 +1,51 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, Any
+from typing import Any, Dict
 from pydantic import BaseModel
 import structlog
 
-from sre_agent.domain.models.canonical import AnomalyAlert, AnomalyType
+from sre_agent.domain.models.canonical import AnomalyAlert
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
-from sre_agent.adapters.llm.anthropic.adapter import AnthropicLLMAdapter
-from sre_agent.adapters.vectordb.chroma.adapter import ChromaVectorStoreAdapter
-from sre_agent.adapters.embedding.sentence_transformers_adapter import SentenceTransformersEmbeddingAdapter
-from sre_agent.domain.diagnostics.severity import SeverityClassifier
-from sre_agent.domain.diagnostics.validator import SecondOpinionValidator, ValidationStrategy
-from sre_agent.events import InMemoryEventBus, InMemoryEventStore
 from sre_agent.ports.diagnostics import DiagnosisRequest
 from sre_agent.ports.vector_store import VectorDocument
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/diagnose", tags=["Diagnostics"])
 
-# Instantiate the pipeline lazily to avoid startup blocking
-_pipeline = None
+# Lazily initialised singleton — avoids blocking on startup while still
+# ensuring all components (ThrottledLLMAdapter, ConfidenceScorer, etc.)
+# are wired via the authoritative bootstrap factory.
+_pipeline: RAGDiagnosticPipeline | None = None
+
 
 def get_pipeline() -> RAGDiagnosticPipeline:
+    """Return the singleton RAGDiagnosticPipeline, creating it on first call.
+
+    Uses ``create_diagnostic_pipeline()`` from the intelligence bootstrap so
+    that every wiring decision (ThrottledLLMAdapter, ValidationStrategy.BOTH,
+    ConfidenceScorer, TimelineConstructor, auto-detected LLM provider) is
+    made in one authoritative place rather than duplicated here.
+    """
     global _pipeline
     if _pipeline is None:
         try:
-            llm = AnthropicLLMAdapter()
-            vector_store = ChromaVectorStoreAdapter()
-            embedding = SentenceTransformersEmbeddingAdapter()
-            severity_classifier = SeverityClassifier()
-            bus = InMemoryEventBus()
-            store = InMemoryEventStore()
-            # Use BOTH strategy: rule-based pre-check, then LLM cross-validation.
-            # This ensures a real Anthropic call is made for the second-opinion
-            # validation stage — not just a deterministic rule-based check.
-            validator = SecondOpinionValidator(
-                llm=llm,
-                strategy=ValidationStrategy.BOTH,
+            from sre_agent.adapters.intelligence_bootstrap import (
+                create_diagnostic_pipeline,
             )
-            _pipeline = RAGDiagnosticPipeline(
-                llm=llm,
-                vector_store=vector_store,
-                embedding=embedding,
-                severity_classifier=severity_classifier,
-                validator=validator,
-                event_bus=bus,
-                event_store=store,
-            )
+            _pipeline = create_diagnostic_pipeline()
             logger.info(
-                "pipeline_initialized",
-                llm_model=llm._config.model_name,
-                validation_strategy=ValidationStrategy.BOTH.value,
+                "pipeline_initialised",
+                provider="bootstrap",
+                vector_store=type(_pipeline._vector_store).__name__,
+                embedding=type(_pipeline._embedding).__name__,
+                llm=type(_pipeline._llm).__name__,
+                validator_strategy=_pipeline._validator._strategy.value,
             )
-        except Exception as e:
-            logger.error("pipeline_init_failed", error=str(e))
-            raise HTTPException(status_code=500, detail="Intelligence Layer adapters failed to initialize")
+        except Exception as exc:
+            logger.error("pipeline_init_failed", error=str(exc))
+            raise HTTPException(
+                status_code=500,
+                detail=f"Intelligence Layer failed to initialise: {exc}",
+            ) from exc
     return _pipeline
 
 class DiagnoseRequestPayload(BaseModel):

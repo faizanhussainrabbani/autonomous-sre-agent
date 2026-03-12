@@ -770,31 +770,31 @@ def phase9_show_diagnosis() -> None:
         print(f"\n   {C.CYAN}Audit Trail (Pipeline Stages):{C.RESET}")
         _llm_stages = []
         for entry in audit:
-            # Audit entries arrive as formatted strings: "stage/action: {details}"
-            # or as dicts depending on serialisation path — handle both.
+            # Audit entries are now structured dicts: {"stage": .., "action": .., "details": ..}
+            # Legacy string format ("stage/action: {details}") still supported as fallback.
             if isinstance(entry, dict):
                 action  = entry.get("action", "")
-                details = entry.get("details", {})
+                details = entry.get("details", {}) or {}
+                stage   = entry.get("stage", "")
+                display = f"{stage}/{action}: {details}"
             else:
                 entry_str = str(entry)
-                # Parse "stage/action: {details}"
-                action = ""
-                details: dict = {}
-                if "/" in entry_str and ":" in entry_str:
+                action, details, display = "", {}, entry_str
+                if "/" in entry_str and ": " in entry_str:
                     try:
+                        import ast as _ast
                         action_part, _, rest = entry_str.partition(": ")
                         action = action_part.split("/")[-1].strip()
-                        import ast as _ast
                         details = _ast.literal_eval(rest.strip())
                     except Exception:
                         pass
 
             if action == "hypothesis_generated":
-                _llm_stages.append(("Anthropic Claude — hypothesis generation", details))
+                _llm_stages.append(("Anthropic Claude — hypothesis generation (Call 1)", details))
             elif action == "hypothesis_validated":
-                _llm_stages.append(("Anthropic Claude — hypothesis cross-validation", details))
+                _llm_stages.append(("Anthropic Claude — cross-validation (Call 2)", details))
 
-            print(f"      {C.DIM}→{C.RESET}  {entry}")
+            print(f"      {C.DIM}→{C.RESET}  {display}")
 
         if _llm_stages:
             print(f"\n   {C.BOLD}{C.MAGENTA}🧠  LLM Calls Made (Anthropic Claude):{C.RESET}")
@@ -806,15 +806,15 @@ def phase9_show_diagnosis() -> None:
                     except (TypeError, ValueError):
                         print(f"         Confidence returned by LLM : {det['confidence']}")
                 if "root_cause" in det:
-                    rc = str(det["root_cause"])[:100]
+                    rc = str(det["root_cause"])[:120]
                     print(f"         Root-cause excerpt         : {rc}...")
                 if "agrees" in det:
                     agreed = det["agrees"]
-                    tag = f"{C.GREEN}✔ agrees{C.RESET}" if agreed else f"{C.RED}✖ disagrees (raises confidence penalty){C.RESET}"
+                    tag = f"{C.GREEN}✔ agrees{C.RESET}" if agreed else f"{C.RED}✖ disagrees (confidence penalty applied){C.RESET}"
                     print(f"         Validator agreement        : {tag}")
                 if "reasoning" in det:
-                    rsn = str(det["reasoning"])[:120]
-                    is_llm = "Rule-based" not in rsn
+                    rsn = str(det["reasoning"])[:150]
+                    is_llm = "Rule-based" not in rsn and "No LLM" not in rsn
                     source_tag = (
                         f"{C.GREEN}LLM cross-check{C.RESET}" if is_llm
                         else f"{C.YELLOW}rule-based fallback{C.RESET}"
@@ -822,7 +822,7 @@ def phase9_show_diagnosis() -> None:
                     print(f"         Reasoning source           : {source_tag}")
                     print(f"         Reasoning excerpt          : {rsn}...")
         else:
-            print(f"\n   {C.YELLOW}ℹ  No LLM call entries found in audit trail.{C.RESET}")
+            print(f"\n   {C.YELLOW}ℹ  No LLM hypothesis/validation entries in audit trail.{C.RESET}")
 
     print(f"\n   {C.BOLD}{C.GREEN}{'─' * width}{C.RESET}\n")
 

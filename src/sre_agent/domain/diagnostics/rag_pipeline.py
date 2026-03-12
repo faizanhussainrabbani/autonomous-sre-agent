@@ -314,16 +314,20 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             ))
 
             # Stage 6: Validate hypothesis
+            # Pass trimmed_evidence so the LLM cross-check has the full
+            # grounding context when it judges the hypothesis.
             logger.info(
                 "validation_start",
                 alert_id=request.alert.alert_id,
                 hypothesis_confidence=hypothesis.confidence,
+                evidence_count=len(trimmed_evidence),
             )
             diagnosis.state = DiagnosticState.VALIDATING
             validation_result = await self._validator.validate(
                 hypothesis=hypothesis,
                 evidence_count=len(search_results),
                 alert_description=alert_text,
+                evidence=trimmed_evidence,
             )
 
             audit.append(AuditEntry(
@@ -435,7 +439,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 diagnosed_at=datetime.now(timezone.utc),
                 evidence_citations=citations,
                 audit_trail=[
-                    f"{a.stage}/{a.action}: {a.details}" for a in audit
+                    {"stage": a.stage, "action": a.action, "details": a.details}
+                    for a in audit
                 ],
             )
 
@@ -483,7 +488,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 requires_human_approval=True,
                 diagnosed_at=datetime.now(timezone.utc),
                 audit_trail=[
-                    f"{a.stage}/{a.action}: {a.details}" for a in audit
+                    {"stage": a.stage, "action": a.action, "details": a.details}
+                    for a in audit
                 ],
             )
 
@@ -504,7 +510,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 requires_human_approval=True,
                 diagnosed_at=datetime.now(timezone.utc),
                 audit_trail=[
-                    f"{a.stage}/{a.action}: {a.details}" for a in audit
+                    {"stage": a.stage, "action": a.action, "details": a.details}
+                    for a in audit
                 ],
             )
 
@@ -565,7 +572,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             requires_human_approval=True,
             diagnosed_at=datetime.now(timezone.utc),
             audit_trail=[
-                f"{a.stage}/{a.action}: {a.details}" for a in audit
+                {"stage": a.stage, "action": a.action, "details": a.details}
+                for a in audit
             ],
         )
 

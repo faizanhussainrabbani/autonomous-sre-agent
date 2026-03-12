@@ -11,12 +11,17 @@ from __future__ import annotations
 
 from enum import Enum
 
+import structlog
+
 from sre_agent.ports.llm import (
+    EvidenceContext,
     Hypothesis,
     LLMReasoningPort,
     ValidationRequest,
     ValidationResult,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 class ValidationStrategy(Enum):
@@ -43,6 +48,7 @@ class SecondOpinionValidator:
         hypothesis: Hypothesis,
         evidence_count: int = 0,
         alert_description: str = "",
+        evidence: list[EvidenceContext] | None = None,
     ) -> ValidationResult:
         """Validate a hypothesis using the configured strategy.
 
@@ -50,26 +56,39 @@ class SecondOpinionValidator:
             hypothesis: The hypothesis to validate.
             evidence_count: Number of evidence items that were available.
             alert_description: Original alert description for context.
+            evidence: The actual EvidenceContext objects retrieved from the
+                vector store, forwarded to the LLM cross-check so Claude
+                has the grounding context when it validates the hypothesis.
 
         Returns:
             ValidationResult with agreement status and reasoning.
         """
+        _evidence = evidence or []
+
         if self._strategy == ValidationStrategy.RULE_BASED:
             return self._rule_based_validate(hypothesis, evidence_count)
 
         if self._strategy == ValidationStrategy.CROSS_CHECK:
             return await self._cross_check_validate(
-                hypothesis, alert_description,
+                hypothesis, alert_description, evidence=_evidence,
             )
 
-        # BOTH: run rule-based first, then cross-check if it passes
+        # BOTH strategy: rule-based runs first as a fast sanity check,
+        # but the LLM cross-check always runs regardless of whether
+        # rule-based agrees.  This prevents the rule gate from silently
+        # short-circuiting the LLM when e.g. evidence_citations is empty.
         rule_result = self._rule_based_validate(hypothesis, evidence_count)
         if not rule_result.agrees:
-            return rule_result
+            logger.warning(
+                "rule_based_validation_failed",
+                contradictions=rule_result.contradictions,
+                strategy="both",
+                note="proceeding to LLM cross-check despite rule failure",
+            )
 
         if self._llm is not None:
             return await self._cross_check_validate(
-                hypothesis, alert_description,
+                hypothesis, alert_description, evidence=_evidence,
             )
         return rule_result
 
@@ -111,8 +130,14 @@ class SecondOpinionValidator:
         self,
         hypothesis: Hypothesis,
         alert_description: str,
+        evidence: list[EvidenceContext] | None = None,
     ) -> ValidationResult:
-        """Use LLM cross-check to validate the hypothesis."""
+        """Use LLM cross-check to validate the hypothesis.
+
+        Passes the original retrieved evidence as ``original_evidence`` so
+        Claude can verify each claim in the hypothesis against the actual
+        runbook / post-mortem content, not just the hypothesis text alone.
+        """
         if self._llm is None:
             return ValidationResult(
                 agrees=True,
@@ -124,5 +149,6 @@ class SecondOpinionValidator:
         request = ValidationRequest(
             hypothesis=hypothesis,
             alert_description=alert_description,
+            original_evidence=evidence or [],
         )
         return await self._llm.validate_hypothesis(request)

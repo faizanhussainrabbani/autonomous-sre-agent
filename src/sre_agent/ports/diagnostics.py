@@ -13,6 +13,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from sre_agent.domain.models.canonical import AnomalyAlert, CorrelatedSignals, Severity
 
@@ -40,7 +41,7 @@ class DiagnosisResult:
     is_novel: bool = False
     requires_human_approval: bool = True
     diagnosed_at: datetime | None = None
-    audit_trail: list[str] = field(default_factory=list)
+    audit_trail: list[Any] = field(default_factory=list)
 
 
 class DiagnosticPort(ABC):
