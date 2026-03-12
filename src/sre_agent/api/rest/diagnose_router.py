@@ -84,7 +84,10 @@ async def ingest_document(payload: IngestRequestPayload, pipeline: RAGDiagnostic
 async def trigger_diagnosis(payload: DiagnoseRequestPayload, pipeline: RAGDiagnosticPipeline = Depends(get_pipeline)) -> Dict[str, Any]:
     """Trigger the RAG Diagnostic Pipeline via HTTP."""
     try:
-        req = DiagnosisRequest(alert=payload.alert)
+        req = DiagnosisRequest(
+            alert=payload.alert,
+            correlated_signals=payload.alert.correlated_signals,
+        )
         result = await pipeline.diagnose(req)
         
         return {

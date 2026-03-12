@@ -24,6 +24,29 @@ otel:
 #   s3_bucket: "sre-agent-audit-logs"
 #   secrets_manager_prefix: "/sre-agent/"
 
+# CloudWatch telemetry config (used when features.cloudwatch_adapter = true)
+# cloudwatch:
+#   region: "eu-west-3"
+#   metric_poll_interval_seconds: 60
+#   log_fetch_window_minutes: 30
+#   log_filter_pattern: "ERROR"
+#   metric_streams_enabled: false
+#   endpoint_url: null              # Set to LocalStack URL for local dev
+
+# Bridge enrichment config (used when features.bridge_enrichment = true)
+# enrichment:
+#   fetch_metrics: true
+#   fetch_logs: true
+#   fetch_traces: false
+#   fetch_resource_metadata: true
+
+# AWS Health events polling
+# aws_health:
+#   enabled: false
+#   poll_interval_seconds: 300
+#   regions:
+#     - "eu-west-3"
+
 # Azure config (used when cloud_provider = "azure")
 # azure:
 #   subscription_id: "YOUR_SUBSCRIPTION_ID"
@@ -64,6 +87,12 @@ features:
   architectural_recommendations: false
   new_relic_adapter: false
   otel_adapter: true
+  cloudwatch_adapter: false
+  bridge_enrichment: false
+  background_polling: false
+  eventbridge_integration: false
+  aws_health_polling: false
+  xray_adapter: false
 
 log_level: INFO
 environment: development

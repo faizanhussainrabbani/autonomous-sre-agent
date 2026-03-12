@@ -55,6 +55,34 @@ class NewRelicConfig:
 
 
 @dataclass
+class CloudWatchConfig:
+    """CloudWatch telemetry collection configuration."""
+    region: str = "us-east-1"
+    metric_poll_interval_seconds: int = 60
+    log_fetch_window_minutes: int = 30
+    log_filter_pattern: str = "ERROR"
+    metric_streams_enabled: bool = False
+    endpoint_url: str | None = None  # For LocalStack override
+
+
+@dataclass
+class EnrichmentConfig:
+    """Bridge enrichment feature toggles."""
+    fetch_metrics: bool = True
+    fetch_logs: bool = True
+    fetch_traces: bool = False  # Enable when XRayTraceAdapter is built
+    fetch_resource_metadata: bool = True
+
+
+@dataclass
+class AWSHealthConfig:
+    """AWS Health API polling configuration."""
+    enabled: bool = False
+    poll_interval_seconds: int = 300
+    regions: list[str] | None = None
+
+
+@dataclass
 class AWSConfig:
     """AWS-specific configuration."""
     region: str = "us-east-1"
@@ -104,6 +132,12 @@ class FeatureFlags:
     architectural_recommendations: bool = False  # Phase 4
     new_relic_adapter: bool = False
     otel_adapter: bool = True
+    cloudwatch_adapter: bool = False
+    bridge_enrichment: bool = False
+    background_polling: bool = False
+    eventbridge_integration: bool = False
+    aws_health_polling: bool = False
+    xray_adapter: bool = False
 
 
 @dataclass
@@ -119,6 +153,9 @@ class AgentConfig:
     newrelic: NewRelicConfig = field(default_factory=NewRelicConfig)
     aws: AWSConfig = field(default_factory=AWSConfig)
     azure: AzureConfig = field(default_factory=AzureConfig)
+    cloudwatch: CloudWatchConfig = field(default_factory=CloudWatchConfig)
+    enrichment: EnrichmentConfig = field(default_factory=EnrichmentConfig)
+    aws_health: AWSHealthConfig = field(default_factory=AWSHealthConfig)
 
     # Detection & performance
     detection: DetectionConfig = field(default_factory=DetectionConfig)
@@ -168,6 +205,16 @@ class AgentConfig:
             config.aws = AWSConfig(**data["aws"])
         if "azure" in data:
             config.azure = AzureConfig(**data["azure"])
+        if "cloudwatch" in data:
+            config.cloudwatch = CloudWatchConfig(**data["cloudwatch"])
+        if "enrichment" in data:
+            config.enrichment = EnrichmentConfig(**data["enrichment"])
+        if "aws_health" in data:
+            raw_health = dict(data["aws_health"])
+            # Convert regions from YAML list to Python list if needed
+            if "regions" in raw_health and raw_health["regions"] is None:
+                raw_health["regions"] = None
+            config.aws_health = AWSHealthConfig(**raw_health)
         if "detection" in data:
             config.detection = DetectionConfig(**data["detection"])
         if "performance" in data:
@@ -200,8 +247,8 @@ class AgentConfig:
         if self.cloud_provider == CloudProviderType.AWS:
             if not self.aws.region:
                 errors.append("AWS: region is required")
-            if not self.aws.eks_cluster_name:
-                errors.append("AWS: eks_cluster_name is required")
+            if self.features.cloudwatch_adapter and not self.cloudwatch.region:
+                errors.append("CloudWatch: region is required when cloudwatch_adapter is enabled")
         elif self.cloud_provider == CloudProviderType.AZURE:
             if not self.azure.subscription_id:
                 errors.append("Azure: subscription_id is required")
