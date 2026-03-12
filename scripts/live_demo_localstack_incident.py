@@ -158,10 +158,7 @@ def sns_client():     return boto3.client("sns",        **_boto_kwargs)
 # ---------------------------------------------------------------------------
 # Phase 0 — Pre-flight checks (with auto-start)
 # ---------------------------------------------------------------------------
-LOCALSTACK_AUTH_TOKEN = os.getenv(
-    "LOCALSTACK_AUTH_TOKEN",
-    os.getenv("LOCALSTACK_API_KEY", "ls-lOhUCOmo-2254-TUgA-3042-FotejUda838a"),
-)
+LOCALSTACK_AUTH_TOKEN = os.getenv("LOCALSTACK_AUTH_TOKEN") or os.getenv("LOCALSTACK_API_KEY")
 
 
 def _localstack_healthy() -> bool:
@@ -186,7 +183,8 @@ def _start_localstack() -> None:
     # Keep Lambda in synchronous create mode so our waiter works correctly
     env["LAMBDA_SYNCHRONOUS_CREATE"] = "1"
 
-    info(f"Running: localstack start -d  (token: {LOCALSTACK_AUTH_TOKEN[:12]}...)")
+    token_hint = (LOCALSTACK_AUTH_TOKEN or "")[:12] or "<not set>"
+    info(f"Running: localstack start -d  (token: {token_hint}...)")
     result = subprocess.run(
         ["localstack", "start", "-d"],
         env=env,

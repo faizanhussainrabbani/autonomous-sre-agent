@@ -100,10 +100,7 @@ BRIDGE_SCRIPT_PATH  = Path(__file__).parent / "localstack_bridge.py"
 VENV_PYTHON         = Path(__file__).parent.parent / ".venv" / "bin" / "python"
 VENV_UVICORN        = Path(__file__).parent.parent / ".venv" / "bin" / "uvicorn"
 
-LOCALSTACK_AUTH_TOKEN = os.getenv(
-    "LOCALSTACK_AUTH_TOKEN",
-    os.getenv("LOCALSTACK_API_KEY", "ls-lOhUCOmo-2254-TUgA-3042-FotejUda838a"),
-)
+LOCALSTACK_AUTH_TOKEN = os.getenv("LOCALSTACK_AUTH_TOKEN") or os.getenv("LOCALSTACK_API_KEY")
 
 # ---------------------------------------------------------------------------
 # Colour + formatting helpers (identical to Demo 7)
