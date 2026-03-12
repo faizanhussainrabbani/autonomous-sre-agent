@@ -1,0 +1,259 @@
+---
+title: Architecture Evolution Roadmap
+description: Phased evolution path from Kubernetes-first (Phase 1) through multi-cloud (Phase 1.5+) to target multi-platform architecture.
+ms.date: 2026-03-12
+ms.topic: reference
+status: APPROVED
+keywords:
+  - architecture
+  - evolution
+  - multi-cloud
+  - roadmap
+  - kubernetes
+  - aws
+  - azure
+  - serverless
+---
+
+# Architecture Evolution Roadmap
+
+This document describes the multi-phase evolution of the Autonomous SRE Agent from a Kubernetes-focused system to a truly cloud-agnostic, multi-compute-model platform.
+
+---
+
+## Current State: Phase 1 ✅
+
+**Focus:** Kubernetes observability and autonomous remediation
+
+| Capability | Status | Details |
+|---|---|---|
+| Observability ports | ✅ | Prometheus, Loki, Jaeger (OTel compatible) |
+| Compute operators | ✅ | Kubernetes (kubectl API, pod operations) |
+| Incident detection | ✅ | Anomaly detection engine, baseline tracking |
+| Diagnosis | ✅ | LLM-powered root cause analysis with RAG |
+| Remediation | ✅ | Pod restarts, deployment scaling, resource requests |
+| Multi-agent coordination | ✅ | Redis-backed distributed locking |
+
+**Production Readiness:** Phase 1 is fully functional for Kubernetes environments. All architecture layers implemented and tested.
+
+---
+
+## Transition State: Phase 1.5 ✅
+
+**Focus:** Add non-Kubernetes cloud platforms (AWS, Azure)
+
+### What Changed
+
+The core observability and diagnosis layers remain unchanged. The **operator layer** expanded to support:
+
+| Compute Mechanism | Support Level | Operators Added |
+|---|---|---|
+| **Kubernetes** | Gold standard | Existing (restart, scale, patch) |
+| **AWS ECS** | Full support | Task restart, service scaling, capacity provider updates |
+| **AWS Lambda** | Full support | Concurrency throttling, timeout adjustment, environment variable tuning |
+| **AWS EC2 Auto Scaling** | Full support | Desired count adjustment, warm pool activation |
+| **Azure App Services** | Full support | Restart, plan scaling, function slot swaps |
+| **Azure Functions** | Full support | Premium plan scaling, concurrency limits |
+
+### New Components
+
+- **CloudWatch Metrics Adapter** — Ingest metrics from AWS CloudWatch
+- **CloudWatch Logs Adapter** — Ingest logs and error logs from CloudWatch
+- **X-Ray Adapter** — Ingest distributed traces from AWS X-Ray
+- **EventBridge Router** — Subscribe to AWS infrastructure events (ECS task failures, Lambda errors, etc.)
+- **Azure Monitor Adapter** — Ingest metrics and logs from Azure Monitor
+- **Cloud Operator Registry** — Polymorphic operator dispatch based on `compute_mechanism` enum
+
+### Data Model Extensions
+
+All **observable entities** now carry a `compute_mechanism` field:
+
+```python
+class ServiceLabels:
+    service: str
+    namespace: str = ""
+    compute_mechanism: ComputeMechanism  # KUBERNETES | SERVERLESS | CONTAINER_INSTANCE | EC2
+    resource_id: str  # Pod UID, ECS Task ARN, Lambda ARN, Azure Resource URI
+```
+
+This allows the **same detection engine** to work across all platforms without modification.
+
+### Protocol for Remediation Action Selection
+
+When a remedy is needed:
+
+1. **Agent categorizes root cause** — e.g., "Memory pressure"
+2. **Agent queries service registry** — "Where does `payment-service` run?"
+3. **Service registry returns** — `compute_mechanism=ServerlessECS, resource_id=arn:aws:ecs:...`
+4. **Operator registry selects CloudOperatorPort** — routes to AWS ECS operator
+5. **Operator executes remediation** — ECS API call matching service's compute model
+
+---
+
+## Future State: Phase 2 (Target Architecture)
+
+**Focus:** Add remaining cloud platforms, predictive capabilities, federated deployments
+
+### Multi-Cloud Coverage
+
+Extend support to cover 90%+ of enterprise cloud deployments:
+
+| Platform | Support Target | Status |
+|---|---|---|
+| Kubernetes (managed + self-hosted) | Priority 1 | ✅ Phase 1 complete |
+| AWS (ECS, Lambda, ASG) | Priority 1 | ✅ Phase 1.5 complete |
+| Azure (App Services, Functions, VMSS) | Priority 1 | ✅ Phase 1.5 complete |
+| GCP (Cloud Run, Cloud Functions, GKE) | Priority 2 | Phase 2.5 target |
+| On-premise VMs (SSH-based) | Priority 3 | Phase 3 target |
+| Virtualization (VMware vSphere) | Priority 3 | Phase 3 target |
+
+### Observability Expansion
+
+**Phase 2 observability targets:**
+
+- **Better correlations** — Implement cross-cloud trace correlation (AWS + K8s traces in same timeline)
+- **Customizable baselines** — Time-series ML for per-service, per-metric baselines (not one-size-fits-all)
+- **Deployment correlation** — Link alerts to GitOps commits (ArgoCD, Flux)
+- **Cost correlation** — Factor Cloud Cost Anomaly Detection into diagnosis
+- **Custom metrics** — Support proprietary metrics from business systems (payment transaction rate, conversion rate, etc.)
+
+### Diagnosis Enhancements
+
+**Phase 2 intelligence targets:**
+
+- **Predictive diagnosis** — Forecast incidents 5-15 minutes before threshold breach
+- **Root cause scoring** — Rank probable causes by likelihood (not just generated by LLM)
+- **Learning from outcomes** — Track LLM diagnosis accuracy; prefer hypotheses that proved accurate in similar past incidents
+- **Knowledge base expansion** — Auto-ingest runbooks and post-mortems from external sources; de-duplicate at search time
+
+### Remediation Orchestration
+
+**Phase 2 action orchestration targets:**
+
+- **Safety constraints** — Define per-service remediation policies (e.g., "payment-service cannot restart >1x per hour")
+- **Rollback automation** — If remediation makes incident worse, automatically revert
+- **Multi-step remediation plans** — "First increase memory limit, then rolling restart"
+- **Integration with incident management** — Create PagerDuty/Opsgenie incidents before autonomous actions
+
+---
+
+## Architectural Principles Guiding Evolution
+
+### 1. Platform Agnosticity
+
+The agent's **core detection and diagnosis logic** must remain orthogonal to:
+- Which cloud(s) host the services
+- What virtualization technology runs the workloads
+- How observability is collected
+
+**Implication:** In Phase 1.5+, Kubernetes is just one option; all decision trees branch on `compute_mechanism`, not `cloud_provider`.
+
+### 2. Progressive Capability Delivery
+
+Each phase adds **one primary capability** while stabilizing previous work:
+
+- **Phase 1:** Foundation (detection + diagnosis for Kubernetes)
+- **Phase 1.5:** Multi-cloud compute (same detection/diagnosis, new operators)
+- **Phase 2.x:** Multi-disciplinary (cost, predictive, learning)
+- **Phase 3+:** Adjacent domains (security, FinOps automation)
+
+### 3. Interoperability Over Integration
+
+Rather than hand-coding adapters for every observability tool, the agent embraces **standards-based integration:**
+
+- **Observability:** OpenTelemetry (OTel) for metrics/traces/logs
+- **Events:** CloudEvents format for incident notifications
+- **Identity:** OIDC/mutual TLS for cross-cloud authentication
+
+This allows new platforms to "self-integrate" by emitting OTel signals.
+
+### 4. Human Authority in Ambiguous Situations
+
+In cases where the agent's diagnosis has <70% confidence or the remediation would impact production SLAs, the system **escalates to a human operator** rather than acting autonomously. Phase 2 will formalize this escalation policy.
+
+---
+
+## Technology Stack Stability Across Phases
+
+Certain technology choices are considered **locked in** for all future phases:
+
+| Technology | Phase Introduced | Rationale |
+|---|---|---|
+| Python 3.11+ | Phase 1 | Language stability, ecosystem maturity |
+| FastAPI for REST API | Phase 1 | Async-first, high performance |
+| Pydantic for data validation | Phase 1 | Type safety, serialization |
+| ChromaDB for embeddings | Phase 1 | Vector semantic search for runbooks |
+| Anthropic Claude for LLM | Phase 1 | Extended context window, reasoning capability |
+| PostgreSQL for incident DB | Phase 1.5 | Complex incident queries, time-series |
+| Redis for coordination | Phase 1.5 | Distributed locks, cache, pub/sub |
+
+**Alternatives considered:** Traditional Kubernetes-only architectures are **not** considered viable even in Phase 1 due to the industry trend toward multi-cloud.
+
+---
+
+## Timeline Estimate
+
+| Phase | Target Quarter | Duration | Key Outcomes |
+|---|---|---|---|
+| Phase 1 | Q4 2024 | 4 months | Core agent MVP for Kubernetes |
+| Phase 1.5 | Q1 2025 | 3 months | AWS + Azure operators |
+| Phase 2.0 | Q3 2025 | 4 months | LLM improvements, learning engine |
+| Phase 2.x | Q4 2025+  | Ongoing | Additional cloud platforms, cost integration |
+| Phase 3.0+ | 2026 | TBD | Adjacent domains (security, governance) |
+
+*Timeline is aspirational; actual delivery depends on team capacity and prioritization.*
+
+---
+
+## Risk Mitigation
+
+### Multi-Cloud Complexity
+
+**Risk:** Each new cloud platform multiplies the test matrix (K8s × AWS × Azure × GCP).
+
+**Mitigation:** 
+- Adopt **canonical data structures** (observability inputs) so new platforms don't require new detection logic
+- Use LocalStack/similar mocking for rapid iteration on new operators without real cloud resources
+- Establish **per-platform acceptance criteria** (3 e2e tests per new compute mechanism)
+
+### LLM Dependency
+
+**Risk:** Anthropic Claude API changes or deprecates, breaking the diagnosis pipeline.
+
+**Mitigation:**
+- Maintain abstraction layer (`llm_adapter`) allowing swaps to OpenAI, Mixtral, etc.
+- Cache diagnosis results for repeated incident patterns (avoid repeated LLM calls)
+- Establish confidence floor: if LLM confidence <40%, escalate to human instead of acting
+
+### Coordination Complexity
+
+**Risk:** Distributed locking (Redis) for multi-agent coordination becomes a bottleneck.
+
+**Mitigation:**
+- Design coordination protocol to maximize **autonomous agent parallelism** (avoid global locks)
+- Use **cooldown periods** to prevent rapid re-triggering of same remedy
+- Log all lock requests/grants for audit (required for compliance)
+
+---
+
+## Transition Checklist for Next Phase
+
+When planning the next evolution phase, ensure:
+
+- [ ] **Observability:** New compute model can emit OTel-compatible signals
+- [ ] **Data model:** Extend `ComputeMechanism` enum and `ServiceLabels` as needed
+- [ ] **Operators:** Implement all `CloudOperatorPort` methods for new compute model
+- [ ] **Testing:** Add 3+ e2e test scenarios for the new compute model
+- [ ] **Documentation:** Update runbooks and FAQs with new model's quirks
+- [ ] **Monitoring:** Instrument operator calls with latency, error rate, cost metrics
+- [ ] **Runbooks:** Obtain/author platform-specific incident response guides (`docs/operations/runbooks/`)
+
+---
+
+## See Also
+
+- [Architecture Overview](../architecture.md)
+- [Technology Stack](Technology_Stack.md)
+- [Operator Layer Design](../layers/operator_layer.md)
+- [Multi-Agent Coordination Protocol](../layers/orchestration_layer.md)
+- [AWS Data Collection Strategy](../operations/aws_data_collection_improvements.md)

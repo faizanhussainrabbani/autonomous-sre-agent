@@ -1,10 +1,12 @@
 # Autonomous SRE Agent — Documentation Index
 
 > **Version:** Phase 2 (Intelligence Layer)  
-> **Last Updated:** March 10, 2026  
+> **Last Updated:** March 12, 2026  
 > **Maintainer:** SRE Agent Engineering Team
 
-This index is the canonical entry point for all project documentation. Every document in the `docs/` tree is listed here with its purpose and audience.
+This index is the canonical entry point for all project documentation. Every document in the `docs/` tree is listed here with its purpose and audience. 
+
+**Status:** Documentation reorganized per [documentation_management_plan.md](reports/documentation_management_plan.md) — duplicates removed, DRAFT docs scheduled for promotion, point-in-time reports archived.
 
 ---
 
@@ -52,8 +54,7 @@ System design, domain models, and layer-by-layer technical breakdowns.
 
 | **Evolution & Future** | Description |
 |---|---|
-| [evolution/target_architecture.md](architecture/evolution/target_architecture.md) | Target (post-Phase 2) architecture and evolution roadmap |
-| [evolution/phase_1_5_migration.md](architecture/evolution/phase_1_5_migration.md) | Phase 1 → 1.5 migration guide (adding non-K8s cloud targets) |
+| [evolution/roadmap.md](architecture/evolution/roadmap.md) | Multi-cloud target architecture and phased evolution path |
 
 ### Architecture Layers
 
@@ -84,15 +85,14 @@ Day-to-day operational procedures, SLOs, and incident playbooks.
 
 | **Live Demos** | Description |
 |---|---|
-| [localstack_live_incident_demo.md](operations/localstack_live_incident_demo.md) | End-to-end LocalStack incident response demo: Lambda crash → CloudWatch → SNS → Agent diagnosis |
+| [live_demo_guide.md](operations/live_demo_guide.md) | Landing page for end-to-end live incident response demonstrations |
+| [localstack_live_incident_demo.md](operations/localstack_live_incident_demo.md) | LocalStack Lambda incident → SNS → agent diagnosis (Demo 7) |
 
 | **Operational Metrics** | Description |
 |---|---|
 | [slos_and_error_budgets.md](operations/slos_and_error_budgets.md) | Service Level Objectives, error budgets, burn rate alerts |
-| [ci_cd_pipeline.md](operations/ci_cd_pipeline.md) | CI/CD pipeline design, stages, and quality gates |
-| [operational_readiness.md](operations/operational_readiness.md) | Production readiness checklist |
 | [external_dependencies.md](operations/external_dependencies.md) | External deps: Docker, LocalStack, LLM keys, ChromaDB |
-| [graduation_criteria.md](operations/graduation_criteria.md) | Criteria for graduating from each phase to the next |
+| [aws_data_collection_improvements.md](operations/aws_data_collection_improvements.md) | AWS incident data collection — improvement areas and implementation guide |
 
 ---
 
@@ -104,7 +104,6 @@ Project management, core onboarding, and engineering standards.
 |---|---|
 | [project/onboarding.md](project/onboarding.md) | New engineer onboarding guide — environment setup, key concepts |
 | [project/roadmap.md](project/roadmap.md) | Feature roadmap and phase planning |
-| [project/CHANGELOG.md](project/CHANGELOG.md) | Chronological change log for major milestones |
 | [project/glossary.md](project/glossary.md) | Terminology and acronym definitions |
 
 | **Project Standards** | Description |
@@ -116,9 +115,10 @@ Project management, core onboarding, and engineering standards.
 
 | Document | Decision |
 |---|---|
-| [project/ADRs/000-template.md](project/ADRs/000-template.md) | ADR template |
 | [project/ADRs/001-hexagonal-architecture.md](project/ADRs/001-hexagonal-architecture.md) | ADR-001: Adopt Hexagonal Architecture |
 | [project/ADRs/002-pydantic-over-dataclasses.md](project/ADRs/002-pydantic-over-dataclasses.md) | ADR-002: Use Pydantic over plain dataclasses |
+
+*See [project/ADRs/_template.md](project/ADRs/_template.md) for the ADR template.*
 
 ---
 
@@ -142,29 +142,37 @@ Test strategy, infrastructure instructions, and live validation.
 |---|---|
 | [testing/testing_strategy.md](testing/testing_strategy.md) | End-to-end testing strategy, pyramid rationale, environment matrix |
 | [testing/localstack_pro_guide.md](testing/localstack_pro_guide.md) | Guide for using LocalStack Pro with Testcontainers to mock AWS services |
-| [testing/e2e_testing_plan.md](testing/e2e_testing_plan.md) | E2E test plan with scenarios, expected outcomes, success criteria |
 | [testing/live_validation_test_cases.md](testing/live_validation_test_cases.md) | Live cluster validation test cases for Phase 1.5 acceptance |
 | [testing/bugs.md](testing/bugs.md) | Bug tracking log — all 6 bugs from Phase 1.5 resolved |
 
 ---
 
-## 7. Reports & Archives
+## 7. Reports & Analysis
 
-Point-in-time progress reports, test findings, and document reviews.
+Documentation reviews, test findings, implementation verifications, and quality analyses.
 
-| Document | Description |
+| **Active Reports** | Description |
 |---|---|
+| [reports/documentation_management_plan.md](reports/documentation_management_plan.md) | Complete evaluation of all 145 markdown files with concrete management plan and 6-week sprint schedule |
+| [reports/gap_closure_report.md](reports/gap_closure_report.md) | Phase 2 implementation gap closure report for Engineering Standards Compliance |
+| [reports/live_demo_evaluation.md](reports/live_demo_evaluation.md) | Post-run analysis of Phase 2 Intelligence Layer live demonstration |
 | [reports/phase_1_5_test_findings.md](reports/phase_1_5_test_findings.md) | Full test findings report: 283/284 tests (99.6%), all categories graded |
-| [reports/phase_1_status.md](reports/phase_1_status.md) | Phase 1 completion status report |
-| [reports/improvement_areas_phase_1_5.md](reports/improvement_areas_phase_1_5.md) | Identified improvement areas after Phase 1.5 delivery |
-| [reports/implementation_progress.md](reports/implementation_progress.md) | Detailed implementation progress against acceptance criteria |
-| [reports/documentation_review.md](reports/documentation_review.md) | Review of documentation gaps and improvement plan |
+| [reports/observability_improvement_areas.md](reports/observability_improvement_areas.md) | Identified observability improvement areas for future phases |
+| [reports/aws_data_collection_review.md](reports/aws_data_collection_review.md) | Current state review of AWS incident data collection (Phase 2.3 pre-work) |
+| [reports/phase_2_3_verification_report.md](reports/phase_2_3_verification_report.md) | Phase 2.3 verification report: AWS adapters, enrichment layer, and polling agent |
+| [reports/phase_2_2_token_optimization_report.md](reports/phase_2_2_token_optimization_report.md) | Phase 2.2 LLM token optimization strategy, execution, and implementation plan |
+| [reports/ai_agent_architecture_research.md](reports/ai_agent_architecture_research.md) | Research report on AI agent architecture patterns and production best practices |
+| [reports/alignment_report.md](reports/alignment_report.md) | Alignment report: research vs. project implementation |
+
+| **Archived Reports** | Purpose |
+|---|---|
+| [reports/archive/](reports/archive/) | Historical planning artifacts, superseded analyses, and point-in-time snapshots from earlier phases |
 
 ---
 
 ## Document Conventions
 
-All documents in this repository follow the standards defined in [FAANG_Documentation_Standards.md](project/standards/FAANG_Documentation_Standards.md):
+All documents in this repository follow the standards defined in [project/standards/FAANG_Documentation_Standards.md](project/standards/FAANG_Documentation_Standards.md):
 
 - **Headers:** `#` (H1) for document title, `##` (H2) for major sections
 - **Status badges:** `✅ PASS`, `❌ FAIL`, `⚠️ PARTIAL`, `🔵 KNOWN LIMITATION`
@@ -172,6 +180,7 @@ All documents in this repository follow the standards defined in [FAANG_Document
 - **Links:** Use relative paths from the document's location
 - **Dates:** ISO 8601 format (`YYYY-MM-DD`)
 - **Tables:** Preferred over bullet lists for structured comparisons
+- **Status field:** All documents must have `Status: APPROVED` after merging. Use `Status: DRAFT` only during active development.
 
 ---
 
@@ -179,13 +188,13 @@ All documents in this repository follow the standards defined in [FAANG_Document
 
 | Resource | Location |
 |---|---|
-| Project root README | [README.md](../README.md) |
-| Contribution guidelines | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Multi-agent ecosystem | [AGENTS.md](../AGENTS.md) |
-| Agent configuration | [config/agent.yaml](../config/agent.yaml) |
-| Kubernetes infra manifests | [infra/k8s/](../infra/k8s/) |
-| Phase specs and proposals | [openspec/](../openspec/) |
-| Phase 1 data foundation | [phases/phase-1-data-foundation/](../phases/phase-1-data-foundation/) |
+| Project changelog | [../CHANGELOG.md](../CHANGELOG.md) |
+| Project root README | [../README.md](../README.md) |
+| Contribution guidelines | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Multi-agent ecosystem | [../AGENTS.md](../AGENTS.md) |
+| Agent configuration | [../config/agent.yaml](../config/agent.yaml) |
+| Kubernetes infra manifests | [../infra/k8s/](../infra/k8s/) |
+| Phase specs and proposals | [../openspec/](../openspec/) |
 
 ---
 
@@ -196,7 +205,8 @@ All documents in this repository follow the standards defined in [FAANG_Document
 | `scripts/run.sh` | Unified run script: server, test, lint, setup |
 | `scripts/setup_deps.sh` | Start/stop Docker-based development dependencies |
 | `docker-compose.deps.yml` | Docker Compose for LocalStack, Prometheus, Jaeger |
-| `scripts/localstack_bridge.py` | SNS → AnomalyAlert incident bridge for LocalStack live demo |
+| `scripts/localstack_bridge.py` | SNS → AnomalyAlert incident bridge for LocalStack live demos |
 | `scripts/mock_lambda.py` | Vulnerable Lambda handler for LocalStack live demo |
-| `scripts/live_demo_localstack_incident.py` | Single-script orchestrator: runs all 10 demo phases end-to-end |
+| `scripts/live_demo_localstack_incident.py` | Demo 7: 10-phase Lambda incident cascade (LocalStack) |
+| `scripts/live_demo_ecs_multi_service.py` | Demo 8: 14-phase ECS multi-service cascade with LLM diagnosis |
 | `.env.example` | Environment variable template (copy to `.env`) |
