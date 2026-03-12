@@ -40,6 +40,12 @@ try:
 except ImportError:
     _OVERRIDE_ROUTER_AVAILABLE = False
 
+try:
+    from sre_agent.api.rest.diagnose_router import router as _diagnose_router
+    _DIAGNOSE_ROUTER_AVAILABLE = True
+except ImportError:
+    _DIAGNOSE_ROUTER_AVAILABLE = False
+
 
 # ── Request models (module-scope for FastAPI body parsing) ────────────────────
 if _FASTAPI_AVAILABLE:
@@ -101,6 +107,9 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
     # Register routers
     if _OVERRIDE_ROUTER_AVAILABLE:
         app.include_router(_severity_override_router)
+        
+    if _DIAGNOSE_ROUTER_AVAILABLE:
+        app.include_router(_diagnose_router)
 
     _agent_start_time = datetime.now(timezone.utc)
     _halt_state: dict[str, Any] = {"halted": False, "reason": None, "requested_by": None, "halted_at": None}

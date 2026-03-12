@@ -433,7 +433,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 is_novel=False,
                 requires_human_approval=requires_approval,
                 diagnosed_at=datetime.now(timezone.utc),
-                evidence_citations=[c.source for c in citations],
+                evidence_citations=citations,
                 audit_trail=[
                     f"{a.stage}/{a.action}: {a.details}" for a in audit
                 ],
