@@ -53,6 +53,11 @@ from typing import Any
 
 import boto3
 import httpx
+from dotenv import load_dotenv
+
+# Load .env from the project root so LOCALSTACK_AUTH_TOKEN and other secrets
+# are available without needing them exported in the shell.
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -179,7 +184,8 @@ def _start_localstack() -> None:
 
     # Set auth token so LocalStack Pro activates correctly
     env = os.environ.copy()
-    env["LOCALSTACK_AUTH_TOKEN"] = LOCALSTACK_AUTH_TOKEN
+    if LOCALSTACK_AUTH_TOKEN:
+        env["LOCALSTACK_AUTH_TOKEN"] = LOCALSTACK_AUTH_TOKEN
     # Keep Lambda in synchronous create mode so our waiter works correctly
     env["LAMBDA_SYNCHRONOUS_CREATE"] = "1"
 

@@ -62,6 +62,11 @@ from typing import Any
 
 import boto3
 import httpx
+from dotenv import load_dotenv
+
+# Load .env from the project root so LOCALSTACK_AUTH_TOKEN and other secrets
+# are available without needing them exported in the shell.
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -211,7 +216,8 @@ def _localstack_healthy() -> bool:
 def _start_localstack() -> None:
     step("LocalStack not running — attempting auto-start")
     env = os.environ.copy()
-    env["LOCALSTACK_AUTH_TOKEN"] = LOCALSTACK_AUTH_TOKEN
+    if LOCALSTACK_AUTH_TOKEN:
+        env["LOCALSTACK_AUTH_TOKEN"] = LOCALSTACK_AUTH_TOKEN
 
     result = subprocess.run(
         ["localstack", "start", "-d"],
