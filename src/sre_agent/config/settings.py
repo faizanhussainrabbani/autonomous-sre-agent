@@ -17,9 +17,10 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 
-# Load .env file if present (python-dotenv best practice: call once at config load)
-# System environment variables take precedence over .env values.
-load_dotenv()
+# Load .env file if present.
+# override=True ensures .env values always win over inherited shell variables,
+# so the key in .env is guaranteed to be the one used — not a stale shell export.
+load_dotenv(override=True)
 
 
 class TelemetryProviderType(Enum):
