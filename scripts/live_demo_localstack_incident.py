@@ -81,6 +81,7 @@ MOCK_LAMBDA_PATH    = Path(__file__).parent / "mock_lambda.py"
 BRIDGE_SCRIPT_PATH  = Path(__file__).parent / "localstack_bridge.py"
 VENV_PYTHON         = Path(__file__).parent.parent / ".venv" / "bin" / "python"
 VENV_UVICORN        = Path(__file__).parent.parent / ".venv" / "bin" / "uvicorn"
+VENV_AWSLOCAL       = Path(__file__).parent.parent / ".venv" / "bin" / "awslocal"
 
 # ---------------------------------------------------------------------------
 # Colour + formatting helpers
@@ -263,7 +264,7 @@ def phase0_preflight() -> None:
 
     # ── awslocal CLI ────────────────────────────────────────────────────────
     step("Verify awslocal CLI")
-    result = subprocess.run(["awslocal", "--version"], capture_output=True, text=True)
+    result = subprocess.run([str(VENV_AWSLOCAL), "--version"], capture_output=True, text=True)
     if result.returncode == 0:
         ok(f"awslocal — {result.stdout.strip() or result.stderr.strip()}")
     else:
