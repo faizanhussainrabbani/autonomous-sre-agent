@@ -384,8 +384,8 @@ Every deployed instance **must** expose:
 Because this agent possesses production write-access, testing is our strongest guardrail.
 
 *   **60% Unit Tests (`tests/unit`):** Fast, isolated tests validating the mathematical algorithms in the anomaly detector, or ensuring the RAG pipeline correctly parses an expected payload. No network calls.
-*   **30% Integration Tests (`tests/integration`):** These tests ensure our Adapters work against real infrastructure. We use [Testcontainers](../testing/test_infrastructure.md) to dynamically spin up Redis, Postgres, and mocked external APIs locally. Code coverage here validates networking resilience, retries, and schema validation.
-*   **10% End-to-End Tests (`tests/e2e`):** The final safety gate. These operate against a complete, localized Kubernetes deployment containing a fully configured agent interacting with an actual target service. We employ deliberate [Chaos Injection](../testing/test_infrastructure.md) to trigger anomalies and verify the agent resolves them within SLOs.
+*   **30% Integration Tests (`tests/integration`):** These tests ensure our Adapters work against real infrastructure. We use [Testcontainers](../../testing/test_infrastructure.md) to dynamically spin up Redis, Postgres, and mocked external APIs locally. Code coverage here validates networking resilience, retries, and schema validation.
+*   **10% End-to-End Tests (`tests/e2e`):** The final safety gate. These operate against a complete, localized Kubernetes deployment containing a fully configured agent interacting with an actual target service. We employ deliberate [Chaos Injection](../../testing/test_infrastructure.md) to trigger anomalies and verify the agent resolves them within SLOs.
 
 ### 7.1 Test Naming Conventions
 
@@ -617,7 +617,7 @@ Reviewers must evaluate:
 1.  Review the BDD scenarios in `openspec/`.
 2.  Write isolated Unit tests targeting `domain/` models.
 3.  Write Integration tests for any new `adapters/` requiring external dependencies.
-4.  Submit a Pull Request. All tests must pass the [CI/CD Pipeline Gates](../operations/ci_cd_pipeline.md) before merging.
+4.  Submit a Pull Request. All tests must pass the [CI/CD Pipeline Gates](../../operations/ci_cd_pipeline.md) before merging.
 5.  PR must be approved by at least one reviewer familiar with the affected layer.
 6.  Squash-merge with a conventional commit message.
 

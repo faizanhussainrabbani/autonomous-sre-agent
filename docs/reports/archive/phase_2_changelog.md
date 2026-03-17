@@ -12,22 +12,22 @@ Phase 2 implements the Intelligence Layer for the Autonomous SRE Agent, enabling
 
 ### Port Interfaces
 
-- [src/sre_agent/ports/vector_store.py](../../src/sre_agent/ports/vector_store.py): VectorStorePort ABC with store, search, delete, delete_stale, count, health_check
-- [src/sre_agent/ports/embedding.py](../../src/sre_agent/ports/embedding.py): EmbeddingPort ABC with embed_text, embed_batch, get_dimensions, health_check
-- [src/sre_agent/ports/llm.py](../../src/sre_agent/ports/llm.py): LLMReasoningPort ABC with generate_hypothesis, validate_hypothesis, count_tokens, get_token_usage, health_check
-- [src/sre_agent/ports/diagnostics.py](../../src/sre_agent/ports/diagnostics.py): DiagnosticPort ABC with diagnose, health_check
+- [src/sre_agent/ports/vector_store.py](../../../src/sre_agent/ports/vector_store.py): VectorStorePort ABC with store, search, delete, delete_stale, count, health_check
+- [src/sre_agent/ports/embedding.py](../../../src/sre_agent/ports/embedding.py): EmbeddingPort ABC with embed_text, embed_batch, get_dimensions, health_check
+- [src/sre_agent/ports/llm.py](../../../src/sre_agent/ports/llm.py): LLMReasoningPort ABC with generate_hypothesis, validate_hypothesis, count_tokens, get_token_usage, health_check
+- [src/sre_agent/ports/diagnostics.py](../../../src/sre_agent/ports/diagnostics.py): DiagnosticPort ABC with diagnose, health_check
 
 ### Vector Database Adapter
 
-- [src/sre_agent/adapters/vectordb/chroma/adapter.py](../../src/sre_agent/adapters/vectordb/chroma/adapter.py): ChromaVectorStoreAdapter with cosine similarity, upsert, stale deletion, batch operations
+- [src/sre_agent/adapters/vectordb/chroma/adapter.py](../../../src/sre_agent/adapters/vectordb/chroma/adapter.py): ChromaVectorStoreAdapter with cosine similarity, upsert, stale deletion, batch operations
 
 ### Document Ingestion
 
-- [src/sre_agent/domain/diagnostics/ingestion.py](../../src/sre_agent/domain/diagnostics/ingestion.py): Semantic chunking at Markdown header boundaries, batch embedding, TTL-based purge
+- [src/sre_agent/domain/diagnostics/ingestion.py](../../../src/sre_agent/domain/diagnostics/ingestion.py): Semantic chunking at Markdown header boundaries, batch embedding, TTL-based purge
 
 ### Embedding Adapter
 
-- [src/sre_agent/adapters/embedding/sentence_transformers_adapter.py](../../src/sre_agent/adapters/embedding/sentence_transformers_adapter.py): SentenceTransformersEmbeddingAdapter with lazy model loading, 384 dimensions
+- [src/sre_agent/adapters/embedding/sentence_transformers_adapter.py](../../../src/sre_agent/adapters/embedding/sentence_transformers_adapter.py): SentenceTransformersEmbeddingAdapter with lazy model loading, 384 dimensions
 
 ### Dependencies
 
@@ -38,43 +38,43 @@ Phase 2 implements the Intelligence Layer for the Autonomous SRE Agent, enabling
 
 ### Domain Models
 
-- [src/sre_agent/domain/models/diagnosis.py](../../src/sre_agent/domain/models/diagnosis.py): ServiceTier, DiagnosticState, ConfidenceLevel, EvidenceCitation, ImpactDimensions, Diagnosis, AuditEntry
+- [src/sre_agent/domain/models/diagnosis.py](../../../src/sre_agent/domain/models/diagnosis.py): ServiceTier, DiagnosticState, ConfidenceLevel, EvidenceCitation, ImpactDimensions, Diagnosis, AuditEntry
 
 ### RAG Diagnostic Pipeline
 
-- [src/sre_agent/domain/diagnostics/rag_pipeline.py](../../src/sre_agent/domain/diagnostics/rag_pipeline.py): Full pipeline orchestrating embed, search, timeline, hypothesis, validate, score, classify with audit trail
+- [src/sre_agent/domain/diagnostics/rag_pipeline.py](../../../src/sre_agent/domain/diagnostics/rag_pipeline.py): Full pipeline orchestrating embed, search, timeline, hypothesis, validate, score, classify with audit trail
 
 ### Confidence Scoring
 
-- [src/sre_agent/domain/diagnostics/confidence.py](../../src/sre_agent/domain/diagnostics/confidence.py): 4-component weighted scorer (LLM 0.35, validation 0.25, retrieval 0.25, volume 0.15) with validation disagreement penalty
+- [src/sre_agent/domain/diagnostics/confidence.py](../../../src/sre_agent/domain/diagnostics/confidence.py): 4-component weighted scorer (LLM 0.35, validation 0.25, retrieval 0.25, volume 0.15) with validation disagreement penalty
 
 ### Timeline Construction
 
-- [src/sre_agent/domain/diagnostics/timeline.py](../../src/sre_agent/domain/diagnostics/timeline.py): Chronological signal assembly from metrics, logs, events, and traces for LLM context injection
+- [src/sre_agent/domain/diagnostics/timeline.py](../../../src/sre_agent/domain/diagnostics/timeline.py): Chronological signal assembly from metrics, logs, events, and traces for LLM context injection
 
 ### Second-Opinion Validator
 
-- [src/sre_agent/domain/diagnostics/validator.py](../../src/sre_agent/domain/diagnostics/validator.py): Rule-based and LLM cross-check strategies for hallucination detection
+- [src/sre_agent/domain/diagnostics/validator.py](../../../src/sre_agent/domain/diagnostics/validator.py): Rule-based and LLM cross-check strategies for hallucination detection
 
 ### LLM Adapters
 
-- [src/sre_agent/adapters/llm/openai/adapter.py](../../src/sre_agent/adapters/llm/openai/adapter.py): OpenAI GPT adapter with JSON structured output, tiktoken counting, cumulative usage tracking
-- [src/sre_agent/adapters/llm/anthropic/adapter.py](../../src/sre_agent/adapters/llm/anthropic/adapter.py): Anthropic Claude adapter sharing prompt templates
-- [src/sre_agent/adapters/llm/prompts.py](../../src/sre_agent/adapters/llm/prompts.py): Shared hypothesis and validation system prompts
+- [src/sre_agent/adapters/llm/openai/adapter.py](../../../src/sre_agent/adapters/llm/openai/adapter.py): OpenAI GPT adapter with JSON structured output, tiktoken counting, cumulative usage tracking
+- [src/sre_agent/adapters/llm/anthropic/adapter.py](../../../src/sre_agent/adapters/llm/anthropic/adapter.py): Anthropic Claude adapter sharing prompt templates
+- [src/sre_agent/adapters/llm/prompts.py](../../../src/sre_agent/adapters/llm/prompts.py): Shared hypothesis and validation system prompts
 
 ## Sprint 3: Severity and Safety Classification (Weeks 5-6)
 
 ### Severity Classifier
 
-- [src/sre_agent/domain/diagnostics/severity.py](../../src/sre_agent/domain/diagnostics/severity.py): Weighted formula (0.30 user + 0.25 tier + 0.20 blast + 0.15 financial + 0.10 reversibility), hard rules for data loss and security, deployment correlation elevation, missing tier defaults to Tier 1
+- [src/sre_agent/domain/diagnostics/severity.py](../../../src/sre_agent/domain/diagnostics/severity.py): Weighted formula (0.30 user + 0.25 tier + 0.20 blast + 0.15 financial + 0.10 reversibility), hard rules for data loss and security, deployment correlation elevation, missing tier defaults to Tier 1
 
 ### Severity Override API
 
-- [src/sre_agent/api/severity_override.py](../../src/sre_agent/api/severity_override.py): Human supremacy endpoint, Sev 1/2 overrides halt pipeline execution
+- [src/sre_agent/api/severity_override.py](../../../src/sre_agent/api/severity_override.py): Human supremacy endpoint, Sev 1/2 overrides halt pipeline execution
 
 ### Intelligence Bootstrap
 
-- [src/sre_agent/adapters/intelligence_bootstrap.py](../../src/sre_agent/adapters/intelligence_bootstrap.py): Factory functions for vector store, embedding, LLM (auto-detect from env), diagnostic pipeline, and ingestion pipeline
+- [src/sre_agent/adapters/intelligence_bootstrap.py](../../../src/sre_agent/adapters/intelligence_bootstrap.py): Factory functions for vector store, embedding, LLM (auto-detect from env), diagnostic pipeline, and ingestion pipeline
 
 ## Test Summary
 

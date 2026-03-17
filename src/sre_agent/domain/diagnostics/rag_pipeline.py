@@ -428,20 +428,27 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             ))
 
             # Phase 2.2: Store result in cache for future hits
+            # Apply corrections from validation if disagreement and corrections are provided
+            final_root_cause = hypothesis.root_cause
+            final_remediation = hypothesis.suggested_remediation
+            
+            if not validation_result.agrees:
+                if validation_result.corrected_root_cause:
+                    final_root_cause = validation_result.corrected_root_cause
+                if validation_result.corrected_remediation:
+                    final_remediation = validation_result.corrected_remediation
+
             result = DiagnosisResult(
-                root_cause=hypothesis.root_cause,
+                root_cause=final_root_cause,
                 confidence=confidence,
                 severity=severity,
                 reasoning=hypothesis.reasoning,
-                suggested_remediation=hypothesis.suggested_remediation,
+                suggested_remediation=final_remediation,
                 is_novel=False,
                 requires_human_approval=requires_approval,
                 diagnosed_at=datetime.now(timezone.utc),
                 evidence_citations=citations,
-                audit_trail=[
-                    {"stage": a.stage, "action": a.action, "details": a.details}
-                    for a in audit
-                ],
+                audit_trail=self._render_audit_trail(audit),
             )
 
             if self._cache is not None:
@@ -487,10 +494,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 is_novel=False,
                 requires_human_approval=True,
                 diagnosed_at=datetime.now(timezone.utc),
-                audit_trail=[
-                    {"stage": a.stage, "action": a.action, "details": a.details}
-                    for a in audit
-                ],
+                audit_trail=self._render_audit_trail(audit),
             )
 
         except TimeoutError as exc:
@@ -509,10 +513,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 is_novel=False,
                 requires_human_approval=True,
                 diagnosed_at=datetime.now(timezone.utc),
-                audit_trail=[
-                    {"stage": a.stage, "action": a.action, "details": a.details}
-                    for a in audit
-                ],
+                audit_trail=self._render_audit_trail(audit),
             )
 
         finally:
@@ -571,10 +572,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             is_novel=True,
             requires_human_approval=True,
             diagnosed_at=datetime.now(timezone.utc),
-            audit_trail=[
-                {"stage": a.stage, "action": a.action, "details": a.details}
-                for a in audit
-            ],
+            audit_trail=self._render_audit_trail(audit),
         )
 
     def _build_evidence_contexts(
@@ -638,3 +636,11 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 break  # Stop adding once budget is exceeded
 
         return result
+
+    @staticmethod
+    def _render_audit_trail(audit: list[AuditEntry]) -> list[str]:
+        """Render audit entries to a stable string format for API/test consumers."""
+        rendered: list[str] = []
+        for entry in audit:
+            rendered.append(f"{entry.stage}:{entry.action}")
+        return rendered

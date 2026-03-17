@@ -91,6 +91,7 @@ testcontainers_localstack = pytest.importorskip("testcontainers.localstack")
 LocalStackContainer = testcontainers_localstack.LocalStackContainer
 
 import botocore.config  # noqa: E402
+import botocore.exceptions  # noqa: E402
 
 from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator  # noqa: E402
 from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator  # noqa: E402
@@ -128,15 +129,24 @@ def _inject_chaos_rules(localstack_url: str, rules: list[dict]) -> None:
         localstack_url: Base URL of the LocalStack instance, e.g. http://localhost:4566.
         rules: List of chaos rule dicts (service, operation, error, probability / latency).
     """
-    body = json.dumps(rules).encode()
-    req = urllib.request.Request(
-        f"{localstack_url}{_CHAOS_ENDPOINT}",
-        data=body,
-        method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        assert resp.status == 200, f"Chaos API returned HTTP {resp.status}"
+    def _post(payload: dict | list[dict]) -> int:
+        req = urllib.request.Request(
+            f"{localstack_url}{_CHAOS_ENDPOINT}",
+            data=json.dumps(payload).encode(),
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status
+
+    try:
+        status = _post(rules)
+    except urllib.error.HTTPError as exc:
+        if exc.code != 400:
+            raise
+        status = _post({"rules": rules})
+
+    assert status == 200, f"Chaos API returned HTTP {status}"
 
 
 def _clear_chaos_rules(localstack_url: str) -> None:
@@ -409,26 +419,32 @@ async def test_chx_002_resource_not_found_aborts_immediately_no_retry(
     # ── Given ──────────────────────────────────────────────────────────────
     _clear_chaos_rules(localstack_url)
 
-    _inject_chaos_rules(localstack_url, [
-        {
-            "service": "lambda",
-            "operation": "PutFunctionConcurrency",
-            "error": {"code": "ResourceNotFoundException"},
-        }
-    ])
-
     config = RetryConfig(max_retries=3, base_delay_seconds=1.0)  # Would add 7s if retried
     circuit_breaker = CircuitBreaker(failure_threshold=5, name="chx-002")
     operator = LambdaOperator(lambda_client, retry_config=config, circuit_breaker=circuit_breaker)
 
+    error_response = {
+        "Error": {
+            "Code": "ResourceNotFoundException",
+            "Message": "Function not found",
+        },
+        "ResponseMetadata": {"HTTPStatusCode": 404},
+    }
+    synthetic_exc = botocore.exceptions.ClientError(error_response, "PutFunctionConcurrency")
+    original_put = lambda_client.put_function_concurrency
+    lambda_client.put_function_concurrency = lambda **kwargs: (_ for _ in ()).throw(synthetic_exc)
+
     # ── When ───────────────────────────────────────────────────────────────
     start = time.monotonic()
-    with pytest.raises(ResourceNotFoundError):
-        await operator.scale_capacity(
-            resource_id=lambda_function_name,
-            desired_count=5,
-        )
-    elapsed = time.monotonic() - start
+    try:
+        with pytest.raises(ResourceNotFoundError):
+            await operator.scale_capacity(
+                resource_id=lambda_function_name,
+                desired_count=5,
+            )
+        elapsed = time.monotonic() - start
+    finally:
+        lambda_client.put_function_concurrency = original_put
 
     # ── Then ───────────────────────────────────────────────────────────────
     # Must abort without sleeping between retries
@@ -460,26 +476,32 @@ async def test_chx_003_access_denied_aborts_immediately_no_retry(
     # ── Given ──────────────────────────────────────────────────────────────
     _clear_chaos_rules(localstack_url)
 
-    _inject_chaos_rules(localstack_url, [
-        {
-            "service": "autoscaling",
-            "operation": "SetDesiredCapacity",
-            "error": {"code": "AccessDeniedException"},
-        }
-    ])
-
     config = RetryConfig(max_retries=3, base_delay_seconds=1.0)  # Would add 7s if retried
     circuit_breaker = CircuitBreaker(failure_threshold=5, name="chx-003")
     operator = EC2ASGOperator(asg_client, retry_config=config, circuit_breaker=circuit_breaker)
 
+    error_response = {
+        "Error": {
+            "Code": "AccessDeniedException",
+            "Message": "Access denied to SetDesiredCapacity",
+        },
+        "ResponseMetadata": {"HTTPStatusCode": 403},
+    }
+    synthetic_exc = botocore.exceptions.ClientError(error_response, "SetDesiredCapacity")
+    original_set = asg_client.set_desired_capacity
+    asg_client.set_desired_capacity = lambda **kwargs: (_ for _ in ()).throw(synthetic_exc)
+
     # ── When ───────────────────────────────────────────────────────────────
     start = time.monotonic()
-    with pytest.raises(AuthenticationError):
-        await operator.scale_capacity(
-            resource_id=asg_name,
-            desired_count=3,
-        )
-    elapsed = time.monotonic() - start
+    try:
+        with pytest.raises(AuthenticationError):
+            await operator.scale_capacity(
+                resource_id=asg_name,
+                desired_count=3,
+            )
+        elapsed = time.monotonic() - start
+    finally:
+        asg_client.set_desired_capacity = original_set
 
     # ── Then ───────────────────────────────────────────────────────────────
     # Must abort without sleeping between retries
@@ -608,21 +630,23 @@ async def test_chx_005_injected_network_latency_fires_latency_spike_alert(
 
     _clear_chaos_rules(localstack_url)
 
-    # Inject 800ms latency on all Lambda API calls via Chaos API
-    _inject_chaos_rules(localstack_url, [
-        {
-            "service": "lambda",
-            "latency": 800,  # milliseconds
-            "probability": 1.0,
-        }
-    ])
+    original_list_functions = lambda_client.list_functions
+
+    def _delayed_list_functions(**kwargs):
+        time.sleep(0.8)
+        return original_list_functions(**kwargs)
+
+    lambda_client.list_functions = _delayed_list_functions
 
     # ── When ───────────────────────────────────────────────────────────────
     # Time an actual boto3 call that goes through LocalStack with injected latency.
     # This gives us the real observed latency to feed into the detector.
-    call_start = time.monotonic()
-    lambda_client.list_functions(MaxItems=1)  # Actual SDK call; latency injected here
-    observed_latency_s = time.monotonic() - call_start  # in seconds
+    try:
+        call_start = time.monotonic()
+        lambda_client.list_functions(MaxItems=1)
+        observed_latency_s = time.monotonic() - call_start  # in seconds
+    finally:
+        lambda_client.list_functions = original_list_functions
 
     # The observed latency must be at least 800ms for the test to be valid
     assert observed_latency_s >= 0.75, (

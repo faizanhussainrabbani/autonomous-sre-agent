@@ -253,7 +253,7 @@ When planning the next evolution phase, ensure:
 ## See Also
 
 - [Architecture Overview](../architecture.md)
-- [Technology Stack](Technology_Stack.md)
+- [Technology Stack](../Technology_Stack.md)
 - [Operator Layer Design](../layers/operator_layer.md)
 - [Multi-Agent Coordination Protocol](../layers/orchestration_layer.md)
-- [AWS Data Collection Strategy](../operations/aws_data_collection_improvements.md)
+- [AWS Data Collection Strategy](../../operations/aws_data_collection_improvements.md)

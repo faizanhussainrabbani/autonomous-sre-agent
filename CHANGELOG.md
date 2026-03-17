@@ -6,6 +6,79 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [Phase 2.4] — LLM Integration Hardening (2026-03-17)
+
+Closes all 4 gaps identified in
+[`docs/reports/llm_integration_gap_analysis.md`](docs/reports/llm_integration_gap_analysis.md)
+as specified in
+[`docs/reports/llm-integration-hardening-addendum.md`](docs/reports/llm-integration-hardening-addendum.md).
+
+### Changed
+
+#### Timeout Enforcement (Critical)
+
+- **`src/sre_agent/adapters/llm/openai/adapter.py`** — Wrapped both
+  `generate_hypothesis()` and `validate_hypothesis()` API calls with
+  `asyncio.wait_for(..., timeout=self._config.timeout_seconds)`. On timeout,
+  logs a structured event (`llm_call_timeout`) with provider/call_type/timeout
+  and raises `TimeoutError`, propagating through the pipeline's existing
+  `except TimeoutError` handler which increments `DIAGNOSIS_ERRORS{error_type="timeout"}`
+- **`src/sre_agent/adapters/llm/anthropic/adapter.py`** — Same timeout wrapping
+  applied to both Claude API calls
+
+#### System Context Integration (High)
+
+- **`src/sre_agent/adapters/llm/openai/adapter.py`** — Updated
+  `_build_hypothesis_prompt()` to include `## System Context` section after
+  `## Service` and before `## Timeline` when `request.system_context` is non-empty.
+  Anthropic adapter inherits this via the shared prompt builder.
+
+#### Queue Metrics Emission (High)
+
+- **`src/sre_agent/adapters/llm/throttled_adapter.py`** — Imports
+  `LLM_QUEUE_DEPTH` and `LLM_QUEUE_WAIT` from metrics registry. Extended queue
+  tuple with `enqueued_at` timestamp. Emits `LLM_QUEUE_DEPTH.set()` on
+  enqueue/dequeue. Observes `LLM_QUEUE_WAIT` after semaphore acquisition with
+  computed wait duration.
+
+#### Parse Failure Consistency (Medium)
+
+- **`src/sre_agent/adapters/llm/anthropic/adapter.py`** — Replaced exception
+  re-raise behavior with OpenAI-consistent fallback pattern. Uses JSON
+  pre-validation before delegating to the shared parser, ensuring
+  `LLM_PARSE_FAILURES{provider="anthropic"}` is correctly incremented and a
+  low-confidence fallback `Hypothesis`/`ValidationResult` is returned instead
+  of crashing the pipeline.
+
+### Tests Added
+
+17 new test cases across 5 files:
+
+| File | Tests | Coverage Focus |
+|---|---|---|
+| `tests/unit/adapters/test_openai_llm_adapter.py` [NEW] | 5 | `asyncio.wait_for` timeout, `_build_hypothesis_prompt` system context inclusion/omission |
+| `tests/unit/adapters/test_anthropic_llm_adapter.py` [NEW] | 5 | Timeout enforcement, parse failure fallback Hypothesis/ValidationResult, metric increment |
+| `tests/unit/adapters/test_throttled_llm_adapter.py` | 3 | Timeout releases semaphore slot, `LLM_QUEUE_DEPTH` gauge, `LLM_QUEUE_WAIT` histogram |
+| `tests/unit/domain/test_rag_pipeline.py` | 1 | Pipeline returns SEV1 fallback on `TimeoutError` |
+| `tests/e2e/test_gap_closure_e2e.py` | 1 | `LLM_QUEUE_WAIT` non-zero under contention (full pipeline stack) |
+
+### Architecture Notes
+
+- Timeout uses `asyncio.wait_for` which raises `asyncio.TimeoutError` (alias
+  for `TimeoutError` in Python 3.11+). The pipeline's existing `except TimeoutError`
+  handler at `rag_pipeline.py:506` catches this with zero additional wiring.
+- Queue tuple extended from `(priority, seq, fut, coro_func, args)` to
+  `(priority, seq, enqueued_at, fut, coro_func, args)` — no external callers
+  reference the tuple directly.
+- Anthropic parse failure uses JSON pre-validation instead of wrapping the
+  shared parser, ensuring the correct `provider="anthropic"` label on metrics.
+- All changes are backward compatible — empty `system_context` produces no
+  prompt change, and the queue metrics are purely additive.
+
+**Total unit tests after Phase 2.4: 646 (629 passing + 4 pre-existing failures + 17 new passing)**
+
+---
+
 ## [Phase 2.3] — AWS Data Collection Improvements (2025-07-15)
 
 Implements all 10 improvement areas identified in the AWS Data Collection Review
@@ -16,6 +89,15 @@ Full task list and acceptance criteria are in
 [`docs/project/aws_implementation_plan.md`](docs/project/aws_implementation_plan.md).
 
 ### Added
+
+#### Demo Enhancements
+- **Demos**: Added two interactive LocalStack-driven operational demos covering recent observability features:
+  - `scripts/live_demo_cloudwatch_enrichment.py`: Real-time demonstration of AlertEnricher executing metric pulls and CloudWatch Log streaming against LocalStack.
+  - `scripts/live_demo_eventbridge_reaction.py`: Validates FastAPI EventBridge webhooks receiving state change events and stitching them chronologically into Canonical Timelines.
+- **Provider Parity Demos**: Implemented addressing gaps highlighted in `live_demo_analysis_report.md`:
+  - `scripts/live_demo_1_telemetry_baseline.py` (Demo 1): Backfilled missing foundational Phase 1 telemetry baseline sequence fetching `CPUUtilization` seamlessly from LocalStack mock data into Domain logic.
+  - `scripts/live_demo_11_azure_operations.py` (Demo 11): Proves Phase 1.5 Multi-Cloud Hexagonal operations accurately dispatch `restart` and `scale_capacity` behaviors generically toward the `azure-mgmt-web` Python SDK implementations for Azure Functions and App Services via mock-clients.
+- **Documentation**: Updated `docs/operations/live_demo_guide.md` with instructions and context for Demo 1, Demo 9, Demo 10, and Demo 11.
 
 #### Area 1 + 10: Bridge Enrichment (Real Metric Context)
 
@@ -189,6 +271,9 @@ Nine new unit test files totalling 100+ test cases:
 | `tests/unit/adapters/test_events_router.py` | `events_router` | POST/GET endpoints, source classification, service extraction, in-memory store |
 | `tests/unit/domain/test_polling_agent.py` | `MetricPollingAgent` | poll cycle, baseline ingest, anomaly detection, graceful shutdown |
 | `tests/unit/domain/test_health_monitor.py` | `AWSHealthMonitor` | poll lifecycle, canonical conversion, `SubscriptionRequiredException` handling |
+
+**Integration Tests:**
+- Added `test_cloudwatch_live_integration.py` utilizing an ephemeral LocalStack container to test the actual generation of AWS CloudWatch metrics (`PutMetricData`) and retrieval via the `CloudWatchMetricsAdapter.query()` path, addressing the previous test gap.
 
 ### Architecture Notes
 

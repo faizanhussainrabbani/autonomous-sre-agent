@@ -1,0 +1,1115 @@
+{
+  "generated": "2026-03-17",
+  "counts": {
+    "total": 131,
+    "docs": 85,
+    "openspec": 42,
+    "phases": 0,
+    "root": 4
+  },
+  "status_counts": {
+    "ACCEPTED": 2,
+    "APPROVED": 13,
+    "Documentation reorganized per [documentation_management_plan.md](reports/documentation_management_plan.md) — duplicates removed, DRAFT docs scheduled for promotion, point-in-time reports archived.": 1,
+    "DRAFT": 38,
+    "DRAFT (Pre-Production Phase 1)": 1,
+    "PROPOSED": 1,
+    "PROPOSED | ACCEPTED | DEPRECATED | SUPERSEDED": 1,
+    "UNSPECIFIED": 71,
+    "✅ APPROVED — Ready for execution": 1,
+    "✅ RESOLVED — Coverage raised from 79.75% → 88.4% (283 unit + integration tests)": 1,
+    "✅ VERIFIED — All Phase 2.3 tests pass": 1
+  },
+  "missing_version_docs": [
+    "docs/README.md",
+    "docs/architecture/evolution/roadmap.md",
+    "docs/operations/aws_data_collection_improvements.md",
+    "docs/operations/ci_cd_pipeline.md",
+    "docs/operations/external_dependencies.md",
+    "docs/operations/live_demo_guide.md",
+    "docs/operations/localstack_live_incident_demo.md",
+    "docs/operations/operational_readiness.md",
+    "docs/project/ADRs/001-hexagonal-architecture.md",
+    "docs/project/ADRs/002-pydantic-over-dataclasses.md",
+    "docs/project/ADRs/_template.md",
+    "docs/project/aws_implementation_plan.md",
+    "docs/project/aws_metric_generation_acceptance_criteria.md",
+    "docs/project/aws_metric_generation_integration_plan.md",
+    "docs/project/live_demo_expansion_ac.md",
+    "docs/project/live_demo_expansion_plan.md",
+    "docs/reports/ai_agent_architecture_research.md",
+    "docs/reports/alignment_report.md",
+    "docs/reports/archive/localstack_test_resolution.md",
+    "docs/reports/archive/phase-1-5-review.md",
+    "docs/reports/archive/phase-1-data-foundation/acceptance_criteria.md",
+    "docs/reports/archive/phase-1-data-foundation/improvement_areas.md",
+    "docs/reports/archive/phase-1-data-foundation/overview.md",
+    "docs/reports/archive/phase-2.2-token-optimization/acceptance_criteria.md",
+    "docs/reports/archive/phase_2_changelog.md",
+    "docs/reports/archive/phase_2_preparation_guide.md",
+    "docs/reports/aws_data_collection_review.md",
+    "docs/reports/gap_closure_report.md",
+    "docs/reports/live_demo_analysis_report.md",
+    "docs/reports/llm-integration-hardening-addendum.md",
+    "docs/reports/llm-integration-technical-walkthrough.md",
+    "docs/reports/llm_integration_gap_analysis.md",
+    "docs/reports/phase_1_5_test_findings.md",
+    "docs/reports/phase_2_2_token_optimization_report.md",
+    "docs/reports/phase_2_3_verification_report.md",
+    "docs/reports/plan/ac_azure_and_demo1.md",
+    "docs/reports/plan/plan_azure_and_demo1.md",
+    "docs/testing/bugs.md",
+    "docs/testing/localstack_pro_guide.md"
+  ],
+  "broken_links": [],
+  "records": [
+    {
+      "path": "AGENTS.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Multi-Agent Ecosystem (AGENTS.md)",
+      "lines": 132,
+      "broken_links": []
+    },
+    {
+      "path": "CHANGELOG.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Changelog",
+      "lines": 537,
+      "broken_links": []
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Contributing to the Autonomous SRE Agent",
+      "lines": 56,
+      "broken_links": []
+    },
+    {
+      "path": "README.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "🤖 Autonomous SRE Agent",
+      "lines": 154,
+      "broken_links": []
+    },
+    {
+      "path": "docs/README.md",
+      "status": "Documentation reorganized per [documentation_management_plan.md](reports/documentation_management_plan.md) — duplicates removed, DRAFT docs scheduled for promotion, point-in-time reports archived.",
+      "version": "",
+      "title": "Autonomous SRE Agent — Documentation Index",
+      "lines": 212,
+      "broken_links": []
+    },
+    {
+      "path": "docs/api/api_contracts.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "API & Integration Contracts",
+      "lines": 158,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/Technology_Stack.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Technology Stack: Autonomous SRE Agent",
+      "lines": 234,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/architecture.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "System Architecture Overview",
+      "lines": 78,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/dependency_graph.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Dependency Graph Architecture",
+      "lines": 46,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/evolution/phase_1_5_migration.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Phase 1.5 Migration Notes",
+      "lines": 65,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/evolution/roadmap.md",
+      "status": "APPROVED",
+      "version": "",
+      "title": "Architecture Evolution Roadmap",
+      "lines": 259,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/evolution/target_architecture.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Target Architecture (Phase 4 Final State)",
+      "lines": 79,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/extensibility.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "API & Extension Guide",
+      "lines": 28,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/layers/action_layer.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Action Layer Architecture",
+      "lines": 165,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/layers/detection_layer.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Detection Layer Architecture",
+      "lines": 80,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/layers/intelligence_layer.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Intelligence Layer Architecture",
+      "lines": 146,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/layers/observability_layer.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Observability Layer Architecture",
+      "lines": 155,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/layers/operator_layer.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Operator (Presentation & Interface) Layer",
+      "lines": 116,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/layers/orchestration_layer.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Orchestration & Governance Layer",
+      "lines": 119,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/models/data_model.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Canonical Data Model",
+      "lines": 92,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/models/incident_taxonomy.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Incident Taxonomy",
+      "lines": 14,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/models/state_incident_model.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "State Machine: Canonical Incident",
+      "lines": 41,
+      "broken_links": []
+    },
+    {
+      "path": "docs/architecture/sequence_incident_lifecycle.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Sequence: Incident Lifecycle",
+      "lines": 75,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/aws_data_collection_improvements.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "AWS Incident Data Collection — Improvement Areas",
+      "lines": 653,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/ci_cd_pipeline.md",
+      "status": "DRAFT",
+      "version": "",
+      "title": "CI/CD Pipeline & Test Gates",
+      "lines": 41,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/external_dependencies.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "External Dependencies Guide",
+      "lines": 227,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/graduation_criteria.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Phase Graduation Criteria",
+      "lines": 43,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/live_demo_guide.md",
+      "status": "APPROVED",
+      "version": "",
+      "title": "Live Incident Response Demonstrations",
+      "lines": 362,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/localstack_live_incident_demo.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "LocalStack Live Incident Response Demo Guide",
+      "lines": 567,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/operational_readiness.md",
+      "status": "DRAFT (Pre-Production Phase 1)",
+      "version": "",
+      "title": "Operational Readiness Review (ORR)",
+      "lines": 52,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/runbooks/agent_failure_runbook.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Runbook: Agent Failure & Rogue Action",
+      "lines": 65,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/runbooks/deployment.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Runbook: Agent Deployment & Upgrade",
+      "lines": 36,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/runbooks/incident_response.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Runbook: Agent Incident Response",
+      "lines": 38,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/runbooks/kill_switch.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Runbook: Agent Kill Switch Activation",
+      "lines": 48,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/runbooks/phase_management.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Runbook: Phase Management",
+      "lines": 38,
+      "broken_links": []
+    },
+    {
+      "path": "docs/operations/slos_and_error_budgets.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Service Level Objectives (SLOs) & Error Budgets",
+      "lines": 41,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/ADRs/001-hexagonal-architecture.md",
+      "status": "ACCEPTED",
+      "version": "",
+      "title": "ADR-001: Hexagonal Architecture (Ports & Adapters)",
+      "lines": 47,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/ADRs/002-pydantic-over-dataclasses.md",
+      "status": "ACCEPTED",
+      "version": "",
+      "title": "ADR-002: Pydantic BaseModel Over Python Dataclasses",
+      "lines": 44,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/ADRs/_template.md",
+      "status": "PROPOSED | ACCEPTED | DEPRECATED | SUPERSEDED",
+      "version": "",
+      "title": "ADR-000: [Title of Architectural Decision]",
+      "lines": 38,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/aws_implementation_plan.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "AWS Data Collection Implementation Plan",
+      "lines": 334,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/aws_metric_generation_acceptance_criteria.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Acceptance Criteria: AWS Metric Generation Integration Testing",
+      "lines": 26,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/aws_metric_generation_integration_plan.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Plan: AWS Metric Generation Integration Testing",
+      "lines": 29,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/glossary.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Project Glossary",
+      "lines": 48,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/live_demo_expansion_ac.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Acceptance Criteria: Live Demos Expansion",
+      "lines": 21,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/live_demo_expansion_plan.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Implementation Plan: Expansion of Live Demos",
+      "lines": 37,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/onboarding.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Developer Onboarding Guide",
+      "lines": 93,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/roadmap.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Project Roadmap & Phased Rollout",
+      "lines": 76,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/standards/FAANG_Documentation_Standards.md",
+      "status": "APPROVED",
+      "version": "1.1.0",
+      "title": "FAANG Documentation Standards vs. Our Repository Structure",
+      "lines": 81,
+      "broken_links": []
+    },
+    {
+      "path": "docs/project/standards/engineering_standards.md",
+      "status": "APPROVED",
+      "version": "2.0.0",
+      "title": "Engineering Standards & Code Organization",
+      "lines": 660,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/ai_agent_architecture_research.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "AI Agent Architecture & Production Best Practices",
+      "lines": 215,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/alignment_report.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "AI Agent Architecture Alignment Report",
+      "lines": 72,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/documentation_review.md",
+      "status": "APPROVED",
+      "version": "1.0.0",
+      "title": "Documentation Improvement Review",
+      "lines": 810,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/e2e_testing_plan.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "End-to-End Testing Plan: SRE Agent (Phase 1 + 1.5)",
+      "lines": 550,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/implementation_progress.md",
+      "status": "APPROVED",
+      "version": "1.0.0",
+      "title": "Implementation Progress Review",
+      "lines": 357,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/improvement_areas_phase_1_5.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Improvement Areas After Phase 1.5",
+      "lines": 173,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/localstack_pro_live_testing_plan.md",
+      "status": "✅ APPROVED — Ready for execution",
+      "version": "Phase 1.5.1",
+      "title": "LocalStack Pro — Live Testing Plan for the Autonomous SRE Agent",
+      "lines": 742,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/localstack_test_resolution.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "LocalStack E2E Test Resolution Report",
+      "lines": 184,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/phase-1-5-review.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Phase 1.5: Non-Kubernetes Platforms — Comprehensive Review",
+      "lines": 338,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/phase-1-data-foundation/acceptance_criteria.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Phase 1: Acceptance Criteria",
+      "lines": 201,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/phase-1-data-foundation/improvement_areas.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Phase 1 Improvement Areas",
+      "lines": 35,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/phase-1-data-foundation/overview.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Phase 1: Data Foundation — Overview",
+      "lines": 41,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/phase-1-data-foundation/traceability.md",
+      "status": "APPROVED",
+      "version": "1.0.0",
+      "title": "Phase 1 Data Foundation: Traceability & Definitions",
+      "lines": 42,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/phase-2.2-token-optimization/acceptance_criteria.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Phase 2.2: Token Optimization — Acceptance Criteria",
+      "lines": 107,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/phase_2_changelog.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Phase 2 Changelog",
+      "lines": 123,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/archive/phase_2_preparation_guide.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Phase 2 Preparation Guide",
+      "lines": 387,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/aws_data_collection_review.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "AWS Incident Data Collection — Current State Review",
+      "lines": 324,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/documentation_management_plan.md",
+      "status": "APPROVED",
+      "version": "1.0",
+      "title": "Documentation Management Plan — Comprehensive Evaluation",
+      "lines": 381,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/documentation_move_merge_patch_list.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Documentation Move/Merge Patch List",
+      "lines": 97,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/gap_closure_report.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Gap Closure Report: Engineering Standards Compliance",
+      "lines": 367,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/live_demo_analysis_report.md",
+      "status": "DRAFT",
+      "version": "",
+      "title": "Live Demos Analysis Report",
+      "lines": 45,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/live_demo_evaluation.md",
+      "status": "APPROVED",
+      "version": "1.0",
+      "title": "Live E2E Demo — Critical Evaluation Report",
+      "lines": 406,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/llm-integration-hardening-addendum.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "LLM Integration Hardening Addendum",
+      "lines": 171,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/llm-integration-technical-walkthrough.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "LLM Integration Technical Walkthrough",
+      "lines": 360,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/llm_integration_gap_analysis.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "LLM Integration Gap Analysis Report",
+      "lines": 93,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/observability_improvement_areas.md",
+      "status": "APPROVED",
+      "version": "1.0",
+      "title": "Observability Improvement Areas — Autonomous SRE Agent",
+      "lines": 628,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/phase_1_5_test_findings.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Test Findings Report — Autonomous SRE Agent",
+      "lines": 776,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/phase_2_2_token_optimization_report.md",
+      "status": "DRAFT",
+      "version": "",
+      "title": "Phase 2.2: LLM Token Optimization — Strategy, Execution & Implementation Plan",
+      "lines": 778,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/phase_2_3_verification_report.md",
+      "status": "✅ VERIFIED — All Phase 2.3 tests pass",
+      "version": "",
+      "title": "Phase 2.3 — AWS Data Collection Improvements: Verification Report",
+      "lines": 175,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/plan/ac_azure_and_demo1.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Acceptance Criteria: Demo 1 and Demo 11",
+      "lines": 17,
+      "broken_links": []
+    },
+    {
+      "path": "docs/reports/plan/plan_azure_and_demo1.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "Implementation Plan: Demo 1 and Demo 11",
+      "lines": 24,
+      "broken_links": []
+    },
+    {
+      "path": "docs/security/features_and_safety.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Features & Safety Guardrails",
+      "lines": 46,
+      "broken_links": []
+    },
+    {
+      "path": "docs/security/guardrails_configuration.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Guardrails Configuration",
+      "lines": 18,
+      "broken_links": []
+    },
+    {
+      "path": "docs/security/security_review.md",
+      "status": "DRAFT",
+      "version": "1.0",
+      "title": "Security Review — Autonomous SRE Agent",
+      "lines": 463,
+      "broken_links": []
+    },
+    {
+      "path": "docs/security/threat_model.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Threat Modeling (STRIDE Analysis)",
+      "lines": 73,
+      "broken_links": []
+    },
+    {
+      "path": "docs/testing/bugs.md",
+      "status": "✅ RESOLVED — Coverage raised from 79.75% → 88.4% (283 unit + integration tests)",
+      "version": "",
+      "title": "Phase 1.5 Bug Report",
+      "lines": 275,
+      "broken_links": []
+    },
+    {
+      "path": "docs/testing/live_validation_test_cases.md",
+      "status": "APPROVED",
+      "version": "1.0.0",
+      "title": "Live Validation Test Cases — Comprehensive Execution Guide",
+      "lines": 663,
+      "broken_links": []
+    },
+    {
+      "path": "docs/testing/localstack_pro_guide.md",
+      "status": "APPROVED",
+      "version": "",
+      "title": "LocalStack Pro Integration Guide",
+      "lines": 144,
+      "broken_links": []
+    },
+    {
+      "path": "docs/testing/test_infrastructure.md",
+      "status": "DRAFT",
+      "version": "1.0.0",
+      "title": "Test Infrastructure & Chaos Injection",
+      "lines": 44,
+      "broken_links": []
+    },
+    {
+      "path": "docs/testing/testing_strategy.md",
+      "status": "APPROVED",
+      "version": "1.0.0",
+      "title": "End-to-End Testing Strategy & Plan",
+      "lines": 1340,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/add-executable-specs/design.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/add-executable-specs/design.md",
+      "lines": 27,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/add-executable-specs/proposal.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/add-executable-specs/proposal.md",
+      "lines": 24,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/add-executable-specs/specs/asyncapi-telemetry/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/add-executable-specs/specs/asyncapi-telemetry/spec.md",
+      "lines": 8,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/add-executable-specs/specs/executable-specs/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/add-executable-specs/specs/executable-specs/spec.md",
+      "lines": 8,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/add-executable-specs/tasks.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/add-executable-specs/tasks.md",
+      "lines": 11,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/design.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/design.md",
+      "lines": 93,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/proposal.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/proposal.md",
+      "lines": 44,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/agent-coordination/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/agent-coordination/spec.md",
+      "lines": 43,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/anomaly-detection/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/anomaly-detection/spec.md",
+      "lines": 85,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/cloud-portability/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/cloud-portability/spec.md",
+      "lines": 91,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/incident-learning/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/incident-learning/spec.md",
+      "lines": 53,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/notifications/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/notifications/spec.md",
+      "lines": 59,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/operator-dashboard/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/operator-dashboard/spec.md",
+      "lines": 64,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/performance-slos/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/performance-slos/spec.md",
+      "lines": 110,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/phased-rollout/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/phased-rollout/spec.md",
+      "lines": 99,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/predictive-capabilities/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/predictive-capabilities/spec.md",
+      "lines": 126,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/provider-abstraction/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/provider-abstraction/spec.md",
+      "lines": 83,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/rag-diagnostics/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/rag-diagnostics/spec.md",
+      "lines": 90,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/remediation-engine/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/remediation-engine/spec.md",
+      "lines": 50,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/safety-guardrails/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/safety-guardrails/spec.md",
+      "lines": 89,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/severity-classification/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/severity-classification/spec.md",
+      "lines": 95,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/telemetry-ingestion/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/telemetry-ingestion/spec.md",
+      "lines": 94,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/specs/token-optimization/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/specs/token-optimization/spec.md",
+      "lines": 81,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/autonomous-sre-agent/tasks.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/autonomous-sre-agent/tasks.md",
+      "lines": 155,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/integrate-alignment-report/design.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/integrate-alignment-report/design.md",
+      "lines": 25,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/integrate-alignment-report/proposal.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/integrate-alignment-report/proposal.md",
+      "lines": 22,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/integrate-alignment-report/specs/architecture-alignment/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/integrate-alignment-report/specs/architecture-alignment/spec.md",
+      "lines": 8,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/integrate-alignment-report/tasks.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/integrate-alignment-report/tasks.md",
+      "lines": 5,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-1-5-non-k8s-platforms/design.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-1-5-non-k8s-platforms/design.md",
+      "lines": 37,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-1-5-non-k8s-platforms/proposal.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-1-5-non-k8s-platforms/proposal.md",
+      "lines": 30,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-1-5-non-k8s-platforms/specs/aws-remediation-adapters/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-1-5-non-k8s-platforms/specs/aws-remediation-adapters/spec.md",
+      "lines": 24,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-1-5-non-k8s-platforms/specs/azure-remediation-adapters/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-1-5-non-k8s-platforms/specs/azure-remediation-adapters/spec.md",
+      "lines": 15,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-1-5-non-k8s-platforms/specs/serverless-anomaly-detection/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-1-5-non-k8s-platforms/specs/serverless-anomaly-detection/spec.md",
+      "lines": 19,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-1-5-non-k8s-platforms/specs/telemetry-ingestion/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-1-5-non-k8s-platforms/specs/telemetry-ingestion/spec.md",
+      "lines": 10,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-1-5-non-k8s-platforms/tasks.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-1-5-non-k8s-platforms/tasks.md",
+      "lines": 63,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-2-1-observability/design.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-2-1-observability/design.md",
+      "lines": 74,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-2-1-observability/proposal.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-2-1-observability/proposal.md",
+      "lines": 39,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-2-1-observability/specs/agent-self-observability/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-2-1-observability/specs/agent-self-observability/spec.md",
+      "lines": 132,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-2-1-observability/tasks.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-2-1-observability/tasks.md",
+      "lines": 74,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-2-5-slow-response-detection/design.md",
+      "status": "PROPOSED",
+      "version": "",
+      "title": "Phase 2.5 — Slow Response Detection (Design Document)",
+      "lines": 232,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-2-5-slow-response-detection/spec.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-2-5-slow-response-detection/spec.md",
+      "lines": 165,
+      "broken_links": []
+    },
+    {
+      "path": "openspec/changes/phase-2-5-slow-response-detection/tasks.md",
+      "status": "UNSPECIFIED",
+      "version": "",
+      "title": "openspec/changes/phase-2-5-slow-response-detection/tasks.md",
+      "lines": 151,
+      "broken_links": []
+    }
+  ]
+}

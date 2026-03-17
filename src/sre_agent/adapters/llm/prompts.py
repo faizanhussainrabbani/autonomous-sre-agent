@@ -31,6 +31,8 @@ Your response MUST be valid JSON with these fields:
 - confidence: A float between 0.0 and 1.0 representing your confidence in the validation.
 - reasoning: Explanation of your agreement or disagreement.
 - contradictions: List of specific contradictions or unsupported claims found.
+- corrected_root_cause: (Optional) If you disagree, provide the corrected root cause.
+- corrected_remediation: (Optional) If you disagree, provide a corrected suggested remediation.
 
 Be critical. Look for hallucinated claims, unsupported conclusions, or evidence that \
 contradicts the hypothesis."""

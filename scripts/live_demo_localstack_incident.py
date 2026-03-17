@@ -815,7 +815,7 @@ def phase9_show_diagnosis() -> None:
                     print(f"         Root-cause excerpt         : {rc}...")
                 if "agrees" in det:
                     agreed = det["agrees"]
-                    tag = f"{C.GREEN}✔ agrees{C.RESET}" if agreed else f"{C.RED}✖ disagrees (confidence penalty applied){C.RESET}"
+                    tag = f"{C.GREEN}✔ agrees{C.RESET}" if agreed else f"{C.RED}✖ disagrees (confidence penalty applied, hypothesis corrected){C.RESET}"
                     print(f"         Validator agreement        : {tag}")
                 if "reasoning" in det:
                     rsn = str(det["reasoning"])[:150]

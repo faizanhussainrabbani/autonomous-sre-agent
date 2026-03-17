@@ -377,3 +377,41 @@ class TestE2ESeverityOverrideAPI:
         assert response.status_code == 400
         detail = response.json()["detail"]
         assert "SEV1" in detail or "Invalid" in detail
+
+
+# ---------------------------------------------------------------------------
+# Gap D — Queue Metrics E2E (LLM Integration Hardening)
+# ---------------------------------------------------------------------------
+
+
+class TestE2EQueueMetrics:
+    """Validate LLM queue metrics under realistic contention."""
+
+    async def test_queue_wait_metric_nonzero_when_load_exceeds_cap(self):
+        """LLM_QUEUE_WAIT records non-zero values when requests exceed cap.
+
+        Submits 5 slow pipeline diagnoses with max_concurrent=1.
+        All requests queue behind the semaphore, producing measurable
+        wait times in the LLM_QUEUE_WAIT histogram.
+        """
+        from sre_agent.adapters.telemetry.metrics import LLM_QUEUE_WAIT
+
+        # Record histogram sum before
+        before_sum = LLM_QUEUE_WAIT._sum.get()
+
+        inner = _make_inner_llm(delay=0.02)
+        throttled = ThrottledLLMAdapter(inner, max_concurrent=1)
+        pipeline = _make_pipeline(throttled)
+
+        alerts = [_make_alert() for _ in range(5)]
+        await asyncio.gather(
+            *[pipeline.diagnose(DiagnosisRequest(alert=a)) for a in alerts]
+        )
+
+        after_sum = LLM_QUEUE_WAIT._sum.get()
+        assert after_sum > before_sum, (
+            "LLM_QUEUE_WAIT should record non-zero wait times when "
+            "load exceeds concurrency cap"
+        )
+
+        await throttled.close()

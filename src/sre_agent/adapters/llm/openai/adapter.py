@@ -9,6 +9,7 @@ Phase 2: Intelligence Layer — Sprint 2 (Reasoning & Inference)
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -89,16 +90,30 @@ class OpenAILLMAdapter(LLMReasoningPort):
         user_prompt = self._build_hypothesis_prompt(request)
 
         _t0 = time.monotonic()
-        response = await self._client.chat.completions.create(
-            model=self._config.model_name,
-            messages=[
-                {"role": "system", "content": HYPOTHESIS_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=self._config.temperature,
-            max_tokens=self._config.max_tokens,
-            response_format={"type": "json_object"},
-        )
+        try:
+            response = await asyncio.wait_for(
+                self._client.chat.completions.create(
+                    model=self._config.model_name,
+                    messages=[
+                        {"role": "system", "content": HYPOTHESIS_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=self._config.temperature,
+                    max_tokens=self._config.max_tokens,
+                    response_format={"type": "json_object"},
+                ),
+                timeout=self._config.timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "llm_call_timeout",
+                provider="openai",
+                call_type="hypothesis",
+                timeout_seconds=self._config.timeout_seconds,
+            )
+            raise TimeoutError(
+                f"OpenAI hypothesis call timed out after {self._config.timeout_seconds}s"
+            )
         LLM_CALL_DURATION.labels(provider="openai", call_type="hypothesis").observe(
             time.monotonic() - _t0
         )
@@ -129,16 +144,30 @@ class OpenAILLMAdapter(LLMReasoningPort):
         user_prompt = self._build_validation_prompt(request)
 
         _t0 = time.monotonic()
-        response = await self._client.chat.completions.create(
-            model=self._config.model_name,
-            messages=[
-                {"role": "system", "content": VALIDATION_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=self._config.temperature,
-            max_tokens=self._config.max_tokens,
-            response_format={"type": "json_object"},
-        )
+        try:
+            response = await asyncio.wait_for(
+                self._client.chat.completions.create(
+                    model=self._config.model_name,
+                    messages=[
+                        {"role": "system", "content": VALIDATION_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=self._config.temperature,
+                    max_tokens=self._config.max_tokens,
+                    response_format={"type": "json_object"},
+                ),
+                timeout=self._config.timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "llm_call_timeout",
+                provider="openai",
+                call_type="validation",
+                timeout_seconds=self._config.timeout_seconds,
+            )
+            raise TimeoutError(
+                f"OpenAI validation call timed out after {self._config.timeout_seconds}s"
+            )
         LLM_CALL_DURATION.labels(provider="openai", call_type="validation").observe(
             time.monotonic() - _t0
         )
@@ -183,6 +212,9 @@ class OpenAILLMAdapter(LLMReasoningPort):
             f"## Alert\n{request.alert_description}",
             f"\n## Service\n{request.service_name}",
         ]
+
+        if request.system_context:
+            parts.append(f"\n## System Context\n{request.system_context}")
 
         if request.timeline:
             parts.append(f"\n## Timeline\n{request.timeline}")
@@ -290,4 +322,6 @@ class OpenAILLMAdapter(LLMReasoningPort):
             confidence=float(data.get("confidence", 0.0)),
             reasoning=OpenAILLMAdapter._normalize_reasoning(data.get("reasoning", "")),
             contradictions=data.get("contradictions", []),
+            corrected_root_cause=data.get("corrected_root_cause"),
+            corrected_remediation=data.get("corrected_remediation"),
         )

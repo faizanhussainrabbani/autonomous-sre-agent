@@ -73,18 +73,12 @@ class SecondOpinionValidator:
                 hypothesis, alert_description, evidence=_evidence,
             )
 
-        # BOTH strategy: rule-based runs first as a fast sanity check,
-        # but the LLM cross-check always runs regardless of whether
-        # rule-based agrees.  This prevents the rule gate from silently
-        # short-circuiting the LLM when e.g. evidence_citations is empty.
+        # BOTH strategy: rule-based runs first as a fast sanity check.
+        # If rule-based fails, short-circuit and return immediately.
+        # If rule-based passes and LLM is available, run LLM cross-check.
         rule_result = self._rule_based_validate(hypothesis, evidence_count)
         if not rule_result.agrees:
-            logger.warning(
-                "rule_based_validation_failed",
-                contradictions=rule_result.contradictions,
-                strategy="both",
-                note="proceeding to LLM cross-check despite rule failure",
-            )
+            return rule_result
 
         if self._llm is not None:
             return await self._cross_check_validate(

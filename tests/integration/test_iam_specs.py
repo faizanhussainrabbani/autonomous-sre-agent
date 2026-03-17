@@ -265,7 +265,10 @@ def test_iam_001_out_of_scope_cluster_call_raises_authentication_error(
         UserName="iam001-restricted-user",
         PolicyName="prod-only-policy",
     )
-    assert "Statement" in json.loads(policy_resp["PolicyDocument"])
+    policy_doc = policy_resp["PolicyDocument"]
+    if isinstance(policy_doc, str):
+        policy_doc = json.loads(policy_doc)
+    assert "Statement" in policy_doc
 
     # Provision a staging cluster via admin (exists but out of policy scope)
     try:
@@ -392,7 +395,10 @@ def test_iam_002_non_whitelisted_action_raises_authentication_error(
         UserName="iam002-minimal-user",
         PolicyName="minimal-action-policy",
     )
-    assert "Statement" in json.loads(policy_resp["PolicyDocument"])
+    policy_doc = policy_resp["PolicyDocument"]
+    if isinstance(policy_doc, str):
+        policy_doc = json.loads(policy_doc)
+    assert "Statement" in policy_doc
 
     # Provision a cluster the restricted user could theoretically reach (if allowed)
     cluster_name = "iam002-test-cluster"

@@ -3,7 +3,7 @@
 > **Objective:** Reduce LLM token consumption by 40–60% across the diagnostic pipeline while maintaining or improving diagnostic accuracy. Cut per-diagnosis API cost from ~$0.03 to ~$0.012.
 
 **Date:** March 11, 2026
-**Status:** Proposed
+**Status:** DRAFT
 
 ---
 

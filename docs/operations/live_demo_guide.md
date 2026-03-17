@@ -24,8 +24,12 @@ Two fully-scripted demonstrations showcase the agent's detection, diagnosis, and
 
 | Demo | Services | Incident Pattern | Learning Focus |
 |---|---|---|---|
+| **Demo 1: Telemetry Baseline** | CloudWatch Metrics | Baseline Telemetry Mapping | Phase 1 foundations, adapter-to-domain metric mapping |
 | **Demo 7: Lambda Cascade** | Single Lambda function + payment processing | Synchronous Lambda timeout → cascade to dependent services | Single-service root cause identification, retry storm detection |
 | **Demo 8: ECS Multi-Service Cascade** | Order service + payment service (2-tier dependency) | Memory exhaustion (OOM kill) → upstream failure → downstream CPU spike | Multi-service cascade diagnosis, correlated signals enrichment, LLM cross-validation |
+| **Demo 9: CloudWatch Bridge** | CloudWatch Metrics & Logs | Synthetic Payload Enrichment | Validates AlertEnricher and Adapter layers |
+| **Demo 10: EventBridge Reaction** | EventBridge Webhooks | Stateless Event routing | Proves FastAPI TestClient webhook conversion to CanonicalEvents |
+| **Demo 11: Azure Operations** | Azure App Service / Functions | Mock Cloud SDKs | Validates Phase 1.5 Multi-Cloud Operator abstractions |
 
 Both demos include:
 - ✅ Real CloudWatch alarms + SNS notifications
@@ -33,6 +37,20 @@ Both demos include:
 - ✅ LLM-powered root cause hypothesis + cross-validation
 - ✅ Severity classification and human override API
 - ✅ Full audit trail with LLM decision tracking
+
+---
+
+## Demo 1: Telemetry Baseline
+
+The foundational Phase 1 execution proving fundamental basic telemetry fetching through the LocalStack bridge into Canonical structures.
+
+1. Ensure standard LocalStack is running: `docker run --rm -d -p 4566:4566 localstack/localstack`
+2. Activate your virtual environment and run the demo:
+   ```bash
+   source .venv/bin/activate
+   python3 scripts/live_demo_1_telemetry_baseline.py
+   ```
+3. Witness raw metric data flow synchronously out of LocalStack, through the `CloudWatchMetricsAdapter`, and resolve into strictly typed `CanonicalMetric` arrays.
 
 ---
 
@@ -66,7 +84,7 @@ The SRE Agent:
 ```bash
 # Prerequisites: LocalStack Pro running, Python venv active
 cd /Users/faizanhussain/Documents/Project/Practice/AiOps
-SKIP_PAUSES=1 python scripts/live_demo_localstack_incident.py > /tmp/demo7.log 2>&1 &
+SKIP_PAUSES=1 python3 scripts/live_demo_localstack_incident.py > /tmp/demo7.log 2>&1 &
 tail -f /tmp/demo7.log
 ```
 
@@ -74,7 +92,7 @@ tail -f /tmp/demo7.log
 
 ## Demo 8: ECS Multi-Service Cascade
 
-**File:** [ECS Multi-Service Cascade Demo](live_demo_ecs_multi_service.md) *(currently implemented inline in script; see [scripts/live_demo_ecs_multi_service.py](../../scripts/live_demo_ecs_multi_service.py))*
+**File:** [scripts/live_demo_ecs_multi_service.py](../../scripts/live_demo_ecs_multi_service.py)
 
 ### Scenario
 
@@ -122,7 +140,7 @@ Shows the human operator API in action:
 ```bash
 # Prerequisites: LocalStack Pro running, Python venv active, ports 8080/8181 free
 cd /Users/faizanhussain/Documents/Project/Practice/AiOps
-SKIP_PAUSES=1 python scripts/live_demo_ecs_multi_service.py > /tmp/demo8.log 2>&1 &
+SKIP_PAUSES=1 python3 scripts/live_demo_ecs_multi_service.py > /tmp/demo8.log 2>&1 &
 tail -f /tmp/demo8.log
 ```
 
@@ -279,6 +297,35 @@ To add your own incident scenario:
 3. Add runbook content to the knowledge base (`scripts/ingest_runbooks.py`)
 4. Trigger the alarm and observe the agent's diagnosis
 
+---
+
+## Demo 9: CloudWatch Bridge Enrichment
+
+This sequence displays real-time execution of the **AlertEnricher**.
+
+1. Start LocalStack (Community edition suffices).
+    `docker run --rm -d -p 4566:4566 localstack/localstack`
+2. Activate your virtual environment and run the demo:
+   ```bash
+   source .venv/bin/activate
+   python3 scripts/live_demo_cloudwatch_enrichment.py
+   ```
+3. Press enter to witness synthetic Metrics, synthetic Logs pushing upstream into AWS, followed by the SRE Bridge seamlessly parsing them into enriched variables backing the correlation engine.
+
+---
+
+## Demo 10: EventBridge Timelines
+
+This sequence visualizes the parsing of Cloud Provider events (such as task deaths) into Timeline representations capable of providing timeline causations.
+
+1. Activate your virtual environment and run the demo:
+   ```bash
+   source .venv/bin/activate
+   python3 scripts/live_demo_eventbridge_reaction.py
+   ```
+2. You will be prompted to submit Mock EventBridge Webhook traffic acting identically to native deployed AWS bridges.
+3. Upon finalizing both, the SRE Agent constructs a detailed causal Timeline sequence depicting what happened exactly and when.
+
 ### Integrate into CI/CD
 
 The demos can be integrated into the CI/CD pipeline as regression tests:
@@ -287,9 +334,23 @@ The demos can be integrated into the CI/CD pipeline as regression tests:
 # In GitHub Actions workflow:
 - name: Run Live Demo (Regression Test)
   run: |
-    SKIP_PAUSES=1 python scripts/live_demo_ecs_multi_service.py
+    SKIP_PAUSES=1 python3 scripts/live_demo_ecs_multi_service.py
     # Assert all 14 phases passed (check exit code)
 ```
+
+---
+
+## Demo 11: Azure Operations Coverage
+
+Since default LocalStack does not provide Azure mock capabilities, this dynamic mocked demonstration tests the **Phase 1.5 Multi-Cloud Operator abstractions**. 
+
+1. **NO LocalStack REQUIRED**. Purely executes through the domain via injected `azure-mgmt-web` Python SDK mocks.
+2. Activate your virtual environment and run the demo:
+   ```bash
+   source .venv/bin/activate
+   python3 scripts/live_demo_11_azure_operations.py
+   ```
+3. Witness the base `CloudOperatorPort` class reliably proxy `restart` and `scale` actions correctly downstream to both the **Azure App Service** and **Azure Functions (Premium)** implementations handling varying Azure schema payloads automatically.
 
 ---
 

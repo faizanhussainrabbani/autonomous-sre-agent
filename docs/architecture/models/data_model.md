@@ -13,7 +13,7 @@ Represents a confirmed anomaly that requires agent investigation.
 
 *   `id` (UUID): Unique identifier for the incident.
 *   `source` (String): The observability system that generated the alert (e.g., "Prometheus", "eBPF/Cilium").
-*   `type` (String): Must match one of the 5 supported [Incident Taxonomy](models/incident_taxonomy.md) types.
+*   `type` (String): Must match one of the 5 supported [Incident Taxonomy](incident_taxonomy.md) types.
 *   `severity` (Enum): `SEV_1`, `SEV_2`, `SEV_3`, `SEV_4`.
 *   `state` (Enum): The current lifecycle phase of this incident (`IncidentPhase`):
     *   `DETECTED`: Alert received, awaiting diagnosis.

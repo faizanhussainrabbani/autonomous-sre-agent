@@ -171,3 +171,30 @@ class TestRAGDiagnosticPipeline:
         result = await pipeline.diagnose(DiagnosisRequest(alert=alert))
         # Should still succeed even with budget trimming
         assert result.root_cause is not None
+
+    async def test_pipeline_timeout_returns_fallback_result(self):
+        """Pipeline returns fallback DiagnosisResult on LLM TimeoutError.
+
+        LLM Integration Hardening: Verifies that timeout exceptions
+        propagate through the pipeline's existing error handler and
+        produce a SEV1 fallback requiring human approval.
+        """
+        pipeline = _make_pipeline(search_results=_make_search_results())
+        pipeline._llm.generate_hypothesis = AsyncMock(
+            side_effect=TimeoutError("LLM call timed out after 30s"),
+        )
+        alert = AnomalyAlert(
+            service="checkout-service",
+            anomaly_type=AnomalyType.MEMORY_PRESSURE,
+            description="OOM kill detected",
+            metric_name="container_memory_rss",
+            current_value=4.0,
+            baseline_value=2.0,
+            deviation_sigma=4.5,
+        )
+        result = await pipeline.diagnose(DiagnosisRequest(alert=alert))
+
+        assert result.severity == Severity.SEV1
+        assert result.requires_human_approval is True
+        assert "timeout" in result.root_cause.lower()
+        assert result.confidence == 0.0

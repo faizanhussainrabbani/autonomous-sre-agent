@@ -4,7 +4,7 @@
 **Version:** 1.0.0
 
 **Target Audience:** SRE Leadership, Platform Managers
-**Reference:** [Graduation Criteria](graduation_criteria.md)
+**Reference:** [Graduation Criteria](../graduation_criteria.md)
 
 ## Overview
 This runbook covers the manual procedure for graduating the SRE Agent from one Phase to the next (e.g., Shadow Mode -> Assist Mode), as well as handling automatic regression alerts.

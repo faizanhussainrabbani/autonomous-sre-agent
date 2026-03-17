@@ -16,10 +16,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import itertools
+import time
 from typing import Any
 
 import structlog
 
+from sre_agent.adapters.telemetry.metrics import LLM_QUEUE_DEPTH, LLM_QUEUE_WAIT
 from sre_agent.ports.llm import (
     Hypothesis,
     HypothesisRequest,
@@ -72,7 +74,7 @@ class ThrottledLLMAdapter(LLMReasoningPort):
         # Async primitives — lazily created inside a running event loop.
         self._semaphore: asyncio.Semaphore | None = None
         self._queue: asyncio.PriorityQueue[  # type: ignore[type-arg]
-            tuple[int, int, asyncio.Future[Any], Any, tuple[Any, ...]]
+            tuple[int, int, float, asyncio.Future[Any], Any, tuple[Any, ...]]
         ] | None = None
         self._drain_task: asyncio.Task[None] | None = None
 
@@ -109,16 +111,22 @@ class ThrottledLLMAdapter(LLMReasoningPort):
         assert self._semaphore is not None
 
         while True:
-            priority, seq, fut, coro_func, args = await self._queue.get()
+            priority, seq, enqueued_at, fut, coro_func, args = await self._queue.get()
 
             if fut.cancelled():
                 self._queue.task_done()
+                LLM_QUEUE_DEPTH.set(self._queue.qsize())
                 continue
 
             # Block until a concurrency slot is available.
             # Because the drain loop is single-threaded, items are dequeued
             # strictly in priority order.
             await self._semaphore.acquire()
+
+            # Observe queue wait time (time from enqueue to semaphore grant).
+            wait_seconds = time.monotonic() - enqueued_at
+            LLM_QUEUE_WAIT.observe(wait_seconds)
+            LLM_QUEUE_DEPTH.set(self._queue.qsize())
 
             # Spawn execution without blocking the drain loop.
             asyncio.ensure_future(self._execute(fut, coro_func, args))
@@ -163,8 +171,10 @@ class ThrottledLLMAdapter(LLMReasoningPort):
         loop = asyncio.get_event_loop()
         fut: asyncio.Future[Any] = loop.create_future()
         seq = next(self._seq_counter)
+        enqueued_at = time.monotonic()
         assert self._queue is not None
-        await self._queue.put((priority, seq, fut, coro_func, args))
+        await self._queue.put((priority, seq, enqueued_at, fut, coro_func, args))
+        LLM_QUEUE_DEPTH.set(self._queue.qsize())
 
         logger.debug(
             "llm_call_enqueued",

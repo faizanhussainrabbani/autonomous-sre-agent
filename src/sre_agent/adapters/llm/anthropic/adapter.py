@@ -9,6 +9,7 @@ Phase 2: Intelligence Layer — Sprint 2 (Reasoning & Inference)
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 
@@ -71,13 +72,27 @@ class AnthropicLLMAdapter(LLMReasoningPort):
         user_prompt = OpenAILLMAdapter._build_hypothesis_prompt(request)
 
         _t0 = time.monotonic()
-        response = await self._client.messages.create(
-            model=self._config.model_name,
-            system=HYPOTHESIS_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}],
-            temperature=self._config.temperature,
-            max_tokens=self._config.max_tokens,
-        )
+        try:
+            response = await asyncio.wait_for(
+                self._client.messages.create(
+                    model=self._config.model_name,
+                    system=HYPOTHESIS_SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": user_prompt}],
+                    temperature=self._config.temperature,
+                    max_tokens=self._config.max_tokens,
+                ),
+                timeout=self._config.timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "llm_call_timeout",
+                provider="anthropic",
+                call_type="hypothesis",
+                timeout_seconds=self._config.timeout_seconds,
+            )
+            raise TimeoutError(
+                f"Anthropic hypothesis call timed out after {self._config.timeout_seconds}s"
+            )
         LLM_CALL_DURATION.labels(provider="anthropic", call_type="hypothesis").observe(
             time.monotonic() - _t0
         )
@@ -105,11 +120,20 @@ class AnthropicLLMAdapter(LLMReasoningPort):
         )
 
         content = response.content[0].text if response.content else "{}"
+        # Pre-validate JSON to catch parse failures with the correct provider label.
+        # The shared OpenAI parser catches JSONDecodeError internally with provider="openai".
+        cleaned = OpenAILLMAdapter._strip_code_fences(content)
         try:
-            return OpenAILLMAdapter._parse_hypothesis(content)
-        except Exception:
+            json.loads(cleaned)
+        except json.JSONDecodeError:
             LLM_PARSE_FAILURES.labels(provider="anthropic").inc()
-            raise
+            logger.warning("hypothesis_parse_failed", provider="anthropic", raw_content=content[:200])
+            return Hypothesis(
+                root_cause="Failed to parse LLM response.",
+                confidence=0.0,
+                reasoning=content,
+            )
+        return OpenAILLMAdapter._parse_hypothesis(content)
 
     async def validate_hypothesis(
         self,
@@ -121,13 +145,27 @@ class AnthropicLLMAdapter(LLMReasoningPort):
         user_prompt = OpenAILLMAdapter._build_validation_prompt(request)
 
         _t0 = time.monotonic()
-        response = await self._client.messages.create(
-            model=self._config.model_name,
-            system=VALIDATION_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}],
-            temperature=self._config.temperature,
-            max_tokens=self._config.max_tokens,
-        )
+        try:
+            response = await asyncio.wait_for(
+                self._client.messages.create(
+                    model=self._config.model_name,
+                    system=VALIDATION_SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": user_prompt}],
+                    temperature=self._config.temperature,
+                    max_tokens=self._config.max_tokens,
+                ),
+                timeout=self._config.timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "llm_call_timeout",
+                provider="anthropic",
+                call_type="validation",
+                timeout_seconds=self._config.timeout_seconds,
+            )
+            raise TimeoutError(
+                f"Anthropic validation call timed out after {self._config.timeout_seconds}s"
+            )
         LLM_CALL_DURATION.labels(provider="anthropic", call_type="validation").observe(
             time.monotonic() - _t0
         )
@@ -155,11 +193,19 @@ class AnthropicLLMAdapter(LLMReasoningPort):
         )
 
         content = response.content[0].text if response.content else "{}"
+        # Pre-validate JSON to catch parse failures with the correct provider label.
+        cleaned = OpenAILLMAdapter._strip_code_fences(content)
         try:
-            return OpenAILLMAdapter._parse_validation(content)
-        except Exception:
+            json.loads(cleaned)
+        except json.JSONDecodeError:
             LLM_PARSE_FAILURES.labels(provider="anthropic").inc()
-            raise
+            logger.warning("validation_parse_failed", provider="anthropic", raw_content=content[:200])
+            return ValidationResult(
+                agrees=False,
+                confidence=0.0,
+                reasoning=content,
+            )
+        return OpenAILLMAdapter._parse_validation(content)
 
     def count_tokens(self, text: str) -> int:
         """Approximate token count (Claude uses ~4 chars per token)."""

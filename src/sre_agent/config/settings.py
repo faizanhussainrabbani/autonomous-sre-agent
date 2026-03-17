@@ -247,6 +247,8 @@ class AgentConfig:
         if self.cloud_provider == CloudProviderType.AWS:
             if not self.aws.region:
                 errors.append("AWS: region is required")
+            if not self.aws.eks_cluster_name:
+                errors.append("AWS: eks_cluster_name is required")
             if self.features.cloudwatch_adapter and not self.cloudwatch.region:
                 errors.append("CloudWatch: region is required when cloudwatch_adapter is enabled")
         elif self.cloud_provider == CloudProviderType.AZURE:

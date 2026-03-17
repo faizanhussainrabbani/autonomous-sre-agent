@@ -82,6 +82,8 @@ class ValidationResult:
     confidence: float
     reasoning: str
     contradictions: list[str] = field(default_factory=tuple)  # type: ignore[assignment]
+    corrected_root_cause: str | None = None
+    corrected_remediation: str | None = None
 
 
 @dataclass

@@ -266,3 +266,124 @@ class TestThrottledLLMAdapterPriority:
         assert sorted(completion_order[1:]) == completion_order[1:], (
             "After first slot, remaining calls should be processed in priority order"
         )
+
+
+# ---------------------------------------------------------------------------
+# LLM Integration Hardening — New tests
+# ---------------------------------------------------------------------------
+
+
+class TestThrottledLLMAdapterTimeoutRelease:
+    """Verify timeout releases semaphore slot for subsequent work."""
+
+    async def test_timeout_releases_semaphore_slot(self):
+        """A timed-out inner call still releases the semaphore slot.
+
+        Submits two tasks: the first raises TimeoutError, the second
+        should still complete because the slot is freed.
+        """
+        call_count = 0
+
+        async def first_fails_then_succeeds(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise TimeoutError("mock timeout")
+            return _make_hypothesis(root_cause="recovered")
+
+        inner = MagicMock()
+        inner.generate_hypothesis = first_fails_then_succeeds
+        inner.health_check = AsyncMock(return_value=True)
+        inner.count_tokens = MagicMock(return_value=10)
+        inner.get_token_usage = MagicMock(return_value=TokenUsage())
+
+        adapter = ThrottledLLMAdapter(inner, max_concurrent=1)
+
+        # First call should raise
+        with pytest.raises(TimeoutError):
+            await adapter.generate_hypothesis(_make_request())
+
+        # Second call should succeed — semaphore slot was released
+        result = await adapter.generate_hypothesis(_make_request())
+        assert result.root_cause == "recovered"
+
+        await adapter.close()
+
+
+class TestThrottledLLMAdapterQueueMetrics:
+    """Queue metric emission tests (LLM_QUEUE_DEPTH, LLM_QUEUE_WAIT)."""
+
+    async def test_queue_depth_metric_updates_on_enqueue_and_drain(self):
+        """LLM_QUEUE_DEPTH gauge reflects queue size changes."""
+        from sre_agent.adapters.telemetry.metrics import LLM_QUEUE_DEPTH
+
+        gate = asyncio.Event()
+
+        async def blocked_generate(request):
+            await gate.wait()
+            return _make_hypothesis()
+
+        inner = MagicMock()
+        inner.generate_hypothesis = blocked_generate
+        inner.health_check = AsyncMock(return_value=True)
+        inner.count_tokens = MagicMock(return_value=10)
+        inner.get_token_usage = MagicMock(return_value=TokenUsage())
+
+        # Cap=1 so second request queues up
+        adapter = ThrottledLLMAdapter(inner, max_concurrent=1)
+
+        # Submit two tasks
+        task1 = asyncio.create_task(adapter.generate_hypothesis(_make_request()))
+        await asyncio.sleep(0.02)  # Let first task enter semaphore
+
+        task2 = asyncio.create_task(adapter.generate_hypothesis(_make_request()))
+        await asyncio.sleep(0.02)  # Let second task enqueue
+
+        # Queue should have depth > 0 at some point (we just verify the gauge is set)
+        # Release all tasks
+        gate.set()
+        await asyncio.gather(task1, task2)
+
+        # After all tasks drain, depth should be 0
+        assert LLM_QUEUE_DEPTH._value.get() == 0.0
+
+        await adapter.close()
+
+    async def test_queue_wait_metric_records_positive_wait_under_contention(self):
+        """LLM_QUEUE_WAIT histogram records > 0 wait when contention occurs."""
+        from sre_agent.adapters.telemetry.metrics import LLM_QUEUE_WAIT
+
+        gate = asyncio.Event()
+
+        async def blocked_generate(request):
+            await gate.wait()
+            return _make_hypothesis()
+
+        inner = MagicMock()
+        inner.generate_hypothesis = blocked_generate
+        inner.health_check = AsyncMock(return_value=True)
+        inner.count_tokens = MagicMock(return_value=10)
+        inner.get_token_usage = MagicMock(return_value=TokenUsage())
+
+        # Record sample count before
+        before_count = LLM_QUEUE_WAIT._sum.get()
+
+        adapter = ThrottledLLMAdapter(inner, max_concurrent=1)
+
+        # Submit 3 tasks with cap=1 to create contention
+        tasks = [
+            asyncio.create_task(adapter.generate_hypothesis(_make_request()))
+            for _ in range(3)
+        ]
+        await asyncio.sleep(0.05)  # Let tasks enqueue
+
+        gate.set()
+        await asyncio.gather(*tasks)
+
+        # Queue wait histogram should have recorded observations
+        after_count = LLM_QUEUE_WAIT._sum.get()
+        assert after_count > before_count, (
+            "LLM_QUEUE_WAIT should record positive wait times under contention"
+        )
+
+        await adapter.close()

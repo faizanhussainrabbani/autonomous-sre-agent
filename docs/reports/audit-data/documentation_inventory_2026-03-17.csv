@@ -1,0 +1,132 @@
+path,status,version,title,lines,broken_link_count
+AGENTS.md,UNSPECIFIED,,Multi-Agent Ecosystem (AGENTS.md),132,0
+CHANGELOG.md,UNSPECIFIED,,Changelog,537,0
+CONTRIBUTING.md,UNSPECIFIED,,Contributing to the Autonomous SRE Agent,56,0
+README.md,UNSPECIFIED,,🤖 Autonomous SRE Agent,154,0
+docs/README.md,"Documentation reorganized per [documentation_management_plan.md](reports/documentation_management_plan.md) — duplicates removed, DRAFT docs scheduled for promotion, point-in-time reports archived.",,Autonomous SRE Agent — Documentation Index,212,0
+docs/api/api_contracts.md,DRAFT,1.0.0,API & Integration Contracts,158,0
+docs/architecture/Technology_Stack.md,DRAFT,1.0.0,Technology Stack: Autonomous SRE Agent,234,0
+docs/architecture/architecture.md,DRAFT,1.0.0,System Architecture Overview,78,0
+docs/architecture/dependency_graph.md,DRAFT,1.0.0,Dependency Graph Architecture,46,0
+docs/architecture/evolution/phase_1_5_migration.md,DRAFT,1.0.0,Phase 1.5 Migration Notes,65,0
+docs/architecture/evolution/roadmap.md,APPROVED,,Architecture Evolution Roadmap,259,0
+docs/architecture/evolution/target_architecture.md,DRAFT,1.0.0,Target Architecture (Phase 4 Final State),79,0
+docs/architecture/extensibility.md,DRAFT,1.0.0,API & Extension Guide,28,0
+docs/architecture/layers/action_layer.md,DRAFT,1.0.0,Action Layer Architecture,165,0
+docs/architecture/layers/detection_layer.md,DRAFT,1.0.0,Detection Layer Architecture,80,0
+docs/architecture/layers/intelligence_layer.md,DRAFT,1.0.0,Intelligence Layer Architecture,146,0
+docs/architecture/layers/observability_layer.md,DRAFT,1.0.0,Observability Layer Architecture,155,0
+docs/architecture/layers/operator_layer.md,DRAFT,1.0.0,Operator (Presentation & Interface) Layer,116,0
+docs/architecture/layers/orchestration_layer.md,DRAFT,1.0.0,Orchestration & Governance Layer,119,0
+docs/architecture/models/data_model.md,DRAFT,1.0.0,Canonical Data Model,92,0
+docs/architecture/models/incident_taxonomy.md,DRAFT,1.0.0,Incident Taxonomy,14,0
+docs/architecture/models/state_incident_model.md,DRAFT,1.0.0,State Machine: Canonical Incident,41,0
+docs/architecture/sequence_incident_lifecycle.md,DRAFT,1.0.0,Sequence: Incident Lifecycle,75,0
+docs/operations/aws_data_collection_improvements.md,UNSPECIFIED,,AWS Incident Data Collection — Improvement Areas,653,0
+docs/operations/ci_cd_pipeline.md,DRAFT,,CI/CD Pipeline & Test Gates,41,0
+docs/operations/external_dependencies.md,UNSPECIFIED,,External Dependencies Guide,227,0
+docs/operations/graduation_criteria.md,DRAFT,1.0.0,Phase Graduation Criteria,43,0
+docs/operations/live_demo_guide.md,APPROVED,,Live Incident Response Demonstrations,362,0
+docs/operations/localstack_live_incident_demo.md,UNSPECIFIED,,LocalStack Live Incident Response Demo Guide,567,0
+docs/operations/operational_readiness.md,DRAFT (Pre-Production Phase 1),,Operational Readiness Review (ORR),52,0
+docs/operations/runbooks/agent_failure_runbook.md,DRAFT,1.0.0,Runbook: Agent Failure & Rogue Action,65,0
+docs/operations/runbooks/deployment.md,DRAFT,1.0.0,Runbook: Agent Deployment & Upgrade,36,0
+docs/operations/runbooks/incident_response.md,DRAFT,1.0.0,Runbook: Agent Incident Response,38,0
+docs/operations/runbooks/kill_switch.md,DRAFT,1.0.0,Runbook: Agent Kill Switch Activation,48,0
+docs/operations/runbooks/phase_management.md,DRAFT,1.0.0,Runbook: Phase Management,38,0
+docs/operations/slos_and_error_budgets.md,DRAFT,1.0.0,Service Level Objectives (SLOs) & Error Budgets,41,0
+docs/project/ADRs/001-hexagonal-architecture.md,ACCEPTED,,ADR-001: Hexagonal Architecture (Ports & Adapters),47,0
+docs/project/ADRs/002-pydantic-over-dataclasses.md,ACCEPTED,,ADR-002: Pydantic BaseModel Over Python Dataclasses,44,0
+docs/project/ADRs/_template.md,PROPOSED | ACCEPTED | DEPRECATED | SUPERSEDED,,ADR-000: [Title of Architectural Decision],38,0
+docs/project/aws_implementation_plan.md,UNSPECIFIED,,AWS Data Collection Implementation Plan,334,0
+docs/project/aws_metric_generation_acceptance_criteria.md,UNSPECIFIED,,Acceptance Criteria: AWS Metric Generation Integration Testing,26,0
+docs/project/aws_metric_generation_integration_plan.md,UNSPECIFIED,,Plan: AWS Metric Generation Integration Testing,29,0
+docs/project/glossary.md,DRAFT,1.0.0,Project Glossary,48,0
+docs/project/live_demo_expansion_ac.md,UNSPECIFIED,,Acceptance Criteria: Live Demos Expansion,21,0
+docs/project/live_demo_expansion_plan.md,UNSPECIFIED,,Implementation Plan: Expansion of Live Demos,37,0
+docs/project/onboarding.md,DRAFT,1.0.0,Developer Onboarding Guide,93,0
+docs/project/roadmap.md,DRAFT,1.0.0,Project Roadmap & Phased Rollout,76,0
+docs/project/standards/FAANG_Documentation_Standards.md,APPROVED,1.1.0,FAANG Documentation Standards vs. Our Repository Structure,81,0
+docs/project/standards/engineering_standards.md,APPROVED,2.0.0,Engineering Standards & Code Organization,660,0
+docs/reports/ai_agent_architecture_research.md,UNSPECIFIED,,AI Agent Architecture & Production Best Practices,215,0
+docs/reports/alignment_report.md,UNSPECIFIED,,AI Agent Architecture Alignment Report,72,0
+docs/reports/archive/documentation_review.md,APPROVED,1.0.0,Documentation Improvement Review,810,0
+docs/reports/archive/e2e_testing_plan.md,DRAFT,1.0.0,End-to-End Testing Plan: SRE Agent (Phase 1 + 1.5),550,0
+docs/reports/archive/implementation_progress.md,APPROVED,1.0.0,Implementation Progress Review,357,0
+docs/reports/archive/improvement_areas_phase_1_5.md,DRAFT,1.0.0,Improvement Areas After Phase 1.5,173,0
+docs/reports/archive/localstack_pro_live_testing_plan.md,✅ APPROVED — Ready for execution,Phase 1.5.1,LocalStack Pro — Live Testing Plan for the Autonomous SRE Agent,742,0
+docs/reports/archive/localstack_test_resolution.md,UNSPECIFIED,,LocalStack E2E Test Resolution Report,184,0
+docs/reports/archive/phase-1-5-review.md,UNSPECIFIED,,Phase 1.5: Non-Kubernetes Platforms — Comprehensive Review,338,0
+docs/reports/archive/phase-1-data-foundation/acceptance_criteria.md,UNSPECIFIED,,Phase 1: Acceptance Criteria,201,0
+docs/reports/archive/phase-1-data-foundation/improvement_areas.md,UNSPECIFIED,,Phase 1 Improvement Areas,35,0
+docs/reports/archive/phase-1-data-foundation/overview.md,UNSPECIFIED,,Phase 1: Data Foundation — Overview,41,0
+docs/reports/archive/phase-1-data-foundation/traceability.md,APPROVED,1.0.0,Phase 1 Data Foundation: Traceability & Definitions,42,0
+docs/reports/archive/phase-2.2-token-optimization/acceptance_criteria.md,UNSPECIFIED,,Phase 2.2: Token Optimization — Acceptance Criteria,107,0
+docs/reports/archive/phase_2_changelog.md,UNSPECIFIED,,Phase 2 Changelog,123,0
+docs/reports/archive/phase_2_preparation_guide.md,UNSPECIFIED,,Phase 2 Preparation Guide,387,0
+docs/reports/aws_data_collection_review.md,UNSPECIFIED,,AWS Incident Data Collection — Current State Review,324,0
+docs/reports/documentation_management_plan.md,APPROVED,1.0,Documentation Management Plan — Comprehensive Evaluation,381,0
+docs/reports/documentation_move_merge_patch_list.md,DRAFT,1.0.0,Documentation Move/Merge Patch List,97,0
+docs/reports/gap_closure_report.md,UNSPECIFIED,,Gap Closure Report: Engineering Standards Compliance,367,0
+docs/reports/live_demo_analysis_report.md,DRAFT,,Live Demos Analysis Report,45,0
+docs/reports/live_demo_evaluation.md,APPROVED,1.0,Live E2E Demo — Critical Evaluation Report,406,0
+docs/reports/llm-integration-hardening-addendum.md,UNSPECIFIED,,LLM Integration Hardening Addendum,171,0
+docs/reports/llm-integration-technical-walkthrough.md,UNSPECIFIED,,LLM Integration Technical Walkthrough,360,0
+docs/reports/llm_integration_gap_analysis.md,UNSPECIFIED,,LLM Integration Gap Analysis Report,93,0
+docs/reports/observability_improvement_areas.md,APPROVED,1.0,Observability Improvement Areas — Autonomous SRE Agent,628,0
+docs/reports/phase_1_5_test_findings.md,UNSPECIFIED,,Test Findings Report — Autonomous SRE Agent,776,0
+docs/reports/phase_2_2_token_optimization_report.md,DRAFT,,"Phase 2.2: LLM Token Optimization — Strategy, Execution & Implementation Plan",778,0
+docs/reports/phase_2_3_verification_report.md,✅ VERIFIED — All Phase 2.3 tests pass,,Phase 2.3 — AWS Data Collection Improvements: Verification Report,175,0
+docs/reports/plan/ac_azure_and_demo1.md,UNSPECIFIED,,Acceptance Criteria: Demo 1 and Demo 11,17,0
+docs/reports/plan/plan_azure_and_demo1.md,UNSPECIFIED,,Implementation Plan: Demo 1 and Demo 11,24,0
+docs/security/features_and_safety.md,DRAFT,1.0.0,Features & Safety Guardrails,46,0
+docs/security/guardrails_configuration.md,DRAFT,1.0.0,Guardrails Configuration,18,0
+docs/security/security_review.md,DRAFT,1.0,Security Review — Autonomous SRE Agent,463,0
+docs/security/threat_model.md,DRAFT,1.0.0,Threat Modeling (STRIDE Analysis),73,0
+docs/testing/bugs.md,✅ RESOLVED — Coverage raised from 79.75% → 88.4% (283 unit + integration tests),,Phase 1.5 Bug Report,275,0
+docs/testing/live_validation_test_cases.md,APPROVED,1.0.0,Live Validation Test Cases — Comprehensive Execution Guide,663,0
+docs/testing/localstack_pro_guide.md,APPROVED,,LocalStack Pro Integration Guide,144,0
+docs/testing/test_infrastructure.md,DRAFT,1.0.0,Test Infrastructure & Chaos Injection,44,0
+docs/testing/testing_strategy.md,APPROVED,1.0.0,End-to-End Testing Strategy & Plan,1340,0
+openspec/changes/add-executable-specs/design.md,UNSPECIFIED,,openspec/changes/add-executable-specs/design.md,27,0
+openspec/changes/add-executable-specs/proposal.md,UNSPECIFIED,,openspec/changes/add-executable-specs/proposal.md,24,0
+openspec/changes/add-executable-specs/specs/asyncapi-telemetry/spec.md,UNSPECIFIED,,openspec/changes/add-executable-specs/specs/asyncapi-telemetry/spec.md,8,0
+openspec/changes/add-executable-specs/specs/executable-specs/spec.md,UNSPECIFIED,,openspec/changes/add-executable-specs/specs/executable-specs/spec.md,8,0
+openspec/changes/add-executable-specs/tasks.md,UNSPECIFIED,,openspec/changes/add-executable-specs/tasks.md,11,0
+openspec/changes/autonomous-sre-agent/design.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/design.md,93,0
+openspec/changes/autonomous-sre-agent/proposal.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/proposal.md,44,0
+openspec/changes/autonomous-sre-agent/specs/agent-coordination/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/agent-coordination/spec.md,43,0
+openspec/changes/autonomous-sre-agent/specs/anomaly-detection/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/anomaly-detection/spec.md,85,0
+openspec/changes/autonomous-sre-agent/specs/cloud-portability/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/cloud-portability/spec.md,91,0
+openspec/changes/autonomous-sre-agent/specs/incident-learning/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/incident-learning/spec.md,53,0
+openspec/changes/autonomous-sre-agent/specs/notifications/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/notifications/spec.md,59,0
+openspec/changes/autonomous-sre-agent/specs/operator-dashboard/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/operator-dashboard/spec.md,64,0
+openspec/changes/autonomous-sre-agent/specs/performance-slos/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/performance-slos/spec.md,110,0
+openspec/changes/autonomous-sre-agent/specs/phased-rollout/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/phased-rollout/spec.md,99,0
+openspec/changes/autonomous-sre-agent/specs/predictive-capabilities/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/predictive-capabilities/spec.md,126,0
+openspec/changes/autonomous-sre-agent/specs/provider-abstraction/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/provider-abstraction/spec.md,83,0
+openspec/changes/autonomous-sre-agent/specs/rag-diagnostics/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/rag-diagnostics/spec.md,90,0
+openspec/changes/autonomous-sre-agent/specs/remediation-engine/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/remediation-engine/spec.md,50,0
+openspec/changes/autonomous-sre-agent/specs/safety-guardrails/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/safety-guardrails/spec.md,89,0
+openspec/changes/autonomous-sre-agent/specs/severity-classification/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/severity-classification/spec.md,95,0
+openspec/changes/autonomous-sre-agent/specs/telemetry-ingestion/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/telemetry-ingestion/spec.md,94,0
+openspec/changes/autonomous-sre-agent/specs/token-optimization/spec.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/specs/token-optimization/spec.md,81,0
+openspec/changes/autonomous-sre-agent/tasks.md,UNSPECIFIED,,openspec/changes/autonomous-sre-agent/tasks.md,155,0
+openspec/changes/integrate-alignment-report/design.md,UNSPECIFIED,,openspec/changes/integrate-alignment-report/design.md,25,0
+openspec/changes/integrate-alignment-report/proposal.md,UNSPECIFIED,,openspec/changes/integrate-alignment-report/proposal.md,22,0
+openspec/changes/integrate-alignment-report/specs/architecture-alignment/spec.md,UNSPECIFIED,,openspec/changes/integrate-alignment-report/specs/architecture-alignment/spec.md,8,0
+openspec/changes/integrate-alignment-report/tasks.md,UNSPECIFIED,,openspec/changes/integrate-alignment-report/tasks.md,5,0
+openspec/changes/phase-1-5-non-k8s-platforms/design.md,UNSPECIFIED,,openspec/changes/phase-1-5-non-k8s-platforms/design.md,37,0
+openspec/changes/phase-1-5-non-k8s-platforms/proposal.md,UNSPECIFIED,,openspec/changes/phase-1-5-non-k8s-platforms/proposal.md,30,0
+openspec/changes/phase-1-5-non-k8s-platforms/specs/aws-remediation-adapters/spec.md,UNSPECIFIED,,openspec/changes/phase-1-5-non-k8s-platforms/specs/aws-remediation-adapters/spec.md,24,0
+openspec/changes/phase-1-5-non-k8s-platforms/specs/azure-remediation-adapters/spec.md,UNSPECIFIED,,openspec/changes/phase-1-5-non-k8s-platforms/specs/azure-remediation-adapters/spec.md,15,0
+openspec/changes/phase-1-5-non-k8s-platforms/specs/serverless-anomaly-detection/spec.md,UNSPECIFIED,,openspec/changes/phase-1-5-non-k8s-platforms/specs/serverless-anomaly-detection/spec.md,19,0
+openspec/changes/phase-1-5-non-k8s-platforms/specs/telemetry-ingestion/spec.md,UNSPECIFIED,,openspec/changes/phase-1-5-non-k8s-platforms/specs/telemetry-ingestion/spec.md,10,0
+openspec/changes/phase-1-5-non-k8s-platforms/tasks.md,UNSPECIFIED,,openspec/changes/phase-1-5-non-k8s-platforms/tasks.md,63,0
+openspec/changes/phase-2-1-observability/design.md,UNSPECIFIED,,openspec/changes/phase-2-1-observability/design.md,74,0
+openspec/changes/phase-2-1-observability/proposal.md,UNSPECIFIED,,openspec/changes/phase-2-1-observability/proposal.md,39,0
+openspec/changes/phase-2-1-observability/specs/agent-self-observability/spec.md,UNSPECIFIED,,openspec/changes/phase-2-1-observability/specs/agent-self-observability/spec.md,132,0
+openspec/changes/phase-2-1-observability/tasks.md,UNSPECIFIED,,openspec/changes/phase-2-1-observability/tasks.md,74,0
+openspec/changes/phase-2-5-slow-response-detection/design.md,PROPOSED,,Phase 2.5 — Slow Response Detection (Design Document),232,0
+openspec/changes/phase-2-5-slow-response-detection/spec.md,UNSPECIFIED,,openspec/changes/phase-2-5-slow-response-detection/spec.md,165,0
+openspec/changes/phase-2-5-slow-response-detection/tasks.md,UNSPECIFIED,,openspec/changes/phase-2-5-slow-response-detection/tasks.md,151,0

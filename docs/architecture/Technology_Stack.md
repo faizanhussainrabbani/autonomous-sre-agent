@@ -231,4 +231,4 @@ The agent uses a **provider-agnostic architecture** with adapters for different 
 
 ---
 
-*Source: [design.md](../openspec/changes/autonomous-sre-agent/design.md), [proposal.md](../openspec/changes/autonomous-sre-agent/proposal.md), [constitution.md](../.specify/memory/constitution.md)*
+*Source: [design.md](../../openspec/changes/autonomous-sre-agent/design.md), [proposal.md](../../openspec/changes/autonomous-sre-agent/proposal.md), [constitution.md](../../.specify/memory/constitution.md)*

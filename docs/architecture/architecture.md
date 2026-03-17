@@ -75,4 +75,4 @@ Specific **Adapters** implement these queries based on the target backend (e.g.,
 3. **RAG Diagnostic Pipeline (Intelligence):** Embeds the anomaly context and uses a Vector DB to search past incident histories. Feeds this data to an LLM Reasoning Engine to deduce root causes.
 4. **Severity Classification Engine (Intelligence):** Scores impact and prioritizes alerts based on service tier and disruption.
 5. **Remediation Action Engine (Action):** Reverts Git commits (Argocd GitOps) or hits K8s APIs to fix the diagnosed issues.
-6. **Safety Guardrails (Action):** A comprehensive suite of limits and verifications that wrap any action. See [Features & Safety](./features_and_safety.md).
+6. **Safety Guardrails (Action):** A comprehensive suite of limits and verifications that wrap any action. See [Features & Safety](../security/features_and_safety.md).

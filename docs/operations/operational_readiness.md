@@ -43,7 +43,7 @@ The agent runs as a unified deployment within the management Kubernetes cluster.
 *   Log retention is 7 years for compliance tracking of automated infrastructure changes.
 
 ## 4. Operational Runbooks
-*   [Agent Failure Runbook](runbook_agent_failure.md)
+*   [Agent Failure Runbook](runbooks/agent_failure_runbook.md)
 *   [Incident Response Runbook](runbooks/incident_response.md)
 
 ## 5. Sign-off
