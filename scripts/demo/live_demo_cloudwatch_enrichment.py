@@ -21,11 +21,13 @@ Usage
 """
 
 import sys
+import os
 import time
 import uuid
 import boto3
 import asyncio
 from datetime import datetime, timezone, timedelta
+from _demo_utils import aws_region, env_bool, boto_localstack_kwargs
 
 try:
     from sre_agent.adapters.cloud.aws.enrichment import AlertEnricher
@@ -44,13 +46,18 @@ C_BOLD = "\033[1m"
 C_RESET = "\033[0m"
 
 LOCALSTACK_URL = "http://localhost:4566"
+AWS_REGION = aws_region("us-east-1")
+SKIP_PAUSES = env_bool("SKIP_PAUSES", False)
 
-cw_client = boto3.client("cloudwatch", endpoint_url=LOCALSTACK_URL, region_name="us-east-1", aws_access_key_id="test", aws_secret_access_key="test")
-logs_client = boto3.client("logs", endpoint_url=LOCALSTACK_URL, region_name="us-east-1", aws_access_key_id="test", aws_secret_access_key="test")
+cw_client = boto3.client("cloudwatch", **boto_localstack_kwargs(LOCALSTACK_URL, AWS_REGION))
+logs_client = boto3.client("logs", **boto_localstack_kwargs(LOCALSTACK_URL, AWS_REGION))
 
 
 def wait_for_enter(prompt="Press ENTER to continue..."):
     print(f"\n{C_YELLOW}{prompt}{C_RESET}")
+    if SKIP_PAUSES:
+        print(f"{C_BLUE}[SKIPPED]{C_RESET} Interactive pause disabled via SKIP_PAUSES=1")
+        return
     input()
 
 

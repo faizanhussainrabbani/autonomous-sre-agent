@@ -42,7 +42,7 @@ git clone https://github.com/your-org/autonomous-sre-agent.git
 cd autonomous-sre-agent
 
 # Install everything (creates venv if needed)
-./scripts/run.sh setup
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh setup
 
 # Configure environment variables
 cp .env.example .env
@@ -52,8 +52,8 @@ cp .env.example .env
 ### 2. Run the API Server
 
 ```bash
-./scripts/run.sh server            # Production mode
-./scripts/run.sh server --reload   # Dev mode with auto-reload
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh server            # Production mode
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh server --reload   # Dev mode with auto-reload
 ```
 
 API docs available at http://localhost:8080/docs
@@ -61,23 +61,23 @@ API docs available at http://localhost:8080/docs
 ### 3. Run Tests
 
 ```bash
-./scripts/run.sh test:unit    # Unit tests (~400 tests, fast, no deps)
-./scripts/run.sh test:e2e     # E2E tests
-./scripts/run.sh test         # Full suite (501 tests)
-./scripts/run.sh coverage     # Tests with coverage report
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh test:unit    # Unit tests (~400 tests, fast, no deps)
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh test:e2e     # E2E tests
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh test         # Full suite (501 tests)
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh coverage     # Tests with coverage report
 ```
 
 ### 4. Start External Dependencies
 
 ```bash
 # Start LocalStack, Prometheus, Jaeger via Docker
-./scripts/setup_deps.sh start
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh start
 
 # Run integration tests (requires LocalStack Pro)
-./scripts/run.sh test:integ
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh test:integ
 
 # Stop dependencies
-./scripts/setup_deps.sh stop
+/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh stop
 ```
 
 See the full [External Dependencies Guide](docs/operations/external_dependencies.md) for details.

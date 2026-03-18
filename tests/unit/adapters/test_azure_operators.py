@@ -34,6 +34,21 @@ async def test_app_service_restart():
 
 
 @pytest.mark.asyncio
+async def test_app_service_restart_with_arm_resource_id_uses_site_name():
+    """AC-1.5.7.1: restart uses Azure site name when given full ARM resource id."""
+    mock_web = MagicMock()
+    op = AppServiceOperator(web_client=mock_web)
+
+    result = await op.restart_compute_unit(
+        resource_id="/subscriptions/123/resourceGroups/prod-rg/providers/Microsoft.Web/sites/my-webapp",
+        metadata={"resource_group": "prod-rg"},
+    )
+
+    mock_web.web_apps.restart.assert_called_once_with("prod-rg", "my-webapp")
+    assert result["app"] == "my-webapp"
+
+
+@pytest.mark.asyncio
 async def test_app_service_scale():
     """AC-1.5.7.2: scale modifies App Service Plan instance count."""
     mock_plan = MagicMock()
@@ -71,6 +86,21 @@ async def test_functions_restart():
 
     mock_web.web_apps.restart.assert_called_once_with("prod-rg", "my-function-app")
     assert result["action"] == "restart"
+
+
+@pytest.mark.asyncio
+async def test_functions_restart_with_arm_resource_id_uses_site_name():
+    """AC-1.5.7.3: functions restart uses app name when resource id is ARM URI."""
+    mock_web = MagicMock()
+    op = FunctionsOperator(web_client=mock_web)
+
+    result = await op.restart_compute_unit(
+        resource_id="/subscriptions/123/resourceGroups/prod-rg/providers/Microsoft.Web/sites/my-function-app",
+        metadata={"resource_group": "prod-rg"},
+    )
+
+    mock_web.web_apps.restart.assert_called_once_with("prod-rg", "my-function-app")
+    assert result["function_app"] == "my-function-app"
 
 
 @pytest.mark.asyncio

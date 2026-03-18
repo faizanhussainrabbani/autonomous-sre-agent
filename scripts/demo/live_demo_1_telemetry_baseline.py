@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 import structlog
 import boto3
+from _demo_utils import aws_region, boto_localstack_kwargs
 
 from sre_agent.adapters.telemetry.cloudwatch.metrics_adapter import CloudWatchMetricsAdapter
 from sre_agent.domain.models.canonical import CanonicalMetric
@@ -21,7 +22,7 @@ from sre_agent.domain.models.canonical import CanonicalMetric
 logger = structlog.get_logger()
 
 # Setup LocalStack connectivity matching existing scripts
-AWS_REGION = "us-east-1"
+AWS_REGION = aws_region("us-east-1")
 ENDPOINT_URL = "http://localhost:4566"
 NAMESPACE = "ECS/ContainerInsights"
 
@@ -54,13 +55,7 @@ async def main():
     logger.info("Starting Demo 1: Phase 1 Telemetry Baseline")
     
     # 1. Initialize boto3 client pointing to LocalStack
-    cw_client = boto3.client(
-        "cloudwatch",
-        region_name=AWS_REGION,
-        endpoint_url=ENDPOINT_URL,
-        aws_access_key_id="test",
-        aws_secret_access_key="test",
-    )
+    cw_client = boto3.client("cloudwatch", **boto_localstack_kwargs(ENDPOINT_URL, AWS_REGION))
     
     # 2. Push some synthetic metrics
     push_test_metrics(cw_client)

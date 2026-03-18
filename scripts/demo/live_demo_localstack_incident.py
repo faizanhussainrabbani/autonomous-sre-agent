@@ -31,9 +31,10 @@ Requirements
 Environment
 -----------
     LOCALSTACK_ENDPOINT  LocalStack endpoint (default: http://localhost:4566)
-    AWS_DEFAULT_REGION   AWS region used by LocalStack (default: eu-west-3)
+    AWS_DEFAULT_REGION   AWS region used by LocalStack (default: us-east-1)
     AGENT_PORT           SRE Agent port (default: 8181)
     BRIDGE_PORT          Incident bridge port (default: 8080)
+    BRIDGE_HOST          Hostname LocalStack uses for bridge callback (default: 127.0.0.1)
     SKIP_PAUSES          Set to "1" to skip interactive ENTER prompts (CI mode)
 """
 
@@ -54,21 +55,23 @@ from typing import Any
 import boto3
 import httpx
 from dotenv import load_dotenv
+from _demo_utils import aws_region, env_bool
 
 # Load .env from the project root so LOCALSTACK_AUTH_TOKEN and other secrets
 # are available without needing them exported in the shell.
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 LOCALSTACK_ENDPOINT = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
-AWS_REGION          = os.getenv("AWS_DEFAULT_REGION", "eu-west-3")
+AWS_REGION          = aws_region("us-east-1")
 AGENT_PORT          = int(os.getenv("AGENT_PORT", "8181"))
 BRIDGE_PORT         = int(os.getenv("BRIDGE_PORT", "8080"))
 AGENT_URL           = f"http://127.0.0.1:{AGENT_PORT}"
 BRIDGE_URL          = f"http://127.0.0.1:{BRIDGE_PORT}"
-SKIP_PAUSES         = os.getenv("SKIP_PAUSES", "0") == "1"
+SKIP_PAUSES         = env_bool("SKIP_PAUSES", False)
+BRIDGE_HOST         = os.getenv("BRIDGE_HOST", "127.0.0.1")
 
 FUNCTION_NAME       = "payment-processor"
 ALARM_NAME          = "PaymentProcessorErrorSpike"
@@ -79,9 +82,9 @@ LAMBDA_ROLE_ARN     = f"arn:aws:iam::{ACCOUNT_ID}:role/lambda-role"
 
 MOCK_LAMBDA_PATH    = Path(__file__).parent / "mock_lambda.py"
 BRIDGE_SCRIPT_PATH  = Path(__file__).parent / "localstack_bridge.py"
-VENV_PYTHON         = Path(__file__).parent.parent / ".venv" / "bin" / "python"
-VENV_UVICORN        = Path(__file__).parent.parent / ".venv" / "bin" / "uvicorn"
-VENV_AWSLOCAL       = Path(__file__).parent.parent / ".venv" / "bin" / "awslocal"
+VENV_PYTHON         = Path(__file__).parent.parent.parent / ".venv" / "bin" / "python"
+VENV_UVICORN        = Path(__file__).parent.parent.parent / ".venv" / "bin" / "uvicorn"
+VENV_AWSLOCAL       = Path(__file__).parent.parent.parent / ".venv" / "bin" / "awslocal"
 
 # ---------------------------------------------------------------------------
 # Colour + formatting helpers
@@ -435,7 +438,7 @@ def phase3_start_agent() -> subprocess.Popen:
          "--host", "127.0.0.1", "--port", str(AGENT_PORT)],
         stdout=agent_log,
         stderr=agent_log,
-        cwd=str(Path(__file__).parent.parent),
+        cwd=str(Path(__file__).parent.parent.parent),
     )
     info(f"Agent PID: {_agent_proc.pid}")
     info("Logs streaming to /tmp/sre_agent_demo.log")
@@ -480,7 +483,7 @@ def phase4_start_bridge() -> subprocess.Popen:
         stdout=bridge_log,
         stderr=bridge_log,
         env=env,
-        cwd=str(Path(__file__).parent.parent),
+        cwd=str(Path(__file__).parent.parent.parent),
     )
     info(f"Bridge PID: {_bridge_proc.pid}")
     info("Logs streaming to /tmp/bridge_demo.log")
@@ -514,10 +517,9 @@ def phase5_subscribe_sns() -> None:
 
     sc = sns_client()
 
-    # On macOS with Docker-based LocalStack, host.docker.internal resolves to the host
-    bridge_endpoint = f"http://host.docker.internal:{BRIDGE_PORT}/sns/webhook"
+    bridge_endpoint = f"http://{BRIDGE_HOST}:{BRIDGE_PORT}/sns/webhook"
     step(f"Subscribing: {bridge_endpoint}")
-    info("If LocalStack runs natively (not Docker), change host.docker.internal → 127.0.0.1")
+    info("Set BRIDGE_HOST=host.docker.internal for Docker LocalStack; use 127.0.0.1 for native")
 
     sub_resp = sc.subscribe(
         TopicArn=TOPIC_ARN,

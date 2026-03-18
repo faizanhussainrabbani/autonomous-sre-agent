@@ -38,7 +38,7 @@ Usage
 Environment
 -----------
     LOCALSTACK_ENDPOINT   LocalStack endpoint (default: http://localhost:4566)
-    AWS_DEFAULT_REGION    AWS region (default: eu-west-3)
+    AWS_DEFAULT_REGION    AWS region (default: us-east-1)
     AGENT_PORT            SRE Agent port (default: 8181)
     BRIDGE_PORT           Incident bridge port (default: 8080)
     BRIDGE_HOST           Host LocalStack uses to reach the bridge webhook
@@ -63,21 +63,22 @@ from typing import Any
 import boto3
 import httpx
 from dotenv import load_dotenv
+from _demo_utils import aws_region, env_bool
 
 # Load .env from the project root so LOCALSTACK_AUTH_TOKEN and other secrets
 # are available without needing them exported in the shell.
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 LOCALSTACK_ENDPOINT = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
-AWS_REGION          = os.getenv("AWS_DEFAULT_REGION", "eu-west-3")
+AWS_REGION          = aws_region("us-east-1")
 AGENT_PORT          = int(os.getenv("AGENT_PORT", "8181"))
 BRIDGE_PORT         = int(os.getenv("BRIDGE_PORT", "8080"))
 AGENT_URL           = f"http://127.0.0.1:{AGENT_PORT}"
 BRIDGE_URL          = f"http://127.0.0.1:{BRIDGE_PORT}"
-SKIP_PAUSES         = os.getenv("SKIP_PAUSES", "0") == "1"
+SKIP_PAUSES         = env_bool("SKIP_PAUSES", False)
 # BRIDGE_HOST is the hostname LocalStack uses to reach this machine's bridge webhook.
 # Use 127.0.0.1 when LocalStack runs natively; host.docker.internal for Docker Desktop.
 BRIDGE_HOST         = os.getenv("BRIDGE_HOST", "127.0.0.1")
@@ -102,8 +103,8 @@ TASK_ROLE_ARN       = f"arn:aws:iam::{ACCOUNT_ID}:role/ecs-task-role"
 EXEC_ROLE_ARN       = f"arn:aws:iam::{ACCOUNT_ID}:role/ecs-exec-role"
 
 BRIDGE_SCRIPT_PATH  = Path(__file__).parent / "localstack_bridge.py"
-VENV_PYTHON         = Path(__file__).parent.parent / ".venv" / "bin" / "python"
-VENV_UVICORN        = Path(__file__).parent.parent / ".venv" / "bin" / "uvicorn"
+VENV_PYTHON         = Path(__file__).parent.parent.parent / ".venv" / "bin" / "python"
+VENV_UVICORN        = Path(__file__).parent.parent.parent / ".venv" / "bin" / "uvicorn"
 
 LOCALSTACK_AUTH_TOKEN = os.getenv("LOCALSTACK_AUTH_TOKEN") or os.getenv("LOCALSTACK_API_KEY")
 
@@ -504,7 +505,7 @@ def phase3_start_agent() -> None:
         ],
         stdout=agent_log,
         stderr=agent_log,
-        cwd=str(Path(__file__).parent.parent),
+        cwd=str(Path(__file__).parent.parent.parent),
     )
     info(f"Agent PID: {_agent_proc.pid}")
     info("Logs streaming to /tmp/sre_agent_demo8.log")
@@ -549,7 +550,7 @@ def phase4_start_bridge() -> None:
         stdout=bridge_log,
         stderr=bridge_log,
         env=env,
-        cwd=str(Path(__file__).parent.parent),
+        cwd=str(Path(__file__).parent.parent.parent),
     )
     info(f"Bridge PID: {_bridge_proc.pid}")
     info("Logs streaming to /tmp/bridge_demo8.log")
@@ -834,7 +835,7 @@ def phase8_fire_order_alarm() -> None:
         metric_name="RunningTaskCount",
         metric_values=[3.0, 3.0, 3.0, 2.0, 1.0, 0.0],  # 6-minute decline
         log_messages=[
-            "FATAL: ECS task arn:aws:ecs:eu-west-3:000000000000:task/sre-demo-cluster/abc123 "
+            "FATAL: ECS task arn:aws:ecs:us-east-1:000000000000:task/sre-demo-cluster/abc123 "
             "stopped with exit code 137 (OOMKilled). MemoryUtilization: 512/512 MB (100%).",
             "ERROR: order-service health check failed after 3 consecutive failures. "
             "ELB deregistering target.",

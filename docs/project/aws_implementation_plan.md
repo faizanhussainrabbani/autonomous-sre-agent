@@ -132,7 +132,7 @@ aligned to the gaps identified in
 
 **File modified:**
 
-* `scripts/localstack_bridge.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/localstack_bridge.py`
 
 **New file:**
 

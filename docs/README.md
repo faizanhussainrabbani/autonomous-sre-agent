@@ -202,11 +202,11 @@ All documents in this repository follow the standards defined in [project/standa
 
 | Script | Purpose |
 |---|---|
-| `scripts/run.sh` | Unified run script: server, test, lint, setup |
-| `scripts/setup_deps.sh` | Start/stop Docker-based development dependencies |
+| `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh` | Unified run script: server, test, lint, setup |
+| `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh` | Start/stop Docker-based development dependencies |
 | `docker-compose.deps.yml` | Docker Compose for LocalStack, Prometheus, Jaeger |
-| `scripts/localstack_bridge.py` | SNS → AnomalyAlert incident bridge for LocalStack live demos |
-| `scripts/mock_lambda.py` | Vulnerable Lambda handler for LocalStack live demo |
-| `scripts/live_demo_localstack_incident.py` | Demo 7: 10-phase Lambda incident cascade (LocalStack) |
-| `scripts/live_demo_ecs_multi_service.py` | Demo 8: 14-phase ECS multi-service cascade with LLM diagnosis |
+| `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/localstack_bridge.py` | SNS → AnomalyAlert incident bridge for LocalStack live demos |
+| `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/mock_lambda.py` | Vulnerable Lambda handler for LocalStack live demo |
+| `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py` | Demo 7: 10-phase Lambda incident cascade (LocalStack) |
+| `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py` | Demo 8: 14-phase ECS multi-service cascade with LLM diagnosis |
 | `.env.example` | Environment variable template (copy to `.env`) |

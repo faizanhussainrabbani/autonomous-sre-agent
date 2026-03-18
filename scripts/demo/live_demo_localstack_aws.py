@@ -58,6 +58,7 @@ from io import BytesIO
 from typing import Any
 
 import structlog
+from _demo_utils import aws_region
 
 # ---------------------------------------------------------------------------
 # Bootstrap structlog (silent JSON for demo clarity)
@@ -112,7 +113,7 @@ def step(msg: str) -> None:
 
 
 LOCALSTACK_ENDPOINT = "http://localhost:4566"
-AWS_REGION = "us-east-1"
+AWS_REGION = aws_region("us-east-1")
 _BOTO_CREDS = dict(
     endpoint_url=LOCALSTACK_ENDPOINT,
     region_name=AWS_REGION,
@@ -295,6 +296,9 @@ async def run_act2_lambda() -> dict:
         ok(f"Lambda function '{function_name}' created in LocalStack")
     except lam.exceptions.ResourceConflictException:
         ok(f"Lambda function '{function_name}' already exists in LocalStack")
+
+    # Give LocalStack time to finalize function provisioning before operator calls.
+    time.sleep(1)
 
     # ── Simulate alert ────────────────────────────────────────────────────
     print(f"\n  {C.RED}🚨 Lambda Alert{C.RESET}")

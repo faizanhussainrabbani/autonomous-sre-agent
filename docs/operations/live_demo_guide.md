@@ -1,362 +1,320 @@
 ---
 title: Live Incident Response Demonstrations
-description: End-to-end guides for running the Autonomous SRE Agent against LocalStack with realistic incident scenarios.
-ms.date: 2026-03-12
+description: Execution-validated guide for running all Autonomous SRE Agent live demos across AWS, Azure, HTTP, EventBridge, Kubernetes operations, and multi-agent lock coordination.
+ms.date: 2026-03-19
 ms.topic: how-to
 status: APPROVED
 keywords:
+  - live demos
   - localstack
   - incident response
-  - demonstration
-  - ecs
-  - lambda
----
-
-# Live Incident Response Demonstrations
-
-This document serves as a landing page for end-to-end live demonstrations of the Autonomous SRE Agent responding to simulated infrastructure incidents using LocalStack Pro as the cloud provider.
-
+  - kubernetes
+  - multi-agent locks
 ---
 
 ## Overview
 
-Two fully-scripted demonstrations showcase the agent's detection, diagnosis, and remediation capabilities in realistic multi-service failure scenarios:
+This guide is the canonical index for the live demo suite. It documents every `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_*.py` script, expected prerequisites, and execution mode.
 
-| Demo | Services | Incident Pattern | Learning Focus |
-|---|---|---|---|
-| **Demo 1: Telemetry Baseline** | CloudWatch Metrics | Baseline Telemetry Mapping | Phase 1 foundations, adapter-to-domain metric mapping |
-| **Demo 7: Lambda Cascade** | Single Lambda function + payment processing | Synchronous Lambda timeout → cascade to dependent services | Single-service root cause identification, retry storm detection |
-| **Demo 8: ECS Multi-Service Cascade** | Order service + payment service (2-tier dependency) | Memory exhaustion (OOM kill) → upstream failure → downstream CPU spike | Multi-service cascade diagnosis, correlated signals enrichment, LLM cross-validation |
-| **Demo 9: CloudWatch Bridge** | CloudWatch Metrics & Logs | Synthetic Payload Enrichment | Validates AlertEnricher and Adapter layers |
-| **Demo 10: EventBridge Reaction** | EventBridge Webhooks | Stateless Event routing | Proves FastAPI TestClient webhook conversion to CanonicalEvents |
-| **Demo 11: Azure Operations** | Azure App Service / Functions | Mock Cloud SDKs | Validates Phase 1.5 Multi-Cloud Operator abstractions |
+Validation scope for this revision:
 
-Both demos include:
-- ✅ Real CloudWatch alarms + SNS notifications
-- ✅ Agent-side anomaly detection ingesting correlated signals
-- ✅ LLM-powered root cause hypothesis + cross-validation
-- ✅ Severity classification and human override API
-- ✅ Full audit trail with LLM decision tracking
+* All `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_*.py` scripts were executed in non-interactive mode (`SKIP_PAUSES=1`) with result capture
+* Full-suite validation completed with `TOTAL 25`, `PASS 25`, `FAIL 0`, `TIMEOUT 0`
+* Kubernetes Demo 12 was validated in both simulation mode and live `kubectl` mode
+* Results were cross-checked against `docs/reports/live_demo_verification_report.md`, `docs/reports/live_demo_review_report.md`, and `docs/operations/localstack_live_incident_demo.md`
 
----
+## Demo inventory
 
-## Demo 1: Telemetry Baseline
+| Demo | Script | Focus Area | LocalStack | LLM Required |
+|---|---|---|---|---|
+| 1 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py](../../scripts/demo/live_demo_1_telemetry_baseline.py) | Phase 1 telemetry adapter-to-domain mapping | Community | No |
+| 2 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cascade_failure.py](../../scripts/demo/live_demo_cascade_failure.py) | Multi-service cascade correlation and event isolation | No | Yes (Anthropic) |
+| 3 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_deployment_regression.py](../../scripts/demo/live_demo_deployment_regression.py) | Deployment-induced diagnosis, circuit breaker, certificate expiry | No | Yes (Anthropic) |
+| 4 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py](../../scripts/demo/live_demo_localstack_aws.py) | AWS operators (ECS/Lambda/ASG) via LocalStack | Pro for full coverage | No |
+| 5 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py](../../scripts/demo/live_demo_http_server.py) | Compatibility wrapper delegating to Demo 6 | No | Yes (Anthropic) |
+| 6 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py](../../scripts/demo/live_demo_http_optimizations.py) | HTTP end-to-end with token optimization and caching | No | Yes (Anthropic) |
+| 7 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py](../../scripts/demo/live_demo_localstack_incident.py) | Lambda incident chain: alarm → SNS → bridge → diagnosis | Community or Pro | Yes (Anthropic) |
+| 8 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py](../../scripts/demo/live_demo_ecs_multi_service.py) | ECS multi-service cascade and severity override workflow | Pro | Yes (Anthropic) |
+| 9 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py](../../scripts/demo/live_demo_cloudwatch_enrichment.py) | AlertEnricher with CloudWatch metrics and logs | Community | No |
+| 10 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py](../../scripts/demo/live_demo_eventbridge_reaction.py) | Event routing and timeline building via FastAPI TestClient simulation | No | No |
+| 11 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py](../../scripts/demo/live_demo_11_azure_operations.py) | Azure App Service and Functions operator behavior | No | No |
+| 12 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py](../../scripts/demo/live_demo_kubernetes_operations.py) | Kubernetes restart and scale operations (simulation or real `kubectl`) | No | No |
+| 13 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py](../../scripts/demo/live_demo_multi_agent_lock_protocol.py) | Lock schema, preemption, cooling-off, and human override simulation | No | No |
+| 14 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_14_disk_exhaustion.py](../../scripts/demo/live_demo_14_disk_exhaustion.py) | Disk exhaustion anomaly simulation payload | No | No |
+| 15 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_15_traffic_anomaly.py](../../scripts/demo/live_demo_15_traffic_anomaly.py) | Traffic anomaly simulation payload | No | No |
+| 16 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_16_xray_tracing_placeholder.py](../../scripts/demo/live_demo_16_xray_tracing_placeholder.py) | X-Ray tracing placeholder for future phase work | No | No |
 
-The foundational Phase 1 execution proving fundamental basic telemetry fetching through the LocalStack bridge into Canonical structures.
+### Standardized numbering aliases
 
-1. Ensure standard LocalStack is running: `docker run --rm -d -p 4566:4566 localstack/localstack`
-2. Activate your virtual environment and run the demo:
-   ```bash
-   source .venv/bin/activate
-   python3 scripts/live_demo_1_telemetry_baseline.py
-   ```
-3. Witness raw metric data flow synchronously out of LocalStack, through the `CloudWatchMetricsAdapter`, and resolve into strictly typed `CanonicalMetric` arrays.
+To support consistent naming without breaking existing commands, alias wrappers are available:
 
----
-
-## Demo 7: Lambda Incident Cascade
-
-**File:** [localstack_live_incident_demo.md](localstack_live_incident_demo.md)
-
-### Scenario
-
-A vulnerable Lambda function (`payment-processor-lambda`) written in Python handles payment requests from an order service. During a traffic spike:
-
-1. Lambda memory exhaustion (512 MB limit hit due to request buffering)
-2. Lambda crash (exit code 137 = OOMKilled)
-3. Upstream order service clients retry payments aggressively
-4. Retry storm → dependent services (downstream) start timing out
-
-### Agent Response
-
-The SRE Agent:
-1. Detects `LambdaErrors` spike via CloudWatch metrics
-2. Ingests Lambda CloudWatch Logs showing OOM kill
-3. Generates hypothesis: "Memory exhaustion in payment processor"
-4. Suggests remediation: increase Lambda memory + implement DLQ + add circuit breaker
-
-### Duration
-
-~3 minutes end-to-end (most time spent waiting for LLM diagnosis).
-
-### Run It
-
-```bash
-# Prerequisites: LocalStack Pro running, Python venv active
-cd /Users/faizanhussain/Documents/Project/Practice/AiOps
-SKIP_PAUSES=1 python3 scripts/live_demo_localstack_incident.py > /tmp/demo7.log 2>&1 &
-tail -f /tmp/demo7.log
-```
-
----
-
-## Demo 8: ECS Multi-Service Cascade
-
-**File:** [scripts/live_demo_ecs_multi_service.py](../../scripts/live_demo_ecs_multi_service.py)
-
-### Scenario
-
-Two co-located ECS services simulate a realistic microservice architecture:
-
-1. **Order Service** (upstream) — handles order placement
-   - 3 running tasks in steady state
-   - Memory-constrained: 512 MB per task
-   - During traffic spike: all 3 tasks OOM-killed simultaneously
-
-2. **Payment Service** (downstream) — processes payments for orders
-   - 2 running tasks in steady state
-   - Depends on order-service for order context
-   - When order-service goes down: retry storm → CPU spike to 94%
-
-### Agent Response
-
-The SRE Agent ingests two independent alarms:
-
-**Phase 8 — order-service crash:**
-- Detects: RunningTaskCount dropped from 3 → 0
-- Correlated signals: metric trend (3-minute decline), error logs showing OOM kills
-- Hypothesis: "All order-service tasks terminated due to memory exhaustion"
-- Confidence: 74.7% (LLM cross-validation disagrees slightly on depth)
-
-**Phase 10 — payment-service cascade:**
-- Detects: CpuUtilized spiked from 45% → 94%
-- Correlated signals: error logs showing Stripe timeout + thread pool exhaustion
-- Hypothesis: "Retry storm from upstream order-service outage"
-- Confidence: 75.2% (LLM validates cascade pattern)
-
-### Severity Override Demo (Phase 12)
-
-Shows the human operator API in action:
-- Agent auto-classified payment alert as SEV2 (critical)
-- Operator uses POST `/api/v1/incidents/{alert_id}/severity-override` to downgrade to SEV3
-- System halts autonomous remediation while manual recovery is in progress
-
-### Duration
-
-~5 minutes end-to-end (includes two LLM diagnoses).
-
-### Run It
-
-```bash
-# Prerequisites: LocalStack Pro running, Python venv active, ports 8080/8181 free
-cd /Users/faizanhussain/Documents/Project/Practice/AiOps
-SKIP_PAUSES=1 python3 scripts/live_demo_ecs_multi_service.py > /tmp/demo8.log 2>&1 &
-tail -f /tmp/demo8.log
-```
-
-### Key Differences from Demo 7
-
-- **Correlated signals enrichment:** Demo 8 populates the `correlated_signals` field with actual metric trends + log excerpts, simulating Improvement Area 1 from the AWS data collection strategy
-- **Two independent LLM calls:** Both order-service and payment-service alarms trigger separate diagnoses (vs. Demo 7's single-service focus)
-- **Severity override workflow:** Human operator can intervene mid-cascade to prevent runaway autonomous actions
-- **Service dependency causality:** Demonstrates how the agent must trace causality upward (payment CPU spike ← order-service outage) rather than treating each alert independently
-
----
+* `live_demo_02_cascade_failure.py` → `live_demo_cascade_failure.py`
+* `live_demo_03_deployment_regression.py` → `live_demo_deployment_regression.py`
+* `live_demo_04_localstack_aws.py` → `live_demo_localstack_aws.py`
+* `live_demo_05_http_server.py` → `live_demo_http_server.py`
+* `live_demo_06_http_optimizations.py` → `live_demo_http_optimizations.py`
+* `live_demo_07_localstack_incident.py` → `live_demo_localstack_incident.py`
+* `live_demo_08_ecs_multi_service.py` → `live_demo_ecs_multi_service.py`
+* `live_demo_09_cloudwatch_enrichment.py` → `live_demo_cloudwatch_enrichment.py`
+* `live_demo_10_eventbridge_reaction.py` → `live_demo_eventbridge_reaction.py`
 
 ## Prerequisites
 
-### LocalStack Pro
-
-Both demos require LocalStack Pro (not the free tier) running natively on port 4566:
+### Python environment
 
 ```bash
-# Start LocalStack Pro
-localstack start -d \
-  --services=ecs,ec2,cloudwatch,sns,logs,xray \
-  --pro \
-  --region=eu-west-3
-
-# Check status
-curl http://localhost:4566/_localstack/health
-```
-
-### Python Environment
-
-```bash
-cd /Users/faizanhussain/Documents/Project/Practice/AiOps
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt  # boto3, httpx, uvicorn, fastapi, etc.
+pip install -e .[dev]
 ```
 
-### Environment Variables
+### LocalStack
+
+* Community demos: 1, 7, 9
+* Pro demos: 8, plus full-feature execution for Demo 4
+* No LocalStack required: 2, 3, 5, 6, 10, 11, 12, 13, 14, 15, 16
+
+Community quick start:
 
 ```bash
-# Copy example to .env
-cp .env.example .env
-
-# Fill in:
-ANTHROPIC_API_KEY=sk-ant-...  # Your Anthropic API key
-LOCALSTACK_AUTH_TOKEN=...      # Your LocalStack Pro auth token
+docker run --rm -d -p 4566:4566 localstack/localstack:latest
 ```
 
-### Cleanup Between Runs
+Pro quick start:
 
 ```bash
-# Kill any lingering processes
-lsof -ti :8080 | xargs kill -9 2>/dev/null
-lsof -ti :8181 | xargs kill -9 2>/dev/null
-
-# Optional: reset LocalStack
-localstack stop
-localstack start -d ...
+localstack start -d --services=ecs,ec2,lambda,cloudwatch,sns,logs --pro --region=us-east-1
 ```
 
----
+### LLM credentials
 
-## Interpreting Demo Output
+The LLM-driven demos (2, 3, 5, 6, 7, 8) require a valid Anthropic API key.
 
-### Agent Startup (Phase 3)
-
-```
-▶  Launch uvicorn sre_agent.api.main:app
-✔  SRE Agent UP — {'status': 'ok'}
+```bash
+export ANTHROPIC_API_KEY=<your-key>
 ```
 
-The agent's FastAPI server starts on port 8181. This is where the incident bridge sends alerts via `/api/v1/diagnose`.
+> [!NOTE]
+> Validation runs in this guide revision succeeded with Anthropic configured. OpenAI is optional and not required by these scripts.
 
-### Bridge Startup (Phase 4)
+### Optional environment variables
 
-```
-▶  Launch localstack_bridge.py
-✔  Bridge UP — {'status': 'healthy', 'component': 'localstack-bridge'}
-```
-
-The incident bridge starts on port 8080 and proxies SNS notifications to the `/api/v1/diagnose` endpoint.
-
-### Diagnosis Response (Phase 8/10)
-
-```
-✔  Diagnosis received in 22.0 s
-
-Root Cause:
-  Memory exhaustion (OOM kill) in order-service ECS tasks...
-
-Suggested Remediation:
-  • Scale up ECS service...
-  • Update task definition...
-  • Enable auto-scaling...
+```bash
+export AWS_DEFAULT_REGION=us-east-1
+export SKIP_PAUSES=1
+export BRIDGE_HOST=127.0.0.1
 ```
 
-The LLM response includes:
-- Severity classification (SEV1-4)
-- Root cause hypothesis
-- Suggested remediation steps
-- Confidence score
-- Evidence citations (which runbooks matched)
-- Audit trail (all intermediate steps)
+Notes:
 
----
+* Set `BRIDGE_HOST=host.docker.internal` when LocalStack runs in Docker and must reach host services
+* Keep `AWS_DEFAULT_REGION` consistent when running multiple LocalStack demos against the same instance
+
+### Kubernetes live mode (Demo 12)
+
+For live mode only:
+
+* `kubectl` installed and available
+* `KUBECONFIG` points to a reachable cluster
+* Target namespace and workloads exist
+
+## Demo details
+
+### Demo 1: Telemetry baseline
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py
+```
+
+Expected behavior: pushes synthetic CloudWatch metrics and confirms canonical metric retrieval.
+
+### Demo 2: Cascade failure
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cascade_failure.py
+```
+
+Expected behavior: runs three LLM diagnoses across cascading alerts and prints incident summary.
+
+### Demo 3: Deployment regression
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_deployment_regression.py
+```
+
+Expected behavior: validates deployment-induced signal handling, circuit breaker behavior, and diagnostics.
+
+### Demo 4: AWS LocalStack operators
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py
+```
+
+Expected behavior: exercises ECS/Lambda/ASG operator actions through LocalStack adapters.
+
+### Demo 5: HTTP compatibility wrapper
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py
+```
+
+Expected behavior: prints delegation notice and executes Demo 6.
+
+### Demo 6: HTTP token optimizations
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py
+```
+
+Expected behavior: demonstrates novel-incident short-circuit, timeline filtering, lightweight validation, and cache behavior.
+
+### Demo 7: Lambda incident cascade
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py
+```
+
+Expected behavior: complete chain Lambda crash → CloudWatch alarm → SNS → bridge → diagnosis, then cleanup.
+
+### Demo 8: ECS multi-service cascade
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py
+```
+
+Expected behavior: dual-service cascade diagnosis, severity override API, and cleanup.
+
+### Demo 9: CloudWatch enrichment
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py
+```
+
+Expected behavior: enrichment payload shows metric and log context without interactive pauses.
+
+### Demo 10: EventBridge reaction (simulated ingress)
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py
+```
+
+Expected behavior: FastAPI TestClient posts synthetic AWS-style events to `/api/v1/events/aws` and builds timeline output.
+
+### Demo 11: Azure operations
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py
+```
+
+Expected behavior: validates restart and scale behavior with Azure SDK-style name semantics.
+
+### Demo 12: Kubernetes operations
+
+Simulation mode:
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py
+```
+
+Live mode:
+
+```bash
+SKIP_PAUSES=1 RUN_KUBECTL=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py
+```
+
+Expected behavior:
+
+* Simulation mode prints planned `kubectl` commands and exits successfully
+* Live mode executes commands and fails if cluster connectivity is unavailable
+
+### Demo 13: Multi-agent lock protocol
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py
+```
+
+Expected behavior: shows lock acquisition, preemption, cooldown denial, and human override denial.
+
+### Demo 14: Disk exhaustion simulation
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_14_disk_exhaustion.py
+```
+
+Expected behavior: prints deterministic `disk_exhaustion` payload.
+
+### Demo 15: Traffic anomaly simulation
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_15_traffic_anomaly.py
+```
+
+Expected behavior: prints deterministic `traffic_anomaly` payload.
+
+### Demo 16: X-Ray tracing placeholder
+
+```bash
+SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_16_xray_tracing_placeholder.py
+```
+
+Expected behavior: prints placeholder scope for future trace-driven coverage.
+
+## Execution notes from validation runs
+
+Observed during this guide update:
+
+* Full batch execution across all `live_demo_*.py` scripts completed successfully (`25/25` pass)
+* Alias wrappers and canonical scripts both executed cleanly from `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/`
+* HTTP Demo 6 and its Demo 5 wrapper are stable in non-interactive mode (`SKIP_PAUSES=1`)
+* Demo 12 live mode failed with `connection refused` when no reachable cluster context was configured
 
 ## Troubleshooting
 
-### 422 Unprocessable Entity on Alarm POST
+### Demo appears to fail under short CI timeout
 
-**Symptom:** `/api/v1/diagnose` returns HTTP 422
+Symptom: demos exit as timeout at 60 seconds in batch automation.
 
-**Root Cause:** `anomaly_type` enum value is invalid or `correlated_signals` structure doesn't match the `CorrelatedSignals` Pydantic model.
+Fix: use larger per-process timeout for LLM-heavy demos (2, 3, 5, 6, 7, 8).
 
-**Fix:** Ensure `anomaly_type` is one of: `latency_spike`, `error_rate_surge`, `memory_pressure`, `disk_exhaustion`, `certificate_expiry`, `multi_dimensional`, `deployment_induced`, `invocation_error_surge`, `traffic_anomaly`.
+### Ports 8080 or 8181 already in use
 
-### ClusterNotFoundException During Chaos Phase
+Symptom: bridge or agent startup fails.
 
-**Symptom:** Phase 7 fails with "Cluster not found"
+Fix: free ports before running demos, or rely on Demo 7/8 auto-cleanup behavior.
 
-**Root Cause:** LocalStack GC'd the ECS cluster because Fargate tasks couldn't be scheduled (no container runtime). Set `desiredCount=0` when creating services to prevent task scheduling.
+### Missing or invalid Anthropic key
 
-**Fix:** Demo scripts already handle this — ensure you're running the latest version.
+Symptom: LLM demos fail during diagnosis.
 
-### Diagnosis Hangs After 60s Timeout
+Fix: set `ANTHROPIC_API_KEY` and verify outbound connectivity.
 
-**Symptom:** Agent never responds to alarm POST, request times out
+### Demo 12 live mode fails
 
-**Root Cause:** LLM API call to Anthropic is blocked or very slow.
+Symptom: `kubectl` returns API server connection errors.
 
-**Fix:** 
-1. Verify `ANTHROPIC_API_KEY` is set and valid
-2. Check network connectivity to Anthropic API
-3. Increase timeout or run with `--timeout 120` if needed
+Fix: verify `kubectl` context, cluster reachability, namespace, and workload names.
 
-### Bridge Subscription Shows "Pending Confirmation"
+### LocalStack bridge callback unreachable
 
-**Symptom:** SNS subscription remains in "PendingConfirmation" state
+Symptom: SNS subscription remains pending or no diagnosis arrives.
 
-**Root Cause:** Native LocalStack Pro automatically confirms HTTP subscriptions, but the bridge may not be reachable from LocalStack's internal network.
+Fix:
 
-**Fix:** Use `BRIDGE_HOST=127.0.0.1` (default) for native LocalStack. Use `BRIDGE_HOST=host.docker.internal` only if running LocalStack in Docker.
+* `BRIDGE_HOST=127.0.0.1` for native LocalStack
+* `BRIDGE_HOST=host.docker.internal` for Docker LocalStack
 
----
+## Cross-reference alignment
 
-## Next Steps
-
-### Extend the Demos
-
-To add your own incident scenario:
-
-1. Create a new ECS service or Lambda function in the demo script
-2. Add a CloudWatch alarm that simulates failure (e.g., high error rate)
-3. Add runbook content to the knowledge base (`scripts/ingest_runbooks.py`)
-4. Trigger the alarm and observe the agent's diagnosis
-
----
-
-## Demo 9: CloudWatch Bridge Enrichment
-
-This sequence displays real-time execution of the **AlertEnricher**.
-
-1. Start LocalStack (Community edition suffices).
-    `docker run --rm -d -p 4566:4566 localstack/localstack`
-2. Activate your virtual environment and run the demo:
-   ```bash
-   source .venv/bin/activate
-   python3 scripts/live_demo_cloudwatch_enrichment.py
-   ```
-3. Press enter to witness synthetic Metrics, synthetic Logs pushing upstream into AWS, followed by the SRE Bridge seamlessly parsing them into enriched variables backing the correlation engine.
-
----
-
-## Demo 10: EventBridge Timelines
-
-This sequence visualizes the parsing of Cloud Provider events (such as task deaths) into Timeline representations capable of providing timeline causations.
-
-1. Activate your virtual environment and run the demo:
-   ```bash
-   source .venv/bin/activate
-   python3 scripts/live_demo_eventbridge_reaction.py
-   ```
-2. You will be prompted to submit Mock EventBridge Webhook traffic acting identically to native deployed AWS bridges.
-3. Upon finalizing both, the SRE Agent constructs a detailed causal Timeline sequence depicting what happened exactly and when.
-
-### Integrate into CI/CD
-
-The demos can be integrated into the CI/CD pipeline as regression tests:
-
-```bash
-# In GitHub Actions workflow:
-- name: Run Live Demo (Regression Test)
-  run: |
-    SKIP_PAUSES=1 python3 scripts/live_demo_ecs_multi_service.py
-    # Assert all 14 phases passed (check exit code)
-```
-
----
-
-## Demo 11: Azure Operations Coverage
-
-Since default LocalStack does not provide Azure mock capabilities, this dynamic mocked demonstration tests the **Phase 1.5 Multi-Cloud Operator abstractions**. 
-
-1. **NO LocalStack REQUIRED**. Purely executes through the domain via injected `azure-mgmt-web` Python SDK mocks.
-2. Activate your virtual environment and run the demo:
-   ```bash
-   source .venv/bin/activate
-   python3 scripts/live_demo_11_azure_operations.py
-   ```
-3. Witness the base `CloudOperatorPort` class reliably proxy `restart` and `scale` actions correctly downstream to both the **Azure App Service** and **Azure Functions (Premium)** implementations handling varying Azure schema payloads automatically.
-
----
+* Demo 7 behavior here matches script reality and recent runtime validation. The separate `localstack_live_incident_demo.md` document contains both Community and Pro-oriented instructions. For this guide, LocalStack requirement is based on services used by the script itself.
+* Validation outcomes align with `docs/reports/live_demo_verification_report.md` and expand it with explicit runtime caveats observed during full-suite execution.
+* Troubleshooting entries include issues highlighted in `docs/reports/live_demo_review_report.md` and issues observed during current execution.
 
 ## References
 
-- [Autonomous SRE Agent — Architecture Overview](../architecture/architecture.md)
-- [LocalStack Pro Guide](../testing/localstack_pro_guide.md)
-- [AWS Data Collection Improvements](aws_data_collection_improvements.md)
-- [Incident Taxonomy & Severity Model](../architecture/models/incident_taxonomy.md)
+* [Architecture overview](../architecture/architecture.md)
+* [LocalStack incident deep-dive](localstack_live_incident_demo.md)
+* [Live demo verification report](../reports/live_demo_verification_report.md)
+* [Live demo critical review](../reports/live_demo_review_report.md)
+* [LocalStack Pro guide](../testing/localstack_pro_guide.md)
+* [Incident taxonomy and severity model](../architecture/models/incident_taxonomy.md)
+* [Multi-agent coordination contract](../../AGENTS.md)

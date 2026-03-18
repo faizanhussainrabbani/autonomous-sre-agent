@@ -6,6 +6,58 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [2026-03-18] Live Demo Findings Implementation
+
+Implements findings from `docs/reports/live_demo_review_report.md` using the execution framework artifacts:
+
+* Plan: `docs/reports/live_demo_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/live_demo_acceptance_criteria.md`
+* Verification: `docs/reports/live_demo_verification_report.md`
+* Run Validation: `docs/reports/live_demo_run_validation.md`
+
+### What changed and why
+
+* Rewrote `docs/operations/live_demo_guide.md` to document the full demo suite, remove stale claims, remove machine-specific paths, and clarify Community vs Pro requirements
+* Standardized region handling through `AWS_DEFAULT_REGION` defaults in touched LocalStack demos
+* Fixed Demo 7 webhook portability by replacing hardcoded callback host with configurable `BRIDGE_HOST`
+* Added `SKIP_PAUSES` non-interactive support for Demos 9 and 10 to support CI usage
+* Hardened Demo 6 audit-trail parsing to support both string and structured dictionary entries
+* Consolidated Demo 5 into a compatibility wrapper delegating to Demo 6
+* Added `scripts/_demo_utils.py` shared helper module and adopted it in key demos for consistent env handling
+* Added missing coverage demos:
+  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py`
+  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py`
+  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_14_disk_exhaustion.py`
+  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_15_traffic_anomaly.py`
+  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_16_xray_tracing_placeholder.py`
+* Added standardized numbering alias wrappers for legacy demo names (`live_demo_02_*` through `live_demo_10_*`) to improve naming consistency without breaking existing commands
+* Corrected Azure operator semantics and demo assertions to use app/function names derived from ARM resource IDs
+* Added Azure unit test coverage for ARM resource ID restart semantics
+
+### Files affected
+
+* `docs/operations/live_demo_guide.md`
+* `docs/reports/live_demo_implementation_plan.md`
+* `docs/reports/live_demo_plan_compliance_check.md`
+* `docs/reports/live_demo_acceptance_criteria.md`
+* `docs/reports/live_demo_verification_report.md`
+* `docs/reports/live_demo_run_validation.md`
+* `scripts/_demo_utils.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py`
+* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py`
+* `src/sre_agent/adapters/cloud/azure/app_service_operator.py`
+* `src/sre_agent/adapters/cloud/azure/functions_operator.py`
+* `tests/unit/adapters/test_azure_operators.py`
+
 ## [Phase 2.4] — LLM Integration Hardening (2026-03-17)
 
 Closes all 4 gaps identified in
@@ -92,11 +144,11 @@ Full task list and acceptance criteria are in
 
 #### Demo Enhancements
 - **Demos**: Added two interactive LocalStack-driven operational demos covering recent observability features:
-  - `scripts/live_demo_cloudwatch_enrichment.py`: Real-time demonstration of AlertEnricher executing metric pulls and CloudWatch Log streaming against LocalStack.
-  - `scripts/live_demo_eventbridge_reaction.py`: Validates FastAPI EventBridge webhooks receiving state change events and stitching them chronologically into Canonical Timelines.
+  - `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py`: Real-time demonstration of AlertEnricher executing metric pulls and CloudWatch Log streaming against LocalStack.
+  - `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py`: Validates FastAPI EventBridge webhooks receiving state change events and stitching them chronologically into Canonical Timelines.
 - **Provider Parity Demos**: Implemented addressing gaps highlighted in `live_demo_analysis_report.md`:
-  - `scripts/live_demo_1_telemetry_baseline.py` (Demo 1): Backfilled missing foundational Phase 1 telemetry baseline sequence fetching `CPUUtilization` seamlessly from LocalStack mock data into Domain logic.
-  - `scripts/live_demo_11_azure_operations.py` (Demo 11): Proves Phase 1.5 Multi-Cloud Hexagonal operations accurately dispatch `restart` and `scale_capacity` behaviors generically toward the `azure-mgmt-web` Python SDK implementations for Azure Functions and App Services via mock-clients.
+  - `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py` (Demo 1): Backfilled missing foundational Phase 1 telemetry baseline sequence fetching `CPUUtilization` seamlessly from LocalStack mock data into Domain logic.
+  - `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py` (Demo 11): Proves Phase 1.5 Multi-Cloud Hexagonal operations accurately dispatch `restart` and `scale_capacity` behaviors generically toward the `azure-mgmt-web` Python SDK implementations for Azure Functions and App Services via mock-clients.
 - **Documentation**: Updated `docs/operations/live_demo_guide.md` with instructions and context for Demo 1, Demo 9, Demo 10, and Demo 11.
 
 #### Area 1 + 10: Bridge Enrichment (Real Metric Context)
@@ -110,7 +162,7 @@ Full task list and acceptance criteria are in
   - Retrieves recent error logs via `FilterLogEvents` with a configurable filter pattern
   - Fetches resource metadata and injects it into the alert
   - Falls back to hardcoded defaults on any CloudWatch API failure — never blocks alert forwarding
-- **Bridge wire-up** (`scripts/localstack_bridge.py`) — `handle_sns()` now calls
+- **Bridge wire-up** (`/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/localstack_bridge.py`) — `handle_sns()` now calls
   `AlertEnricher.enrich()` when `BRIDGE_ENRICHMENT=1` is set; gracefully falls back to the
   previous static payload builder when the enricher is unavailable
 

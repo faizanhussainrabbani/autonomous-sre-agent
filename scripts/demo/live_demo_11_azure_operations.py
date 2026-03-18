@@ -27,6 +27,13 @@ RESOURCE_ID_APP = "/subscriptions/123/resourceGroups/rg/providers/Microsoft.Web/
 RESOURCE_ID_FUNC = "/subscriptions/123/resourceGroups/rg/providers/Microsoft.Web/sites/test-func"
 NAMESPACE = "rg"
 
+
+def _resource_name(resource_id: str) -> str:
+    marker = "/sites/"
+    if marker in resource_id:
+        return resource_id.split(marker, 1)[1].split("/", 1)[0]
+    return resource_id
+
 def create_mock_azure_web_client() -> MagicMock:
     """Creates a mock of the WebSiteManagementClient from azure-mgmt-web."""
     client = MagicMock()
@@ -58,7 +65,7 @@ async def run_app_service_operations(client: MagicMock):
     # Verify mock call
     client.web_apps.restart.assert_called_with(
         NAMESPACE,
-        RESOURCE_ID_APP
+        _resource_name(RESOURCE_ID_APP)
     )
     logger.info("✅ AC 2.2 Passed: Restart executed accurately via abstract CloudOperatorPort.")
     
@@ -84,7 +91,7 @@ async def run_functions_operations(client: MagicMock):
     
     client.web_apps.restart.assert_called_with(
         NAMESPACE,
-        RESOURCE_ID_FUNC
+        _resource_name(RESOURCE_ID_FUNC)
     )
     
     # 2. Scale

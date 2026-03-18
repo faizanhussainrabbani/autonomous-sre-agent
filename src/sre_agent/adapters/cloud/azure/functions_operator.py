@@ -28,6 +28,13 @@ from sre_agent.adapters.cloud.resilience import (
 logger = structlog.get_logger(__name__)
 
 
+def _resource_name(resource_id: str) -> str:
+    marker = "/sites/"
+    if marker in resource_id:
+        return resource_id.split(marker, 1)[1].split("/", 1)[0]
+    return resource_id
+
+
 class FunctionsOperator(CloudOperatorPort):
     """CloudOperatorPort adapter for Azure Functions."""
 
@@ -55,14 +62,15 @@ class FunctionsOperator(CloudOperatorPort):
         """Restart an Azure Function app."""
         meta = metadata or {}
         resource_group = meta.get("resource_group", "")
+        app_name = _resource_name(resource_id)
 
         async def _do_restart():
-            logger.info("functions_restart", app=resource_id, rg=resource_group)
+            logger.info("functions_restart", app=app_name, rg=resource_group)
             try:
-                self._web.web_apps.restart(resource_group, resource_id)
+                self._web.web_apps.restart(resource_group, app_name)
             except _AZURE_ERRORS as exc:
                 raise map_azure_error(exc) from exc
-            return {"action": "restart", "function_app": resource_id}
+            return {"action": "restart", "function_app": app_name}
 
         return await retry_with_backoff(
             _do_restart,

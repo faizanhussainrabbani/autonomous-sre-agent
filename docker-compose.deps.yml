@@ -8,8 +8,8 @@ version: "3.8"
 #   docker compose -f docker-compose.deps.yml down        # stop all
 #
 # Or use the helper script:
-#   ./scripts/setup_deps.sh start
-#   ./scripts/setup_deps.sh stop
+#   /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh start
+#   /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh stop
 # ===========================================================================
 
 services:

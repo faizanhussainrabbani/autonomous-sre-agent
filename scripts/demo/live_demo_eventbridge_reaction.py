@@ -17,12 +17,18 @@ Usage
 -----
     source .venv/bin/activate
     python scripts/live_demo_eventbridge_reaction.py
+
+Environment
+-----------
+    SKIP_PAUSES          Set to "1" to skip interactive ENTER prompts (CI mode)
 """
 
 import sys
+import os
 import uuid
 import asyncio
 from datetime import datetime, timezone
+from _demo_utils import env_bool
 
 try:
     from fastapi.testclient import TestClient
@@ -41,10 +47,14 @@ C_YELLOW = "\033[93m"
 C_RED = "\033[91m"
 C_BOLD = "\033[1m"
 C_RESET = "\033[0m"
+SKIP_PAUSES = env_bool("SKIP_PAUSES", False)
 
 
 def wait_for_enter(prompt="Press ENTER to continue..."):
     print(f"\n{C_YELLOW}{prompt}{C_RESET}")
+    if SKIP_PAUSES:
+        print(f"{C_BLUE}[SKIPPED]{C_RESET} Interactive pause disabled via SKIP_PAUSES=1")
+        return
     input()
 
 
@@ -202,6 +212,7 @@ def phase4_timeline_construction():
 def main():
     print(f"\n{C_BOLD}Autonomous SRE Agent — Live Demo 10: EventBridge Timelines{C_RESET}")
     print("=" * 70)
+    print(f"{C_BLUE}Mode:{C_RESET} FastAPI TestClient simulation (no live AWS EventBridge dependency)")
     
     phase0_preflight()
     phase1_deployment_event()

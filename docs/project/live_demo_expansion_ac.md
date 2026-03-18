@@ -2,7 +2,7 @@
 
 ## AC-1: Script Executability
 **Given** an environment with Docker and LocalStack running (or able to run)
-**When** the user executes `python scripts/live_demo_cloudwatch_enrichment.py` and `python scripts/live_demo_eventbridge_reaction.py`
+**When** the user executes `python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py` and `python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py`
 **Then** the scripts must start, wait for user input (Enter to proceed), and progress through defined demo stages without crashing.
 
 ## AC-2: CloudWatch Enrichment Demo Validation

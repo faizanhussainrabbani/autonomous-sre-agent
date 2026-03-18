@@ -1,151 +1,152 @@
-## 1. Canonical Data Model Updates
+## Phase 2.5 Execution Plan (Revised)
 
-- [ ] **1.1** Add `SLOW_RESPONSE` and `TIMEOUT_PROXIMITY` to `AnomalyType` enum — `src/sre_agent/domain/models/canonical.py`
-  - AC-2.5.1 | Complexity: **S**
-  - Add two new members to `AnomalyType(Enum)` after `TRAFFIC_ANOMALY`
+This task list is intentionally sequenced and gated. Do not start a later gate before the previous gate is green.
 
-## 2. Detection Configuration Schema
+---
 
-- [ ] **2.1** Add slow response config fields to `DetectionConfig` — `src/sre_agent/domain/models/detection_config.py`
-  - AC-2.5.2 | Complexity: **S**
-  - Add `slow_response_absolute_threshold_ms: float = 2000.0`
-  - Add `slow_response_duration_seconds: int = 60`
-  - Add `timeout_proximity_percent: float = 80.0`
+## Gate 0 — Preflight and Scope Lock
 
-- [ ] **2.2** Wire new config fields from YAML/env-vars in settings — `src/sre_agent/config/settings.py`
-  - AC-2.5.2 | Complexity: **S**
-  - Map `SRE_AGENT_SLOW_RESPONSE_THRESHOLD_MS`, `SRE_AGENT_SLOW_RESPONSE_DURATION_S`, `SRE_AGENT_TIMEOUT_PROXIMITY_PCT` to `DetectionConfig`
+- [ ] **0.1** Confirm scope split in planning docs and team sync: Phase 2.5A (K8s + AWS), Phase 2.5B (Azure)
+  - Output: recorded decision in phase tracking notes
 
-- [ ] **2.3** Add per-service `slow_response_threshold_ms` to `set_service_sensitivity()` — `src/sre_agent/domain/detection/anomaly_detector.py`
-  - AC-2.5.2 | Complexity: **S**
-  - Extend existing method to accept optional `slow_response_threshold_ms` kwarg, store in `_service_overrides`
+- [ ] **0.2** Confirm Azure adapter dependency status
+  - Check whether `src/sre_agent/adapters/telemetry/azure/` exists and is production-ready
+  - Output: `available` (2.5B can start) or `blocked` (2.5B deferred)
 
-## 3. Detection Engine — New Rules
+---
 
-- [ ] **3.1** Implement `_detect_absolute_latency()` in `AnomalyDetector` — `src/sre_agent/domain/detection/anomaly_detector.py`
-  - AC-2.5.3, AC-2.5.4 | Complexity: **M**
-  - Triggered when metric name contains `duration` or `latency`
-  - Uses `_active_conditions` for duration tracking (same pattern as memory pressure)
-  - Returns `AnomalyAlert(anomaly_type=AnomalyType.SLOW_RESPONSE, ...)`
-  - Respects per-service threshold from `_service_overrides`
+## Gate 1 — Core Domain Extensions (Phase 2.5A)
 
-- [ ] **3.2** Implement `_detect_timeout_proximity()` in `AnomalyDetector` — `src/sre_agent/domain/detection/anomaly_detector.py`
-  - AC-2.5.5 | Complexity: **M**
-  - Only applies when `compute_mechanism == ComputeMechanism.SERVERLESS`
-  - Uses Lambda timeout from `platform_metadata.get("timeout_ms")` on `CanonicalMetric.labels`
-  - Falls back to σ-only if timeout unavailable, logs warning
-  - Returns `AnomalyAlert(anomaly_type=AnomalyType.TIMEOUT_PROXIMITY, ...)`
-  - Reuses existing cold-start suppression (Phase 1.5)
+- [ ] **1.1** Add `SLOW_RESPONSE` and `TIMEOUT_PROXIMITY` to `AnomalyType`
+  - File: `src/sre_agent/domain/models/canonical.py`
 
-- [ ] **3.3** Update `_evaluate_metric()` to call new rules — `src/sre_agent/domain/detection/anomaly_detector.py`
-  - AC-2.5.3, AC-2.5.5 | Complexity: **S**
-  - In the `duration|latency` routing branch, call `_detect_absolute_latency()` in addition to `_detect_latency_spike()`
-  - For `SERVERLESS`, also call `_detect_timeout_proximity()`
-  - Dedup: if both σ-based and absolute fire for the same metric, emit only the higher-severity alert
+- [ ] **1.2** Extend `DetectionConfig` with:
+  - `slow_response_absolute_threshold_ms: float = 2000.0`
+  - `slow_response_duration_seconds: int = 60`
+  - `timeout_proximity_percent: float = 80.0`
+  - File: `src/sre_agent/domain/models/detection_config.py`
 
-- [ ] **3.4** Extend cold-start suppression to cover `TIMEOUT_PROXIMITY` — `src/sre_agent/domain/detection/anomaly_detector.py`
-  - AC-2.5.6 | Complexity: **S**
-  - Ensure `_detect_timeout_proximity()` checks cold-start suppression window before firing
+- [ ] **1.3** Wire config ingestion through settings/config files
+  - Files: `src/sre_agent/config/settings.py`, `config/agent.yaml` (and env mapping location if used)
 
-## 4. Platform-Specific Metric Collection
+- [ ] **1.4** Extend `set_service_sensitivity()` with `slow_response_threshold_ms`
+  - File: `src/sre_agent/domain/detection/anomaly_detector.py`
 
-- [ ] **4.1** Add `ecs_response_time_ms` to CloudWatch metric map — `src/sre_agent/adapters/telemetry/cloudwatch/metrics_adapter.py`
-  - AC-2.5.7 | Complexity: **S**
-  - Map `ResponseTime` from Container Insights namespace `ECS/ContainerInsights` → `CanonicalMetric(name="ecs_response_time_ms")`
+---
 
-- [ ] **4.2** Add `appservice_response_time_ms` to Azure Monitor metric map — `src/sre_agent/adapters/telemetry/azure/metrics_adapter.py`
-  - AC-2.5.8 | Complexity: **S**
-  - Map `requests/duration` from Application Insights → `CanonicalMetric(name="appservice_response_time_ms")`
-  - Note: Depends on `AzureMonitorMetricsAdapter` existence. If adapter not yet created, this task creates a stub with the mapping.
+## Gate 2 — Detector Rule Implementation and Arbitration (Phase 2.5A)
 
-- [ ] **4.3** Ensure Lambda `duration_ms` metric populates `platform_metadata["timeout_ms"]` — `src/sre_agent/adapters/telemetry/cloudwatch/metrics_adapter.py`
-  - AC-2.5.5 | Complexity: **S**
-  - Enrich `ServiceLabels.platform_metadata` with `timeout_ms` from `AWSResourceMetadataFetcher.fetch_lambda_context()` when function context is available
+- [ ] **2.1** Implement `_detect_absolute_latency()`
+  - File: `src/sre_agent/domain/detection/anomaly_detector.py`
 
-- [ ] **4.4** Add `http_request_duration_p99` to default Kubernetes metric watchlist — `src/sre_agent/domain/detection/polling_agent.py`
-  - AC-2.5.9 | Complexity: **S**
-  - Ensure Ingress controller p99 metric is included in the default polling list alongside existing metrics
+- [ ] **2.2** Implement `_detect_timeout_proximity()`
+  - Include fallback behavior when timeout metadata is missing
+  - File: `src/sre_agent/domain/detection/anomaly_detector.py`
 
-## 5. Unit Tests — Detection Rules
+- [ ] **2.3** Refactor latency evaluation path to candidate-rule model
+  - Evaluate sigma + absolute (+ timeout proximity for serverless)
+  - Enforce single emitted alert via precedence:
+    - `TIMEOUT_PROXIMITY > SLOW_RESPONSE > LATENCY_SPIKE`
+  - File: `src/sre_agent/domain/detection/anomaly_detector.py`
 
-- [ ] **5.1** Test `_detect_absolute_latency()` fires above threshold — `tests/unit/domain/test_detection.py`
-  - AC-2.5.3 | Complexity: **S** | Priority: P0 (regression-critical)
-  - Assert `SLOW_RESPONSE` alert generated when value > `slow_response_absolute_threshold_ms` for > `slow_response_duration_seconds`
+- [ ] **2.4** Apply cold-start suppression to timeout-proximity rule
+  - File: `src/sre_agent/domain/detection/anomaly_detector.py`
 
-- [ ] **5.2** Test `_detect_absolute_latency()` suppressed below duration — `tests/unit/domain/test_detection.py`
-  - AC-2.5.4 | Complexity: **S** | Priority: P0
-  - Assert no alert when threshold exceeded but duration < configured
+---
 
-- [ ] **5.3** Test `_detect_absolute_latency()` suppressed during deployment — `tests/unit/domain/test_detection.py`
-  - AC-2.5.4 | Complexity: **S** | Priority: P1
-  - Register deployment, assert absolute-threshold alert suppressed within window
+## Gate 3 — Platform Metrics (Phase 2.5A)
 
-- [ ] **5.4** Test `_detect_timeout_proximity()` fires at 80% timeout — `tests/unit/domain/test_detection.py`
-  - AC-2.5.5 | Complexity: **M** | Priority: P0
-  - Create metric with `labels.platform_metadata["timeout_ms"]=30000`, value=25000 (83%), assert `TIMEOUT_PROXIMITY` alert
+- [ ] **3.1** Add ECS `ResponseTime` mapping
+  - Canonical name: `ecs_response_time_ms`
+  - File: `src/sre_agent/adapters/telemetry/cloudwatch/metrics_adapter.py`
 
-- [ ] **5.5** Test `_detect_timeout_proximity()` suppressed during cold start — `tests/unit/domain/test_detection.py`
-  - AC-2.5.6 | Complexity: **S** | Priority: P0
-  - Assert `TIMEOUT_PROXIMITY` suppressed within `cold_start_suppression_window_seconds`
+- [ ] **3.2** Enrich Lambda duration metrics with `timeout_ms` metadata
+  - Source: `AWSResourceMetadataFetcher.fetch_lambda_context()`
+  - File: `src/sre_agent/adapters/telemetry/cloudwatch/metrics_adapter.py`
 
-- [ ] **5.6** Test `_detect_timeout_proximity()` falls back to σ-only when timeout unavailable — `tests/unit/domain/test_detection.py`
-  - AC-2.5.5 | Complexity: **S** | Priority: P1
-  - Create metric with no `platform_metadata["timeout_ms"]`, assert no `TIMEOUT_PROXIMITY` alert and warning logged
+- [ ] **3.3** Add Kubernetes p99 latency metric to polling defaults/watchlist
+  - Canonical name: `http_request_duration_p99`
+  - File: `src/sre_agent/domain/detection/polling_agent.py`
 
-- [ ] **5.7** Test deduplication when both σ and absolute fire — `tests/unit/domain/test_detection.py`
-  - AC-2.5.4 | Complexity: **M** | Priority: P1
-  - Assert single alert emitted (not two duplicates) when both thresholds are crossed
+---
 
-- [ ] **5.8** Test per-service override for `slow_response_threshold_ms` — `tests/unit/domain/test_detection.py`
-  - AC-2.5.2 | Complexity: **S** | Priority: P1
-  - Set service override to 500ms, assert alert fires at 600ms (not at default 2000ms)
+## Gate 4 — Observability Requirements (Phase 2.5A)
 
-## 6. Unit Tests — Configuration
+- [ ] **4.1** Add structured log events for:
+  - absolute-threshold detection
+  - timeout proximity detection
+  - timeout metadata missing fallback
+  - arbitration winner selection
 
-- [ ] **6.1** Test `DetectionConfig` default values for new fields — `tests/unit/domain/test_detection_config.py`
-  - AC-2.5.2 | Complexity: **S** | Priority: P0
-  - Assert `slow_response_absolute_threshold_ms=2000`, `slow_response_duration_seconds=60`, `timeout_proximity_percent=80`
+- [ ] **4.2** Add Prometheus counters/histograms for:
+  - slow response alerts fired
+  - timeout proximity alerts fired
+  - timeout metadata fallback count
+  - arbitration/dedup count
+  - slow response detection-to-alert latency
 
-- [ ] **6.2** Test settings env-var mapping for new fields — `tests/unit/config/test_settings.py`
-  - AC-2.5.2 | Complexity: **S** | Priority: P1
-  - Assert env vars `SRE_AGENT_SLOW_RESPONSE_THRESHOLD_MS` etc. populate `DetectionConfig`
+---
 
-## 7. Unit Tests — Platform Metric Collection
+## Gate 5 — Test Implementation (Phase 2.5A)
 
-- [ ] **7.1** Test ECS `ResponseTime` maps to `CanonicalMetric(name="ecs_response_time_ms")` — `tests/unit/adapters/test_cloudwatch_metrics.py`
-  - AC-2.5.7 | Complexity: **S** | Priority: P1
+### Unit — Domain
 
-- [ ] **7.2** Test Lambda duration metric includes `platform_metadata["timeout_ms"]` — `tests/unit/adapters/test_cloudwatch_metrics.py`
-  - AC-2.5.5 | Complexity: **S** | Priority: P1
+- [ ] **5.1** Add/update tests in `tests/unit/domain/test_detection.py` for:
+  - absolute threshold fires after duration
+  - absolute threshold suppressed before duration
+  - timeout proximity fires at configured threshold
+  - timeout proximity suppressed during cold-start window
+  - timeout proximity fallback when timeout metadata unavailable
+  - arbitration emits single alert with expected precedence
+  - per-service slow-response threshold override
 
-- [ ] **7.3** Test Azure `requests/duration` maps to `CanonicalMetric(name="appservice_response_time_ms")` — `tests/unit/adapters/test_azure_metrics.py`
-  - AC-2.5.8 | Complexity: **S** | Priority: P1
+- [ ] **5.2** Add/update defaults tests in `tests/unit/domain/test_detection_config.py`
 
-## 8. Integration / E2E Tests
+### Unit — Adapters/Config
 
-- [ ] **8.1** E2E: Full pipeline K8s latency spike → alert → correlation — `tests/e2e/test_slow_response_e2e.py`
-  - AC-2.5.3, AC-2.5.9 | Complexity: **M** | Priority: P0
-  - Inject above-threshold K8s latency metrics, assert `SLOW_RESPONSE` alert with `compute_mechanism=KUBERNETES` reaches `AlertCorrelationEngine`
+- [ ] **5.3** Add/update adapter tests in `tests/unit/adapters/test_cloudwatch_metrics_adapter.py`:
+  - ECS `ResponseTime` mapping
+  - Lambda timeout metadata enrichment
 
-- [ ] **8.2** E2E: Lambda timeout proximity → alert with cold-start suppression — `tests/e2e/test_slow_response_e2e.py`
-  - AC-2.5.5, AC-2.5.6 | Complexity: **M** | Priority: P0
-  - Inject Lambda duration metrics at 85% of timeout, verify suppression during cold-start window, then verify alert fires after window
+- [ ] **5.4** Add/update settings tests in `tests/unit/config/test_settings.py` for new detection fields
 
-- [ ] **8.3** E2E: ECS response time degradation under deployment correlation — `tests/e2e/test_slow_response_e2e.py`
-  - AC-2.5.7 | Complexity: **M** | Priority: P1
-  - Register deployment, inject elevated ECS metrics, verify `is_deployment_induced=True`
+### Integration/E2E
 
-- [ ] **8.4** E2E: Detection latency ≤ 60 seconds SLO validation — `tests/e2e/test_slow_response_e2e.py`
-  - AC-2.5.10 | Complexity: **S** | Priority: P0
-  - Assert `(alert_generated_at - detected_at).total_seconds() <= 60`
+- [ ] **5.5** Add `tests/e2e/test_slow_response_e2e.py` covering:
+  - K8s sigma/absolute path
+  - Lambda timeout proximity with cold-start suppression
+  - ECS deployment-induced flag behavior
+  - detection-to-alert latency SLO assertion (`<= 60s`)
 
-## 9. Documentation
+---
 
-- [ ] **9.1** Update `docs/architecture/detection_engine.md` with slow response detection details
-  - Complexity: **S** | Priority: P2
+## Gate 6 — Phase 2.5A Exit Criteria
 
-- [ ] **9.2** Update `CHANGELOG.md` with Phase 2.5 entry
-  - Complexity: **S** | Priority: P2
+- [ ] **6.1** All Gate 1–5 tasks complete
+- [ ] **6.2** New and existing tests pass for Phase 2.5A scope
+- [ ] **6.3** No regression in existing latency spike behavior
+- [ ] **6.4** Coverage remains at or above repository threshold
 
-- [ ] **9.3** Update `.env.example` with new env vars
-  - Complexity: **S** | Priority: P2
+---
+
+## Gate 7 — Azure Extension (Phase 2.5B, Conditional)
+
+Start Gate 7 only if Gate 0.2 reports Azure dependency available.
+
+- [ ] **7.1** Implement or finalize `AzureMonitorMetricsAdapter`
+  - Path: `src/sre_agent/adapters/telemetry/azure/metrics_adapter.py`
+
+- [ ] **7.2** Add mapping `requests/duration -> appservice_response_time_ms`
+
+- [ ] **7.3** Add adapter unit tests
+  - Path: `tests/unit/adapters/test_azure_metrics_adapter.py`
+
+- [ ] **7.4** Add Azure scenario to `tests/e2e/test_slow_response_e2e.py`
+
+---
+
+## Gate 8 — Documentation and Release Notes
+
+- [ ] **8.1** Update architecture docs for hybrid slow-response detection
+- [ ] **8.2** Update `CHANGELOG.md` with Phase 2.5A and (if completed) 2.5B entries
+- [ ] **8.3** Update sample config docs with new thresholds and rule precedence behavior

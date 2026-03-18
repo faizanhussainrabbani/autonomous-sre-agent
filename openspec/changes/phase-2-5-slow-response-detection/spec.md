@@ -1,165 +1,190 @@
 ## ADDED Requirements
 
-### Requirement: Slow Response Detection Across Compute Platforms
-The system SHALL detect slow response conditions on services running on Kubernetes, AWS ECS, AWS Lambda, and Azure App Service using a hybrid detection model (statistical + absolute threshold).
+### Requirement: Phased Delivery Contract
+Phase 2.5 SHALL be delivered in two explicit increments to prevent adapter dependency blockers.
 
-#### Scenario: Statistical slow response detection (all platforms)
-- **GIVEN** a service has an established rolling baseline for its response time metric
-- **WHEN** the p99 response time exceeds 3σ from the rolling baseline for more than 2 minutes
-- **THEN** the system SHALL generate a `LATENCY_SPIKE` anomaly alert within 60 seconds of the threshold being crossed
-- **AND** the alert SHALL include `current_value`, `baseline_value`, `deviation_sigma`, and `compute_mechanism`
+#### Scenario: Phase 2.5A release scope
+- **GIVEN** Phase 2.5A is the active delivery target
+- **WHEN** implementation is marked complete
+- **THEN** Kubernetes, AWS ECS, and AWS Lambda slow-response detection SHALL be functional
+- **AND** Azure App Service detection SHALL be out of scope for 2.5A release readiness
 
-#### Scenario: Absolute threshold slow response detection (all platforms)
-- **GIVEN** `slow_response_absolute_threshold_ms` is configured (default: 2000ms)
-- **WHEN** a service's p99 response time exceeds the absolute threshold for more than `slow_response_duration_seconds` (default: 60s)
-- **THEN** the system SHALL generate a `SLOW_RESPONSE` anomaly alert regardless of baseline deviation
-- **AND** the alert description SHALL include the absolute threshold value and sustained duration
-
-#### Scenario: Combined statistical and absolute detection
-- **GIVEN** a service's response time exceeds both the σ-based threshold AND the absolute threshold
-- **WHEN** both conditions are sustained for their respective durations
-- **THEN** the system SHALL generate a single alert with the higher severity classification
-- **AND** the alert SHALL NOT produce duplicate alerts for the same condition
+#### Scenario: Phase 2.5B release scope
+- **GIVEN** Phase 2.5B is started
+- **WHEN** Azure telemetry adapter dependency is available
+- **THEN** Azure App Service slow-response detection SHALL be implemented
+- **AND** all Phase 2.5A acceptance criteria SHALL continue to pass unchanged
 
 ---
 
-### Requirement: Kubernetes Slow Response Detection
-The system SHALL detect slow responses on Kubernetes services using Ingress controller and application-level latency metrics.
+### Requirement: Hybrid Detection and Rule Arbitration
+The detector SHALL evaluate sigma, absolute, and timeout-proximity rules for latency/duration metrics and emit at most one alert per evaluation key.
 
-#### Scenario: K8s Ingress p99 latency spike
-- **GIVEN** a Kubernetes service is fronted by an Ingress controller emitting duration metrics
-- **WHEN** the `http_request_duration_p99` metric exceeds 3σ from baseline for 2+ minutes
-- **THEN** the system SHALL generate a `LATENCY_SPIKE` alert with `compute_mechanism=KUBERNETES`
+#### Scenario: Statistical slow response detection
+- **GIVEN** baseline is established for a latency metric
+- **WHEN** response time exceeds `latency_sigma_threshold` for `latency_duration_minutes`
+- **THEN** a `LATENCY_SPIKE` alert SHALL be eligible for emission
 
-#### Scenario: K8s HPA scale-out transient suppression
-- **GIVEN** a Kubernetes Deployment has an active HPA scaling event
-- **WHEN** a latency spike occurs during the scaling event lasting less than 60 seconds
-- **THEN** the system SHALL suppress the absolute-threshold alert during the `suppression_window_seconds` period
-- **AND** the suppression SHALL be logged for audit
+#### Scenario: Absolute threshold detection without established baseline
+- **GIVEN** baseline is not yet established
+- **WHEN** response time exceeds `slow_response_absolute_threshold_ms` for `slow_response_duration_seconds`
+- **THEN** a `SLOW_RESPONSE` alert SHALL still be eligible for emission
 
----
+#### Scenario: Timeout proximity detection
+- **GIVEN** compute mechanism is `SERVERLESS` and `timeout_ms` is available in metric metadata
+- **WHEN** `duration_ms / timeout_ms >= timeout_proximity_percent / 100`
+- **THEN** a `TIMEOUT_PROXIMITY` alert SHALL be eligible for emission immediately
 
-### Requirement: AWS ECS Slow Response Detection
-The system SHALL detect slow responses on ECS services using CloudWatch Container Insights metrics.
+#### Scenario: Deterministic single-alert arbitration
+- **GIVEN** multiple eligible rules fire for the same metric evaluation
+- **WHEN** arbitration is applied
+- **THEN** exactly one alert SHALL be emitted using precedence `TIMEOUT_PROXIMITY > SLOW_RESPONSE > LATENCY_SPIKE`
+- **AND** duplicate alerts for the same evaluation key SHALL NOT be emitted
 
-#### Scenario: ECS task-level response time degradation
-- **GIVEN** an ECS service has Container Insights enabled publishing `ResponseTime` metrics
-- **WHEN** the response time exceeds 3σ from baseline for 2+ minutes
-- **THEN** the system SHALL generate a `LATENCY_SPIKE` alert with `compute_mechanism=CONTAINER_INSTANCE`
-
-#### Scenario: ECS response time under deployment
-- **GIVEN** an ECS service is undergoing a rolling deployment (new task definition revision)
-- **WHEN** response time spikes during the deployment
-- **THEN** the system SHALL flag the alert as `is_deployment_induced=True` if within the `deployment_correlation_window_minutes`
-
----
-
-### Requirement: AWS Lambda Timeout Proximity Detection
-The system SHALL detect Lambda functions approaching their configured timeout, as this indicates imminent cascading failures.
-
-#### Scenario: Lambda duration approaching timeout
-- **GIVEN** a Lambda function has a configured timeout of T milliseconds
-- **AND** `timeout_proximity_percent` is configured (default: 80%)
-- **WHEN** the function's `Duration` metric exceeds T × `timeout_proximity_percent / 100`
-- **THEN** the system SHALL generate a `TIMEOUT_PROXIMITY` alert immediately (no duration requirement)
-- **AND** the alert description SHALL include the function timeout, current duration, and proximity percentage
-
-#### Scenario: Lambda cold start suppression for slow response
-- **GIVEN** a Lambda function has just been initialized (cold start)
-- **WHEN** the first invocations show elevated duration metrics
-- **AND** the elapsed time since first invocation is within `cold_start_suppression_window_seconds` (default: 15s)
-- **THEN** the system SHALL suppress both `LATENCY_SPIKE` and `TIMEOUT_PROXIMITY` alerts
-- **AND** resume normal detection after the suppression window expires
-
-#### Scenario: Lambda timeout value unavailable
-- **GIVEN** the Lambda timeout cannot be retrieved (API failure or permissions)
-- **WHEN** a duration metric arrives for the function
-- **THEN** the system SHALL fall back to σ-based detection only
-- **AND** log a warning indicating timeout proximity detection is unavailable
+#### Scenario: Timeout metadata unavailable
+- **GIVEN** compute mechanism is `SERVERLESS` and timeout metadata is unavailable
+- **WHEN** a duration metric is evaluated
+- **THEN** timeout-proximity detection SHALL be skipped
+- **AND** detector evaluation SHALL continue with remaining rules
+- **AND** a warning SHALL be logged
 
 ---
 
-### Requirement: Azure App Service Slow Response Detection
-The system SHALL detect slow responses on Azure App Service using Application Insights response time metrics.
+### Requirement: Kubernetes Slow Response Detection (Phase 2.5A)
+The system SHALL detect slow responses on Kubernetes services using ingress/controller latency signals.
 
-#### Scenario: App Service response time spike
-- **GIVEN** an Azure App Service is emitting `requests/duration` metrics via Application Insights
-- **WHEN** the response time exceeds 3σ from baseline for 2+ minutes
-- **THEN** the system SHALL generate a `LATENCY_SPIKE` alert with `compute_mechanism=CONTAINER_INSTANCE`
+#### Scenario: K8s ingress p99 detection
+- **GIVEN** metric `http_request_duration_p99` is ingested
+- **WHEN** sigma or absolute threshold conditions are satisfied
+- **THEN** emitted alert SHALL include `compute_mechanism=KUBERNETES`
 
-#### Scenario: App Service slot swap transient
-- **GIVEN** an App Service has undergone a deployment slot swap
-- **WHEN** response time temporarily spikes during the swap
-- **THEN** the deployment correlation mechanism SHALL flag the alert as `is_deployment_induced=True`
+#### Scenario: HPA transient suppression
+- **GIVEN** latency transients occur during deployment/HPA activity
+- **WHEN** alert timestamp falls within `suppression_window_seconds`
+- **THEN** alert SHALL be suppressed and suppression SHALL be logged
+
+---
+
+### Requirement: AWS ECS Slow Response Detection (Phase 2.5A)
+The system SHALL detect slow responses on ECS services using Container Insights response time metrics.
+
+#### Scenario: ECS response time mapping
+- **GIVEN** CloudWatch metric `ResponseTime` is queried from `ECS/ContainerInsights`
+- **WHEN** metric is canonicalized
+- **THEN** canonical metric name SHALL be `ecs_response_time_ms`
+
+#### Scenario: ECS deployment correlation
+- **GIVEN** ECS alert is raised during deployment-correlation window
+- **WHEN** detector emits alert
+- **THEN** alert SHALL be flagged `is_deployment_induced=True`
+
+---
+
+### Requirement: AWS Lambda Timeout Proximity Detection (Phase 2.5A)
+The system SHALL detect Lambda timeout proximity risk and apply cold-start suppression semantics.
+
+#### Scenario: Timeout proximity alert
+- **GIVEN** Lambda timeout metadata is available and `timeout_proximity_percent=80`
+- **WHEN** lambda duration reaches at least 80% of timeout
+- **THEN** emitted alert SHALL be `TIMEOUT_PROXIMITY`
+
+#### Scenario: Cold-start suppression applies to timeout proximity
+- **GIVEN** Lambda function is within `cold_start_suppression_window_seconds`
+- **WHEN** timeout proximity condition is true
+- **THEN** alert SHALL be suppressed
+
+---
+
+### Requirement: Azure App Service Slow Response Detection (Phase 2.5B)
+The system SHALL detect slow responses on Azure App Service after Azure metrics adapter availability is confirmed.
+
+#### Scenario: Azure adapter dependency gate
+- **GIVEN** `AzureMonitorMetricsAdapter` is not available
+- **WHEN** Phase 2.5A is delivered
+- **THEN** Azure App Service detection SHALL be deferred to Phase 2.5B
+
+#### Scenario: App Service mapping and detection
+- **GIVEN** metric `requests/duration` is available via Azure Monitor/Application Insights
+- **WHEN** canonicalization occurs
+- **THEN** canonical metric name SHALL be `appservice_response_time_ms`
+- **AND** sigma and absolute threshold rules SHALL apply
 
 ---
 
 ### Requirement: Detection Configuration
-The system SHALL allow operators to configure slow response detection thresholds per service and globally.
+The system SHALL expose global defaults and per-service overrides for slow response behavior.
 
-#### Scenario: Configuring absolute threshold per service
-- **GIVEN** an operator invokes `set_service_sensitivity(service, slow_response_threshold_ms=500)`
-- **WHEN** the specified service's p99 response time exceeds 500ms
-- **THEN** the system SHALL use the per-service threshold instead of the global default
+#### Scenario: Default values
+- **GIVEN** no overrides are configured
+- **WHEN** system starts
+- **THEN** defaults SHALL be:
+  - `slow_response_absolute_threshold_ms = 2000`
+  - `slow_response_duration_seconds = 60`
+  - `timeout_proximity_percent = 80`
+  - `latency_sigma_threshold = 3.0`
+  - `latency_duration_minutes = 2`
 
-#### Scenario: Default configuration values
-- **GIVEN** no operator overrides are configured
-- **WHEN** the system starts
-- **THEN** the following default values SHALL apply:
-  - `slow_response_absolute_threshold_ms`: 2000
-  - `slow_response_duration_seconds`: 60
-  - `timeout_proximity_percent`: 80
-  - `latency_sigma_threshold`: 3.0 (existing)
-  - `latency_duration_minutes`: 2 (existing)
+#### Scenario: Per-service absolute threshold override
+- **GIVEN** `set_service_sensitivity(service, slow_response_threshold_ms=500)` is configured
+- **WHEN** service latency exceeds 500ms and duration criteria
+- **THEN** service-specific threshold SHALL override global absolute threshold
 
 ---
 
 ### Requirement: Detection-to-Alert Latency SLO
-The system SHALL meet the 60-second detection SLO for slow response conditions.
+Slow response alert generation SHALL meet the 60-second SLO from threshold breach to alert generation.
 
-#### Scenario: Detection latency measurement
-- **WHEN** a service's response time first crosses the absolute threshold
-- **THEN** the alert SHALL be generated within 60 seconds of the threshold being crossed
-- **AND** `AnomalyAlert.detected_at` and `AnomalyAlert.alert_generated_at` timestamps SHALL be recorded for latency measurement
+#### Scenario: SLO measurement fields
+- **WHEN** any slow-response-family alert is emitted
+- **THEN** `detected_at` and `alert_generated_at` SHALL be populated
+- **AND** `(alert_generated_at - detected_at)` SHALL be measurable in tests and runtime telemetry
 
 ---
 
-### Requirement: Alert Correlation Integration
-Slow response alerts SHALL integrate with the existing incident correlation system.
+### Requirement: Region-Aware Correlation Safety
+Alert correlation SHALL preserve region/account/subscription context to avoid cross-region false grouping.
 
-#### Scenario: Slow response correlated with upstream error
-- **GIVEN** service A calls service B in the dependency graph
-- **WHEN** a `SLOW_RESPONSE` alert fires on service B within 120 seconds of an `ERROR_RATE_SURGE` alert on service A
-- **THEN** both alerts SHALL be correlated into a single `CorrelatedIncident`
-- **AND** the root cause heuristic SHALL identify service B as the likely root
+#### Scenario: Multi-region isolation
+- **GIVEN** same service name exists in two different regions
+- **WHEN** alerts are emitted in each region within the same correlation window
+- **THEN** correlation SHALL retain provider/region/resource context so incidents can be distinguished
+
+---
+
+### Requirement: Observability for New Rules
+The phase SHALL include structured logging and metrics for newly introduced detection paths.
+
+#### Scenario: Rule observability coverage
+- **WHEN** absolute or timeout-proximity rule is evaluated
+- **THEN** structured logs SHALL include `service`, `metric_name`, `compute_mechanism`, `anomaly_type`, and suppression metadata
+- **AND** counters SHALL exist for fired alerts, suppressed alerts, and metadata-unavailable fallbacks
 
 ---
 
 ## Edge Cases
 
-### Cold Starts (Lambda)
-- Reuses existing `cold_start_suppression_window_seconds` (Phase 1.5).
-- Both `LATENCY_SPIKE` and `TIMEOUT_PROXIMITY` alerts are suppressed during the window.
+### Baseline convergence
+- Sigma-based detection requires established baseline.
+- Absolute threshold and timeout proximity do not depend on baseline establishment.
 
-### HPA Scaling Events (Kubernetes)
-- Existing deployment suppression window (`suppression_window_seconds`, default 30s) covers HPA-triggered transients.
-- Absolute threshold requires 60s sustained duration, filtering most HPA scale-out blips.
+### Lambda timeout metadata retrieval failure
+- Timeout proximity rule is skipped.
+- Detector continues evaluation with other rules.
 
-### Deployment Rollouts (All platforms)
-- Existing `_check_deployment_correlation()` flags alerts as `is_deployment_induced` within `deployment_correlation_window_minutes` (default 60 min).
+### Deployment/HPA transients
+- Existing suppression and deployment-correlation behavior applies without API changes.
 
 ### Multi-Agent Lock Protocol
-- Detection is a **passive, read-only** operation. No resource locks are acquired.
-- Only downstream remediation (handled by existing pipeline) requires lock acquisition per `AGENTS.md`.
+- Detection remains passive and does not acquire locks.
 
 ---
 
 ## Implementation References
 
-* **Anomaly Detector:** `src/sre_agent/domain/detection/anomaly_detector.py`
-* **Detection Config:** `src/sre_agent/domain/models/detection_config.py`
-* **Alert Correlation:** `src/sre_agent/domain/detection/alert_correlation.py`
-* **Canonical Models:** `src/sre_agent/domain/models/canonical.py`
-* **CloudWatch Metrics Adapter:** `src/sre_agent/adapters/telemetry/cloudwatch/metrics_adapter.py`
-* **Performance SLOs:** `openspec/changes/autonomous-sre-agent/specs/performance-slos/spec.md`
-* **Phase 1.5 Cold-Start:** `openspec/changes/phase-1-5-non-k8s-platforms/tasks.md`
+* `src/sre_agent/domain/detection/anomaly_detector.py`
+* `src/sre_agent/domain/models/detection_config.py`
+* `src/sre_agent/domain/models/canonical.py`
+* `src/sre_agent/domain/detection/alert_correlation.py`
+* `src/sre_agent/adapters/telemetry/cloudwatch/metrics_adapter.py`
+* `src/sre_agent/adapters/cloud/aws/resource_metadata.py`
+* `openspec/changes/autonomous-sre-agent/specs/performance-slos/spec.md`
