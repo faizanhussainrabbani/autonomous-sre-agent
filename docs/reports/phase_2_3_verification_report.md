@@ -22,7 +22,7 @@ During this verification session, 47 defects were identified and resolved across
 |------|-------------------|
 | `CHANGELOG.md` | Phase 2.3 detail added; full Phase 2.1/1.5.1/1.5/1.0 history merged from `docs/project/CHANGELOG.md` |
 | `config/agent.yaml` | `cloudwatch`, `enrichment`, `aws_health` config sections; 6 new feature flags |
-| `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/localstack_bridge.py` | `BRIDGE_ENRICHMENT` env var; `AlertEnricher` wire-up |
+| `../../scripts/demo/localstack_bridge.py` | `BRIDGE_ENRICHMENT` env var; `AlertEnricher` wire-up |
 | `src/sre_agent/api/main.py` | `events_router` registered on FastAPI app |
 | `src/sre_agent/api/rest/diagnose_router.py` | `correlated_signals` pass-through to `DiagnosisRequest` |
 | `src/sre_agent/config/settings.py` | `CloudWatchConfig`, `EnrichmentConfig`, `AWSHealthConfig` dataclasses |

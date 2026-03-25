@@ -185,7 +185,7 @@ These tests require a running k3d cluster with deployed sample services and obse
 
 **Procedure:**
 ```bash
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --test baseline
+python ../../../scripts/validation/e2e_validate.py --test baseline
 ```
 
 1. Query Prometheus for `svc-a` request latency p99 over 5 minutes
@@ -204,7 +204,7 @@ python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/
 
 **Procedure:**
 ```bash
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --test detection
+python ../../../scripts/validation/e2e_validate.py --test detection
 ```
 
 1. Baseline `svc-b` latency for 5 minutes (stable)
@@ -226,7 +226,7 @@ python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/
 
 **Procedure:**
 ```bash
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --test correlator
+python ../../../scripts/validation/e2e_validate.py --test correlator
 ```
 
 1. Correlate signals for `svc-a` with all sources enabled
@@ -245,7 +245,7 @@ python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/
 
 **Procedure:**
 ```bash
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --test correlation
+python ../../../scripts/validation/e2e_validate.py --test correlation
 ```
 
 1. Generate anomaly alerts for `svc-a`, `svc-b`, and `svc-c` within 5 minutes
@@ -270,7 +270,7 @@ python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/
 
 **Procedure:**
 ```bash
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --test slo
+python ../../../scripts/validation/e2e_validate.py --test slo
 ```
 
 **Pass Criteria:**
@@ -300,7 +300,7 @@ python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/
 
 **Procedure:**
 ```bash
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --test serverless
+python ../../../scripts/validation/e2e_validate.py --test serverless
 ```
 
 1. Create `SERVERLESS` ServiceLabels with Lambda ARN
@@ -433,7 +433,7 @@ pytest tests/unit/ -v --cov=src/sre_agent --cov-report=term-missing
 pytest tests/e2e/ -v --tb=short
 
 # Step 3: Component tests against live k3d cluster (15 minutes)
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --all
+python ../../../scripts/validation/e2e_validate.py --all
 
 # Step 4: Full pipeline lifecycle tests (30 minutes)
 python scripts/e2e_full_lifecycle.py --all
@@ -481,7 +481,7 @@ jobs:
           pip install -e ".[dev,aws,azure]"
           kubectl apply -f deploy/manifests/
           sleep 60  # Wait for pods
-          python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --all
+          python ../../../scripts/validation/e2e_validate.py --all
 ```
 
 ---

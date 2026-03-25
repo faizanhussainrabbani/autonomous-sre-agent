@@ -1,7 +1,7 @@
 # Phase 1.5 Bug Report
 
 **Date:** March 3, 2026 (Updated: March 4, 2026)
-**Test Run:** `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/validation/e2e_validate.py --all` + `pytest tests/ -v --cov`
+**Test Run:** `../../scripts/validation/e2e_validate.py --all` + `pytest tests/ -v --cov`
 **Result:** 283/284 tests pass, 22/22 component validations pass, 88.4% coverage
 
 ---

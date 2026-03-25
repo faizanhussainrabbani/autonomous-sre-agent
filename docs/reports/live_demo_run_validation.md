@@ -20,15 +20,15 @@ The implementation was executed and validated using targeted unit tests and runt
 | Command | Result | Notes |
 |---|---|---|
 | `.venv/bin/python -m pytest -q tests/unit/adapters/test_azure_operators.py` | ✅ Pass | 6 passed; includes new ARM resource ID name extraction tests |
-| `SKIP_PAUSES=1 .venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py` | ✅ Pass | Non-interactive flow works; TestClient-based event ingestion and timeline output verified |
-| `SKIP_PAUSES=1 .venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py` | ✅ Pass | Non-interactive flow works end-to-end with enrichment output |
-| `SKIP_PAUSES=1 .venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py` | ✅ Pass | Restart/scale semantics align with app/function name behavior |
-| `SKIP_PAUSES=1 .venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py` | ✅ Pass | Simulation mode executes full command sequence without runtime errors |
-| `SKIP_PAUSES=1 .venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py` | ✅ Pass | Demonstrates grant, preemption, cooldown denial, and human override denial |
-| `.venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_14_disk_exhaustion.py` | ✅ Pass | Disk exhaustion simulation payload produced successfully |
-| `.venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_15_traffic_anomaly.py` | ✅ Pass | Traffic anomaly simulation payload produced successfully |
-| `.venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_16_xray_tracing_placeholder.py` | ✅ Pass | Trace demo placeholder executes cleanly |
-| `SKIP_PAUSES=1 .venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_09_cloudwatch_enrichment.py` | ✅ Pass | Numbered alias wrapper executes and delegates correctly |
+| `SKIP_PAUSES=1 .venv/bin/python ../../scripts/demo/live_demo_eventbridge_reaction.py` | ✅ Pass | Non-interactive flow works; TestClient-based event ingestion and timeline output verified |
+| `SKIP_PAUSES=1 .venv/bin/python ../../scripts/demo/live_demo_cloudwatch_enrichment.py` | ✅ Pass | Non-interactive flow works end-to-end with enrichment output |
+| `SKIP_PAUSES=1 .venv/bin/python ../../scripts/demo/live_demo_11_azure_operations.py` | ✅ Pass | Restart/scale semantics align with app/function name behavior |
+| `SKIP_PAUSES=1 .venv/bin/python ../../scripts/demo/live_demo_kubernetes_operations.py` | ✅ Pass | Simulation mode executes full command sequence without runtime errors |
+| `SKIP_PAUSES=1 .venv/bin/python ../../scripts/demo/live_demo_multi_agent_lock_protocol.py` | ✅ Pass | Demonstrates grant, preemption, cooldown denial, and human override denial |
+| `.venv/bin/python ../../scripts/demo/live_demo_14_disk_exhaustion.py` | ✅ Pass | Disk exhaustion simulation payload produced successfully |
+| `.venv/bin/python ../../scripts/demo/live_demo_15_traffic_anomaly.py` | ✅ Pass | Traffic anomaly simulation payload produced successfully |
+| `.venv/bin/python ../../scripts/demo/live_demo_16_xray_tracing_placeholder.py` | ✅ Pass | Trace demo placeholder executes cleanly |
+| `SKIP_PAUSES=1 .venv/bin/python ../../scripts/demo/live_demo_09_cloudwatch_enrichment.py` | ✅ Pass | Numbered alias wrapper executes and delegates correctly |
 
 ## Primary flow checks
 

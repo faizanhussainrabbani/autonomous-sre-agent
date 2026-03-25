@@ -19,7 +19,7 @@ This document defines pass/fail acceptance criteria for implementing findings fr
 
 | AC ID | Plan Area | Criterion | Test Method | Pass Condition |
 |---|---|---|---|---|
-| AC-A1 | Area A | `docs/operations/live_demo_guide.md` documents the full demo inventory | Content review | Every script in `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_*.py` appears in the guide with run intent |
+| AC-A1 | Area A | `docs/operations/live_demo_guide.md` documents the full demo inventory | Content review | Every script in `../../scripts/demo/live_demo_*.py` appears in the guide with run intent |
 | AC-A2 | Area A | Stale "Two fully-scripted demonstrations" claim removed | Content review | No stale claim remains; overview accurately describes suite |
 | AC-A3 | Area A | Machine-specific absolute paths removed from guide commands | Grep/search | No hardcoded local absolute path remains in guide |
 | AC-A4 | Area A | Guide clearly distinguishes LocalStack Community vs Pro per demo | Content review | Per-demo requirement matrix or section exists and is accurate |

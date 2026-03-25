@@ -122,12 +122,12 @@ You should see `lambda`, `cloudwatch`, and `sns` listed as `available` or `runni
 
 ## Step 2: Deploy the Vulnerable Lambda
 
-The demo uses a small Python handler at `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/mock_lambda.py` that crashes when it receives `{"induce_error": true}`.
+The demo uses a small Python handler at `../../scripts/demo/mock_lambda.py` that crashes when it receives `{"induce_error": true}`.
 
 ### 2.1 Review the handler
 
 ```python
-# /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/mock_lambda.py
+# ../../scripts/demo/mock_lambda.py
 import json
 
 def handler(event, context):
@@ -244,7 +244,7 @@ The `StateValue` should be `INSUFFICIENT_DATA` or `OK` (no errors yet).
 
 ## Step 4: Start the SRE Agent FastAPI Server
 
-Open a second terminal and start the server directly via `uvicorn`. Do **not** use `python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py` here — that script is self-contained and shuts the server down after one request.
+Open a second terminal and start the server directly via `uvicorn`. Do **not** use `python ../../scripts/demo/live_demo_http_server.py` here — that script is self-contained and shuts the server down after one request.
 
 ```bash
 source .venv/bin/activate
@@ -282,7 +282,7 @@ Open a third terminal and start the bridge webhook:
 
 ```bash
 source .venv/bin/activate
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/localstack_bridge.py
+python ../../scripts/demo/localstack_bridge.py
 ```
 
 You should see:
@@ -455,7 +455,7 @@ can narrate each step during a live presentation.
 
 ```bash
 source .venv/bin/activate
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py
+python ../../scripts/demo/live_demo_localstack_incident.py
 ```
 
 The script handles everything in order:
@@ -477,7 +477,7 @@ The script handles everything in order:
 To skip pauses (CI/non-interactive mode):
 
 ```bash
-SKIP_PAUSES=1 python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py
+SKIP_PAUSES=1 python ../../scripts/demo/live_demo_localstack_incident.py
 ```
 
 To override defaults:
@@ -485,7 +485,7 @@ To override defaults:
 ```bash
 LOCALSTACK_ENDPOINT=http://localhost:4566 \
 AWS_DEFAULT_REGION=eu-west-3 \
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py
+python ../../scripts/demo/live_demo_localstack_incident.py
 ```
 
 > [!IMPORTANT]
@@ -549,7 +549,7 @@ If the goal is to highlight how the LLM reasons through genuine incidents (witho
 
 ```bash
 source .venv/bin/activate
-python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_diagnostics.py
+python ../../scripts/demo/live_demo_diagnostics.py
 ```
 
 This script bypasses HTTP and optimizations entirely, pumping a complex simulated database crash directly into the Anthropic LLM. It prints the step-by-step reasoning to the console in a formatted output, making it the fastest way to showcase the agent's analytical capabilities to an audience.
@@ -558,10 +558,10 @@ This script bypasses HTTP and optimizations entirely, pumping a complex simulate
 
 | Resource                                     | Path                                           |
 |----------------------------------------------|-------------------------------------------------|
-| Incident Bridge script                       | `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/localstack_bridge.py`                  |
-| Mock Lambda handler                          | `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/mock_lambda.py`                        |
-| HTTP server demo                             | `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py`              |
-| HTTP optimizations demo                      | `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py`       |
-| AWS remediation operators demo (LocalStack)  | `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py`           |
+| Incident Bridge script                       | `../../scripts/demo/localstack_bridge.py`                  |
+| Mock Lambda handler                          | `../../scripts/demo/mock_lambda.py`                        |
+| HTTP server demo                             | `../../scripts/demo/live_demo_http_server.py`              |
+| HTTP optimizations demo                      | `../../scripts/demo/live_demo_http_optimizations.py`       |
+| AWS remediation operators demo (LocalStack)  | `../../scripts/demo/live_demo_localstack_aws.py`           |
 | LocalStack Pro testing guide                 | `docs/testing/localstack_pro_guide.md`          |
 | External dependencies reference              | `docs/operations/external_dependencies.md`      |

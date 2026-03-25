@@ -141,30 +141,30 @@ Planned edits (expected):
 
 * `docs/operations/live_demo_guide.md`
   * Full restructuring, complete inventory, corrected prerequisites, portability-safe run commands
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py`
+* `../../scripts/demo/live_demo_localstack_incident.py`
   * Replace hardcoded `host.docker.internal` with configurable `BRIDGE_HOST`
   * Region standardization via env configuration
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py`
+* `../../scripts/demo/live_demo_ecs_multi_service.py`
   * Ensure region/env consistency with suite defaults
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py`
+* `../../scripts/demo/live_demo_1_telemetry_baseline.py`
   * Region/env consistency
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py`
+* `../../scripts/demo/live_demo_localstack_aws.py`
   * Region/env consistency and synchronous lambda create setting where applicable
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py`
+* `../../scripts/demo/live_demo_cloudwatch_enrichment.py`
   * Add `SKIP_PAUSES` behavior and region/env consistency
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py`
+* `../../scripts/demo/live_demo_eventbridge_reaction.py`
   * Add `SKIP_PAUSES` behavior and clarify synthetic event path output
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py`
+* `../../scripts/demo/live_demo_http_optimizations.py`
   * Fix robust audit trail parsing
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py`
+* `../../scripts/demo/live_demo_http_server.py`
   * Convert to deprecation wrapper or merge path into Demo 6
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py`
+* `../../scripts/demo/live_demo_11_azure_operations.py`
   * Correct assertions and argument semantics for Azure operation validation
 * `scripts/_demo_utils.py` (new)
   * Shared helper utilities extracted from Demos 7/8 where safe
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py` (new)
+* `../../scripts/demo/live_demo_kubernetes_operations.py` (new)
   * Kubernetes-focused demo for restart/scale coverage
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py` (new)
+* `../../scripts/demo/live_demo_multi_agent_lock_protocol.py` (new)
   * Lock schema, preemption, cooling-off, and human override simulation demo
 * `CHANGELOG.md`
   * Structured entry for this implementation

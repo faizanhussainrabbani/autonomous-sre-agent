@@ -232,7 +232,7 @@ pipeline = create_diagnostic_pipeline(
 
 ## 7. Demo 2 — Flash Sale Cascade Failure (2026-03-09)
 
-**Script:** `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cascade_failure.py`
+**Script:** `../../scripts/demo/live_demo_cascade_failure.py`
 **LLM Provider:** Anthropic Claude (claude-sonnet-4-20250514)
 **Total Token Usage:** 4,148 prompt / 1,905 completion / 6,053 total
 
@@ -297,7 +297,7 @@ The Prometheus counter uses `getattr(request.alert, "service_tier", "unknown")` 
 
 ## 8. Demo 3 — Deployment Regression and Infrastructure Fragility (2026-03-09)
 
-**Script:** `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_deployment_regression.py`
+**Script:** `../../scripts/demo/live_demo_deployment_regression.py`
 **LLM Provider:** Anthropic Claude (claude-sonnet-4-20250514)
 **Total Token Usage:** 3,219 prompt / 1,353 completion / 4,572 total
 

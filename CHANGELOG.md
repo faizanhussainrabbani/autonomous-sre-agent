@@ -1,10 +1,84 @@
-# Changelog
+---
+title: Changelog
+description: Historical record of notable project changes with references to plans, criteria, and verification artifacts.
+ms.date: 2026-03-19
+ms.topic: reference
+author: SRE Agent Engineering Team
+---
+
+## Changelog
 
 All notable changes to the Autonomous SRE Agent project are documented here.
 
 Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by Phase.
 
 ---
+
+## [2026-03-19] Documentation Restructure Framework Execution
+
+Implements phased documentation restructuring from the approved critical review using the required execution framework.
+
+Execution artifacts:
+
+* Plan: `docs/reports/documentation_restructure_execution_plan.md`
+* Plan compliance check: `docs/reports/documentation_restructure_plan_compliance_check.md`
+* Acceptance criteria: `docs/reports/documentation_restructure_acceptance_criteria.md`
+* Verification report: `docs/reports/documentation_restructure_verification_report.md`
+* Run validation: `docs/reports/documentation_restructure_run_validation.md`
+
+### What changed and why
+
+* Updated root `README.md` to be concise, role-oriented, and safety-first
+* Added `docs/getting-started.md` for deterministic first-run onboarding
+* Reworked `docs/README.md` into audience-first routing
+* Added architecture conceptual pages:
+  * `docs/architecture/overview.md`
+  * `docs/architecture/multi-agent-coordination.md`
+  * `docs/architecture/permissions-and-rbac.md`
+* Added non-destructive navigation overlays:
+  * `docs/development/*`
+  * `docs/reference/*`
+* Added governance and longevity controls:
+  * `docs/project/standards/documentation_lifecycle_policy.md`
+  * `docs/project/standards/documentation_quality_slos.md`
+  * `docs/reference/document-taxonomy.md`
+  * `docs/reference/glossary.md` as canonical term authority
+* Added ADR coverage for coordination and safety decisions:
+  * `docs/project/ADRs/003-coordination-backend-selection.md`
+  * `docs/project/ADRs/004-remediation-safety-boundaries.md`
+  * `docs/project/ADRs/005-multi-agent-priority-preemption.md`
+* Converted `docs/project/glossary.md` into compatibility routing page to avoid link breakage
+
+### Files affected
+
+* `README.md`
+* `docs/README.md`
+* `docs/getting-started.md`
+* `docs/architecture/overview.md`
+* `docs/architecture/multi-agent-coordination.md`
+* `docs/architecture/permissions-and-rbac.md`
+* `docs/development/README.md`
+* `docs/development/setup.md`
+* `docs/development/testing.md`
+* `docs/development/code-style.md`
+* `docs/development/contributing.md`
+* `docs/reference/README.md`
+* `docs/reference/api.md`
+* `docs/reference/commands.md`
+* `docs/reference/runbooks.md`
+* `docs/reference/glossary.md`
+* `docs/reference/document-taxonomy.md`
+* `docs/project/standards/documentation_lifecycle_policy.md`
+* `docs/project/standards/documentation_quality_slos.md`
+* `docs/project/ADRs/003-coordination-backend-selection.md`
+* `docs/project/ADRs/004-remediation-safety-boundaries.md`
+* `docs/project/ADRs/005-multi-agent-priority-preemption.md`
+* `docs/project/glossary.md`
+* `docs/reports/documentation_restructure_execution_plan.md`
+* `docs/reports/documentation_restructure_plan_compliance_check.md`
+* `docs/reports/documentation_restructure_acceptance_criteria.md`
+* `docs/reports/documentation_restructure_verification_report.md`
+* `docs/reports/documentation_restructure_run_validation.md`
 
 ## [2026-03-18] Live Demo Findings Implementation
 
@@ -25,11 +99,11 @@ Implements findings from `docs/reports/live_demo_review_report.md` using the exe
 * Consolidated Demo 5 into a compatibility wrapper delegating to Demo 6
 * Added `scripts/_demo_utils.py` shared helper module and adopted it in key demos for consistent env handling
 * Added missing coverage demos:
-  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py`
-  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py`
-  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_14_disk_exhaustion.py`
-  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_15_traffic_anomaly.py`
-  * `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_16_xray_tracing_placeholder.py`
+  * `scripts/demo/live_demo_kubernetes_operations.py`
+  * `scripts/demo/live_demo_multi_agent_lock_protocol.py`
+  * `scripts/demo/live_demo_14_disk_exhaustion.py`
+  * `scripts/demo/live_demo_15_traffic_anomaly.py`
+  * `scripts/demo/live_demo_16_xray_tracing_placeholder.py`
 * Added standardized numbering alias wrappers for legacy demo names (`live_demo_02_*` through `live_demo_10_*`) to improve naming consistency without breaking existing commands
 * Corrected Azure operator semantics and demo assertions to use app/function names derived from ARM resource IDs
 * Added Azure unit test coverage for ARM resource ID restart semantics
@@ -43,17 +117,17 @@ Implements findings from `docs/reports/live_demo_review_report.md` using the exe
 * `docs/reports/live_demo_verification_report.md`
 * `docs/reports/live_demo_run_validation.md`
 * `scripts/_demo_utils.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py`
-* `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py`
+* `scripts/demo/live_demo_1_telemetry_baseline.py`
+* `scripts/demo/live_demo_localstack_aws.py`
+* `scripts/demo/live_demo_localstack_incident.py`
+* `scripts/demo/live_demo_ecs_multi_service.py`
+* `scripts/demo/live_demo_cloudwatch_enrichment.py`
+* `scripts/demo/live_demo_eventbridge_reaction.py`
+* `scripts/demo/live_demo_http_optimizations.py`
+* `scripts/demo/live_demo_http_server.py`
+* `scripts/demo/live_demo_11_azure_operations.py`
+* `scripts/demo/live_demo_kubernetes_operations.py`
+* `scripts/demo/live_demo_multi_agent_lock_protocol.py`
 * `src/sre_agent/adapters/cloud/azure/app_service_operator.py`
 * `src/sre_agent/adapters/cloud/azure/functions_operator.py`
 * `tests/unit/adapters/test_azure_operators.py`
@@ -144,11 +218,11 @@ Full task list and acceptance criteria are in
 
 #### Demo Enhancements
 - **Demos**: Added two interactive LocalStack-driven operational demos covering recent observability features:
-  - `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py`: Real-time demonstration of AlertEnricher executing metric pulls and CloudWatch Log streaming against LocalStack.
-  - `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py`: Validates FastAPI EventBridge webhooks receiving state change events and stitching them chronologically into Canonical Timelines.
+  - `scripts/demo/live_demo_cloudwatch_enrichment.py`: Real-time demonstration of AlertEnricher executing metric pulls and CloudWatch Log streaming against LocalStack.
+  - `scripts/demo/live_demo_eventbridge_reaction.py`: Validates FastAPI EventBridge webhooks receiving state change events and stitching them chronologically into Canonical Timelines.
 - **Provider Parity Demos**: Implemented addressing gaps highlighted in `live_demo_analysis_report.md`:
-  - `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py` (Demo 1): Backfilled missing foundational Phase 1 telemetry baseline sequence fetching `CPUUtilization` seamlessly from LocalStack mock data into Domain logic.
-  - `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py` (Demo 11): Proves Phase 1.5 Multi-Cloud Hexagonal operations accurately dispatch `restart` and `scale_capacity` behaviors generically toward the `azure-mgmt-web` Python SDK implementations for Azure Functions and App Services via mock-clients.
+  - `scripts/demo/live_demo_1_telemetry_baseline.py` (Demo 1): Backfilled missing foundational Phase 1 telemetry baseline sequence fetching `CPUUtilization` seamlessly from LocalStack mock data into Domain logic.
+  - `scripts/demo/live_demo_11_azure_operations.py` (Demo 11): Proves Phase 1.5 Multi-Cloud Hexagonal operations accurately dispatch `restart` and `scale_capacity` behaviors generically toward the `azure-mgmt-web` Python SDK implementations for Azure Functions and App Services via mock-clients.
 - **Documentation**: Updated `docs/operations/live_demo_guide.md` with instructions and context for Demo 1, Demo 9, Demo 10, and Demo 11.
 
 #### Area 1 + 10: Bridge Enrichment (Real Metric Context)
@@ -162,7 +236,7 @@ Full task list and acceptance criteria are in
   - Retrieves recent error logs via `FilterLogEvents` with a configurable filter pattern
   - Fetches resource metadata and injects it into the alert
   - Falls back to hardcoded defaults on any CloudWatch API failure — never blocks alert forwarding
-- **Bridge wire-up** (`/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/localstack_bridge.py`) — `handle_sns()` now calls
+- **Bridge wire-up** (`scripts/demo/localstack_bridge.py`) — `handle_sns()` now calls
   `AlertEnricher.enrich()` when `BRIDGE_ENRICHMENT=1` is set; gracefully falls back to the
   previous static payload builder when the enricher is unavailable
 

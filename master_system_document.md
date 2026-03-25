@@ -377,15 +377,15 @@ git clone https://github.com/your-org/autonomous-sre-agent.git
 cd autonomous-sre-agent
 
 # 2. Install everything (creates venv if needed)
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh setup
+scripts/dev/run.sh setup
 
 # 3. Configure environment variables
 cp .env.example .env
 # Edit .env with your API keys (OPENAI_API_KEY or ANTHROPIC_API_KEY)
 
 # 4. Run the API server
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh server            # Production mode
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh server --reload   # Dev mode with auto-reload
+scripts/dev/run.sh server            # Production mode
+scripts/dev/run.sh server --reload   # Dev mode with auto-reload
 
 # 5. API docs available at:
 #    http://localhost:8080/docs
@@ -547,10 +547,10 @@ External services required for development and testing are orchestrated via Dock
 docker compose -f docker-compose.deps.yml up -d
 
 # Or use the helper script
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh start
+scripts/dev/setup_deps.sh start
 
 # Stop all dependencies
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh stop
+scripts/dev/setup_deps.sh stop
 ```
 
 **Containerized Services:**
@@ -772,11 +772,11 @@ Key threats addressed in the [threat model](docs/security/threat_model.md):
 **Running Tests:**
 
 ```bash
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh test:unit    # Unit tests (~400 tests, fast, no deps)
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh test:e2e     # E2E tests
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh test         # Full suite (501 tests)
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh coverage     # Tests with coverage report
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/run.sh test:integ   # Integration tests (requires LocalStack Pro)
+scripts/dev/run.sh test:unit    # Unit tests (~400 tests, fast, no deps)
+scripts/dev/run.sh test:e2e     # E2E tests
+scripts/dev/run.sh test         # Full suite (501 tests)
+scripts/dev/run.sh coverage     # Tests with coverage report
+scripts/dev/run.sh test:integ   # Integration tests (requires LocalStack Pro)
 ```
 
 ---

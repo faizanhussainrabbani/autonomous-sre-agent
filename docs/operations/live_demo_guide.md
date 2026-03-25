@@ -14,11 +14,11 @@ keywords:
 
 ## Overview
 
-This guide is the canonical index for the live demo suite. It documents every `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_*.py` script, expected prerequisites, and execution mode.
+This guide is the canonical index for the live demo suite. It documents every `../../scripts/demo/live_demo_*.py` script, expected prerequisites, and execution mode.
 
 Validation scope for this revision:
 
-* All `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_*.py` scripts were executed in non-interactive mode (`SKIP_PAUSES=1`) with result capture
+* All `../../scripts/demo/live_demo_*.py` scripts were executed in non-interactive mode (`SKIP_PAUSES=1`) with result capture
 * Full-suite validation completed with `TOTAL 25`, `PASS 25`, `FAIL 0`, `TIMEOUT 0`
 * Kubernetes Demo 12 was validated in both simulation mode and live `kubectl` mode
 * Results were cross-checked against `docs/reports/live_demo_verification_report.md`, `docs/reports/live_demo_review_report.md`, and `docs/operations/localstack_live_incident_demo.md`
@@ -27,22 +27,22 @@ Validation scope for this revision:
 
 | Demo | Script | Focus Area | LocalStack | LLM Required |
 |---|---|---|---|---|
-| 1 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py](../../scripts/demo/live_demo_1_telemetry_baseline.py) | Phase 1 telemetry adapter-to-domain mapping | Community | No |
-| 2 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cascade_failure.py](../../scripts/demo/live_demo_cascade_failure.py) | Multi-service cascade correlation and event isolation | No | Yes (Anthropic) |
-| 3 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_deployment_regression.py](../../scripts/demo/live_demo_deployment_regression.py) | Deployment-induced diagnosis, circuit breaker, certificate expiry | No | Yes (Anthropic) |
-| 4 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py](../../scripts/demo/live_demo_localstack_aws.py) | AWS operators (ECS/Lambda/ASG) via LocalStack | Pro for full coverage | No |
-| 5 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py](../../scripts/demo/live_demo_http_server.py) | Compatibility wrapper delegating to Demo 6 | No | Yes (Anthropic) |
-| 6 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py](../../scripts/demo/live_demo_http_optimizations.py) | HTTP end-to-end with token optimization and caching | No | Yes (Anthropic) |
-| 7 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py](../../scripts/demo/live_demo_localstack_incident.py) | Lambda incident chain: alarm → SNS → bridge → diagnosis | Community or Pro | Yes (Anthropic) |
-| 8 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py](../../scripts/demo/live_demo_ecs_multi_service.py) | ECS multi-service cascade and severity override workflow | Pro | Yes (Anthropic) |
-| 9 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py](../../scripts/demo/live_demo_cloudwatch_enrichment.py) | AlertEnricher with CloudWatch metrics and logs | Community | No |
-| 10 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py](../../scripts/demo/live_demo_eventbridge_reaction.py) | Event routing and timeline building via FastAPI TestClient simulation | No | No |
-| 11 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py](../../scripts/demo/live_demo_11_azure_operations.py) | Azure App Service and Functions operator behavior | No | No |
-| 12 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py](../../scripts/demo/live_demo_kubernetes_operations.py) | Kubernetes restart and scale operations (simulation or real `kubectl`) | No | No |
-| 13 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py](../../scripts/demo/live_demo_multi_agent_lock_protocol.py) | Lock schema, preemption, cooling-off, and human override simulation | No | No |
-| 14 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_14_disk_exhaustion.py](../../scripts/demo/live_demo_14_disk_exhaustion.py) | Disk exhaustion anomaly simulation payload | No | No |
-| 15 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_15_traffic_anomaly.py](../../scripts/demo/live_demo_15_traffic_anomaly.py) | Traffic anomaly simulation payload | No | No |
-| 16 | [/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_16_xray_tracing_placeholder.py](../../scripts/demo/live_demo_16_xray_tracing_placeholder.py) | X-Ray tracing placeholder for future phase work | No | No |
+| 1 | [../../scripts/demo/live_demo_1_telemetry_baseline.py](../../scripts/demo/live_demo_1_telemetry_baseline.py) | Phase 1 telemetry adapter-to-domain mapping | Community | No |
+| 2 | [../../scripts/demo/live_demo_cascade_failure.py](../../scripts/demo/live_demo_cascade_failure.py) | Multi-service cascade correlation and event isolation | No | Yes (Anthropic) |
+| 3 | [../../scripts/demo/live_demo_deployment_regression.py](../../scripts/demo/live_demo_deployment_regression.py) | Deployment-induced diagnosis, circuit breaker, certificate expiry | No | Yes (Anthropic) |
+| 4 | [../../scripts/demo/live_demo_localstack_aws.py](../../scripts/demo/live_demo_localstack_aws.py) | AWS operators (ECS/Lambda/ASG) via LocalStack | Pro for full coverage | No |
+| 5 | [../../scripts/demo/live_demo_http_server.py](../../scripts/demo/live_demo_http_server.py) | Compatibility wrapper delegating to Demo 6 | No | Yes (Anthropic) |
+| 6 | [../../scripts/demo/live_demo_http_optimizations.py](../../scripts/demo/live_demo_http_optimizations.py) | HTTP end-to-end with token optimization and caching | No | Yes (Anthropic) |
+| 7 | [../../scripts/demo/live_demo_localstack_incident.py](../../scripts/demo/live_demo_localstack_incident.py) | Lambda incident chain: alarm → SNS → bridge → diagnosis | Community or Pro | Yes (Anthropic) |
+| 8 | [../../scripts/demo/live_demo_ecs_multi_service.py](../../scripts/demo/live_demo_ecs_multi_service.py) | ECS multi-service cascade and severity override workflow | Pro | Yes (Anthropic) |
+| 9 | [../../scripts/demo/live_demo_cloudwatch_enrichment.py](../../scripts/demo/live_demo_cloudwatch_enrichment.py) | AlertEnricher with CloudWatch metrics and logs | Community | No |
+| 10 | [../../scripts/demo/live_demo_eventbridge_reaction.py](../../scripts/demo/live_demo_eventbridge_reaction.py) | Event routing and timeline building via FastAPI TestClient simulation | No | No |
+| 11 | [../../scripts/demo/live_demo_11_azure_operations.py](../../scripts/demo/live_demo_11_azure_operations.py) | Azure App Service and Functions operator behavior | No | No |
+| 12 | [../../scripts/demo/live_demo_kubernetes_operations.py](../../scripts/demo/live_demo_kubernetes_operations.py) | Kubernetes restart and scale operations (simulation or real `kubectl`) | No | No |
+| 13 | [../../scripts/demo/live_demo_multi_agent_lock_protocol.py](../../scripts/demo/live_demo_multi_agent_lock_protocol.py) | Lock schema, preemption, cooling-off, and human override simulation | No | No |
+| 14 | [../../scripts/demo/live_demo_14_disk_exhaustion.py](../../scripts/demo/live_demo_14_disk_exhaustion.py) | Disk exhaustion anomaly simulation payload | No | No |
+| 15 | [../../scripts/demo/live_demo_15_traffic_anomaly.py](../../scripts/demo/live_demo_15_traffic_anomaly.py) | Traffic anomaly simulation payload | No | No |
+| 16 | [../../scripts/demo/live_demo_16_xray_tracing_placeholder.py](../../scripts/demo/live_demo_16_xray_tracing_placeholder.py) | X-Ray tracing placeholder for future phase work | No | No |
 
 ### Standardized numbering aliases
 
@@ -123,7 +123,7 @@ For live mode only:
 ### Demo 1: Telemetry baseline
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_1_telemetry_baseline.py
 ```
 
 Expected behavior: pushes synthetic CloudWatch metrics and confirms canonical metric retrieval.
@@ -131,7 +131,7 @@ Expected behavior: pushes synthetic CloudWatch metrics and confirms canonical me
 ### Demo 2: Cascade failure
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cascade_failure.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_cascade_failure.py
 ```
 
 Expected behavior: runs three LLM diagnoses across cascading alerts and prints incident summary.
@@ -139,7 +139,7 @@ Expected behavior: runs three LLM diagnoses across cascading alerts and prints i
 ### Demo 3: Deployment regression
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_deployment_regression.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_deployment_regression.py
 ```
 
 Expected behavior: validates deployment-induced signal handling, circuit breaker behavior, and diagnostics.
@@ -147,7 +147,7 @@ Expected behavior: validates deployment-induced signal handling, circuit breaker
 ### Demo 4: AWS LocalStack operators
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_localstack_aws.py
 ```
 
 Expected behavior: exercises ECS/Lambda/ASG operator actions through LocalStack adapters.
@@ -155,7 +155,7 @@ Expected behavior: exercises ECS/Lambda/ASG operator actions through LocalStack 
 ### Demo 5: HTTP compatibility wrapper
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_http_server.py
 ```
 
 Expected behavior: prints delegation notice and executes Demo 6.
@@ -163,7 +163,7 @@ Expected behavior: prints delegation notice and executes Demo 6.
 ### Demo 6: HTTP token optimizations
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_http_optimizations.py
 ```
 
 Expected behavior: demonstrates novel-incident short-circuit, timeline filtering, lightweight validation, and cache behavior.
@@ -171,7 +171,7 @@ Expected behavior: demonstrates novel-incident short-circuit, timeline filtering
 ### Demo 7: Lambda incident cascade
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_localstack_incident.py
 ```
 
 Expected behavior: complete chain Lambda crash → CloudWatch alarm → SNS → bridge → diagnosis, then cleanup.
@@ -179,7 +179,7 @@ Expected behavior: complete chain Lambda crash → CloudWatch alarm → SNS → 
 ### Demo 8: ECS multi-service cascade
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_ecs_multi_service.py
 ```
 
 Expected behavior: dual-service cascade diagnosis, severity override API, and cleanup.
@@ -187,7 +187,7 @@ Expected behavior: dual-service cascade diagnosis, severity override API, and cl
 ### Demo 9: CloudWatch enrichment
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_cloudwatch_enrichment.py
 ```
 
 Expected behavior: enrichment payload shows metric and log context without interactive pauses.
@@ -195,7 +195,7 @@ Expected behavior: enrichment payload shows metric and log context without inter
 ### Demo 10: EventBridge reaction (simulated ingress)
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_eventbridge_reaction.py
 ```
 
 Expected behavior: FastAPI TestClient posts synthetic AWS-style events to `/api/v1/events/aws` and builds timeline output.
@@ -203,7 +203,7 @@ Expected behavior: FastAPI TestClient posts synthetic AWS-style events to `/api/
 ### Demo 11: Azure operations
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_11_azure_operations.py
 ```
 
 Expected behavior: validates restart and scale behavior with Azure SDK-style name semantics.
@@ -213,13 +213,13 @@ Expected behavior: validates restart and scale behavior with Azure SDK-style nam
 Simulation mode:
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_kubernetes_operations.py
 ```
 
 Live mode:
 
 ```bash
-SKIP_PAUSES=1 RUN_KUBECTL=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py
+SKIP_PAUSES=1 RUN_KUBECTL=1 python3 ../../scripts/demo/live_demo_kubernetes_operations.py
 ```
 
 Expected behavior:
@@ -230,7 +230,7 @@ Expected behavior:
 ### Demo 13: Multi-agent lock protocol
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_multi_agent_lock_protocol.py
 ```
 
 Expected behavior: shows lock acquisition, preemption, cooldown denial, and human override denial.
@@ -238,7 +238,7 @@ Expected behavior: shows lock acquisition, preemption, cooldown denial, and huma
 ### Demo 14: Disk exhaustion simulation
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_14_disk_exhaustion.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_14_disk_exhaustion.py
 ```
 
 Expected behavior: prints deterministic `disk_exhaustion` payload.
@@ -246,7 +246,7 @@ Expected behavior: prints deterministic `disk_exhaustion` payload.
 ### Demo 15: Traffic anomaly simulation
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_15_traffic_anomaly.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_15_traffic_anomaly.py
 ```
 
 Expected behavior: prints deterministic `traffic_anomaly` payload.
@@ -254,7 +254,7 @@ Expected behavior: prints deterministic `traffic_anomaly` payload.
 ### Demo 16: X-Ray tracing placeholder
 
 ```bash
-SKIP_PAUSES=1 python3 /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_16_xray_tracing_placeholder.py
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_16_xray_tracing_placeholder.py
 ```
 
 Expected behavior: prints placeholder scope for future trace-driven coverage.
@@ -264,7 +264,7 @@ Expected behavior: prints placeholder scope for future trace-driven coverage.
 Observed during this guide update:
 
 * Full batch execution across all `live_demo_*.py` scripts completed successfully (`25/25` pass)
-* Alias wrappers and canonical scripts both executed cleanly from `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/`
+* Alias wrappers and canonical scripts both executed cleanly from `../../scripts/demo/`
 * HTTP Demo 6 and its Demo 5 wrapper are stable in non-interactive mode (`SKIP_PAUSES=1`)
 * Demo 12 live mode failed with `connection refused` when no reachable cluster context was configured
 

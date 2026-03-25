@@ -19,7 +19,7 @@ This report verifies implementation status against `docs/reports/live_demo_accep
 
 | AC ID | Status | Evidence |
 |---|---|---|
-| AC-A1 | ✅ Pass | Guide inventory now includes every `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_*.py` file. Automated check output: `TOTAL_SCRIPTS 25`, `MISSING_IN_GUIDE 0` |
+| AC-A1 | ✅ Pass | Guide inventory now includes every `../../scripts/demo/live_demo_*.py` file. Automated check output: `TOTAL_SCRIPTS 25`, `MISSING_IN_GUIDE 0` |
 | AC-A2 | ✅ Pass | Automated check output: `HAS_STALE_TEXT False` for stale "Two fully-scripted demonstrations" phrase |
 | AC-A3 | ✅ Pass | Automated check output: `HAS_MACHINE_PATH False` for `/Users/faizanhussain` path |
 | AC-A4 | ✅ Pass | `docs/operations/live_demo_guide.md` now has explicit per-demo LocalStack requirements table (Community vs Pro) |
@@ -28,14 +28,14 @@ This report verifies implementation status against `docs/reports/live_demo_accep
 | AC-B1 | ✅ Pass | Region defaults standardized to `AWS_DEFAULT_REGION` fallback (`us-east-1`) in touched LocalStack demos |
 | AC-B2 | ✅ Pass | Demo 7 now builds webhook endpoint from `BRIDGE_HOST`; automated check: `HARDCODED_BRIDGE_ENDPOINT False`, `USES_BRIDGE_HOST_VAR True` |
 | AC-B3 | ✅ Pass | Both Demo 7 and Demo 8 include `BRIDGE_HOST` behavior and Docker/native guidance |
-| AC-C1 | ✅ Pass | Runtime validation: `SKIP_PAUSES=1 .venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py` shows `[SKIPPED]` at pause points and completes |
-| AC-C2 | ✅ Pass | Runtime validation: `SKIP_PAUSES=1 .venv/bin/python /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py` shows `[SKIPPED]` at pause points and completes |
-| AC-C3 | ✅ Pass | `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py` now normalizes both dict and string audit-trail formats before stage analysis |
+| AC-C1 | ✅ Pass | Runtime validation: `SKIP_PAUSES=1 .venv/bin/python ../../scripts/demo/live_demo_cloudwatch_enrichment.py` shows `[SKIPPED]` at pause points and completes |
+| AC-C2 | ✅ Pass | Runtime validation: `SKIP_PAUSES=1 .venv/bin/python ../../scripts/demo/live_demo_eventbridge_reaction.py` shows `[SKIPPED]` at pause points and completes |
+| AC-C3 | ✅ Pass | `../../scripts/demo/live_demo_http_optimizations.py` now normalizes both dict and string audit-trail formats before stage analysis |
 | AC-C4 | ✅ Pass | Azure adapters now parse site name from ARM resource ID; demo assertions updated; unit tests extended and passing |
-| AC-D1 | ✅ Pass | `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py` converted to compatibility wrapper that delegates to `live_demo_http_optimizations.py` |
+| AC-D1 | ✅ Pass | `../../scripts/demo/live_demo_http_server.py` converted to compatibility wrapper that delegates to `live_demo_http_optimizations.py` |
 | AC-D2 | ✅ Pass | New shared utilities in `scripts/_demo_utils.py` are imported by Demos 7 and 8 (also used by 1/4/9/10/12/13) |
-| AC-E1 | ✅ Pass | New `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_kubernetes_operations.py` added and executed successfully in simulation mode |
-| AC-E2 | ✅ Pass | New `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_multi_agent_lock_protocol.py` added and executed, showing lock schema, preemption, cooldown, and human override |
+| AC-E1 | ✅ Pass | New `../../scripts/demo/live_demo_kubernetes_operations.py` added and executed successfully in simulation mode |
+| AC-E2 | ✅ Pass | New `../../scripts/demo/live_demo_multi_agent_lock_protocol.py` added and executed, showing lock schema, preemption, cooldown, and human override |
 | AC-E3 | ✅ Pass | Guide includes dedicated sections for Demos 12 and 13 |
 | AC-F1 | ✅ Pass | New Step 1–5 markdown artifacts include YAML frontmatter with required metadata fields |
 | AC-F2 | ✅ Pass | Targeted validation commands completed: Azure unit tests (6/6 pass), demos 9/10/11/12/13 run successfully |

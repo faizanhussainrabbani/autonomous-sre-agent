@@ -59,7 +59,7 @@ backend wired to its port interfaces**.
 
 ### What the bridge actually extracts from the CloudWatch alarm payload
 
-The bridge (`/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/localstack_bridge.py`) receives the standard SNS alarm JSON and maps only
+The bridge (`../../scripts/demo/localstack_bridge.py`) receives the standard SNS alarm JSON and maps only
 these fields into `AnomalyAlert`:
 
 | `AnomalyAlert` field | Source in SNS JSON | Notes |

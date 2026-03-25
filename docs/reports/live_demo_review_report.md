@@ -22,17 +22,17 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 
 | # | Script | Phase | LLM? | LocalStack? | Documented? |
 |---|--------|-------|------|-------------|-------------|
-| 1 | [live_demo_1_telemetry_baseline.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py) | 1 | ❌ | Community | ✅ |
-| 2 | [live_demo_cascade_failure.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cascade_failure.py) | 2 | ✅ | ❌ | ❌ |
-| 3 | [live_demo_deployment_regression.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_deployment_regression.py) | 2 | ✅ | ❌ | ❌ |
-| 4 | [live_demo_localstack_aws.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py) | 1.5 | ❌ | Pro | ❌ |
-| 5 | [live_demo_http_server.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_server.py) | 2 | ✅ | ❌ | ❌ |
-| 6 | [live_demo_http_optimizations.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py) | 2.2 | ✅ | ❌ | ❌ |
-| 7 | [live_demo_localstack_incident.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_incident.py) | 2 | ✅ | Pro | ✅ |
-| 8 | [live_demo_ecs_multi_service.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_ecs_multi_service.py) | 2 | ✅ | Pro | ✅ |
-| 9 | [live_demo_cloudwatch_enrichment.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cloudwatch_enrichment.py) | 2.3 | ❌ | Community | ✅ |
-| 10 | [live_demo_eventbridge_reaction.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_eventbridge_reaction.py) | 2.3 | ❌ | ❌ | ✅ |
-| 11 | [live_demo_11_azure_operations.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py) | 1.5 | ❌ | ❌ | ✅ |
+| 1 | [live_demo_1_telemetry_baseline.py](../../scripts/demo/live_demo_1_telemetry_baseline.py) | 1 | ❌ | Community | ✅ |
+| 2 | [live_demo_cascade_failure.py](../../scripts/demo/live_demo_cascade_failure.py) | 2 | ✅ | ❌ | ❌ |
+| 3 | [live_demo_deployment_regression.py](../../scripts/demo/live_demo_deployment_regression.py) | 2 | ✅ | ❌ | ❌ |
+| 4 | [live_demo_localstack_aws.py](../../scripts/demo/live_demo_localstack_aws.py) | 1.5 | ❌ | Pro | ❌ |
+| 5 | [live_demo_http_server.py](../../scripts/demo/live_demo_http_server.py) | 2 | ✅ | ❌ | ❌ |
+| 6 | [live_demo_http_optimizations.py](../../scripts/demo/live_demo_http_optimizations.py) | 2.2 | ✅ | ❌ | ❌ |
+| 7 | [live_demo_localstack_incident.py](../../scripts/demo/live_demo_localstack_incident.py) | 2 | ✅ | Pro | ✅ |
+| 8 | [live_demo_ecs_multi_service.py](../../scripts/demo/live_demo_ecs_multi_service.py) | 2 | ✅ | Pro | ✅ |
+| 9 | [live_demo_cloudwatch_enrichment.py](../../scripts/demo/live_demo_cloudwatch_enrichment.py) | 2.3 | ❌ | Community | ✅ |
+| 10 | [live_demo_eventbridge_reaction.py](../../scripts/demo/live_demo_eventbridge_reaction.py) | 2.3 | ❌ | ❌ | ✅ |
+| 11 | [live_demo_11_azure_operations.py](../../scripts/demo/live_demo_11_azure_operations.py) | 1.5 | ❌ | ❌ | ✅ |
 
 ### Feature Coverage Across Demos
 
@@ -133,7 +133,7 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 | LocalStack | **Requires Pro** for ECS + ASG. Region: `us-east-1`. Good edition detection + fallback messaging |
 
 > [!WARNING]
-> The docstring says "Live Demo 4" but it's stored as [live_demo_localstack_aws.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_localstack_aws.py). The naming convention mismatch with [live_demo_1_telemetry_baseline.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_1_telemetry_baseline.py) and [live_demo_11_azure_operations.py](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_11_azure_operations.py) is confusing.
+> The docstring says "Live Demo 4" but it's stored as [live_demo_localstack_aws.py](../../scripts/demo/live_demo_localstack_aws.py). The naming convention mismatch with [live_demo_1_telemetry_baseline.py](../../scripts/demo/live_demo_1_telemetry_baseline.py) and [live_demo_11_azure_operations.py](../../scripts/demo/live_demo_11_azure_operations.py) is confusing.
 
 ---
 
@@ -162,7 +162,7 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 |-----------|---------|
 | Feature Accuracy | ✅ Validates 4 optimizations: novel incident short-circuit, timeline filtering, lightweight validation, semantic caching |
 | Missing Gaps | Undocumented in guide despite being the **only demo** for Phase 2.2 |
-| Correctness | ⚠️ Act 3 ([act3_lightweight_validation](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_http_optimizations.py#218-234)) parses the audit trail as strings with `split(":")` — breaks if audit trail format changes to structured dicts (which Demo 7/8 already handle) |
+| Correctness | ⚠️ Act 3 ([act3_lightweight_validation](../../scripts/demo/live_demo_http_optimizations.py#218-234)) parses the audit trail as strings with `split(":")` — breaks if audit trail format changes to structured dicts (which Demo 7/8 already handle) |
 | Redundancy | None — unique Phase 2.2 coverage |
 | LocalStack | ❌ Not used |
 
@@ -246,7 +246,7 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 | LocalStack | ❌ Not applicable — uses unittest mocks |
 
 > [!WARNING]
-> The mock assertions may not match the real Azure SDK call signatures. The `restart` method is asserted as `restart(resource_group, resource_id)` but the real `WebAppsOperations.restart()` takes [(resource_group_name, name)](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_cascade_failure.py#46-56) where `name` is the app name, not the full resource URI.
+> The mock assertions may not match the real Azure SDK call signatures. The `restart` method is asserted as `restart(resource_group, resource_id)` but the real `WebAppsOperations.restart()` takes [(resource_group_name, name)](../../scripts/demo/live_demo_cascade_failure.py#46-56) where `name` is the app name, not the full resource URI.
 
 ---
 

@@ -25,13 +25,13 @@ The fastest way to start all development dependencies:
 
 ```bash
 # Start LocalStack, Prometheus, Jaeger
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh start
+../../scripts/dev/setup_deps.sh start
 
 # Check health
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh health
+../../scripts/dev/setup_deps.sh health
 
 # Stop everything
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh stop
+../../scripts/dev/setup_deps.sh stop
 ```
 
 This uses `docker-compose.deps.yml` in the project root.
@@ -71,7 +71,7 @@ LocalStack emulates AWS APIs locally so integration tests can exercise real ECS,
    ```
 3. Start via Docker Compose:
    ```bash
-   /Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh start
+   ../../scripts/dev/setup_deps.sh start
    ```
 
 **Verification:**
@@ -139,7 +139,7 @@ Prometheus collects and queries time-series metrics from the agent.
 
 **Setup:**
 ```bash
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh start   # starts Prometheus on port 9090
+../../scripts/dev/setup_deps.sh start   # starts Prometheus on port 9090
 ```
 
 **Configuration:** The Prometheus config file lives at `infra/prometheus/prometheus.yml`. The Docker Compose file mounts this automatically.
@@ -156,7 +156,7 @@ Jaeger receives OTLP traces from the OTel Collector and provides distributed tra
 
 **Setup:**
 ```bash
-/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/dev/setup_deps.sh start   # starts Jaeger on port 16686
+../../scripts/dev/setup_deps.sh start   # starts Jaeger on port 16686
 ```
 
 **Ports:**
@@ -199,7 +199,7 @@ brew install k3d colima kubectl helm
 | `tests/integration/test_chaos_specs.py` | ✅ | ✅ | ❌ | ❌ |
 | `tests/integration/test_iam_specs.py` | ✅ | ✅ | ❌ | ❌ |
 | `tests/e2e/test_realworld_scenarios_e2e.py` | ❌ | ❌ | ❌ | ❌ |
-| `/Users/faizanhussain/Documents/Project/Practice/AiOps/scripts/demo/live_demo_*.py` | ❌ | ❌ | ✅ | ❌ |
+| `../../scripts/demo/live_demo_*.py` | ❌ | ❌ | ✅ | ❌ |
 
 ---
 
