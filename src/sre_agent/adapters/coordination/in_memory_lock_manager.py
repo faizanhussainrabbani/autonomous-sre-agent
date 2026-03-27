@@ -26,7 +26,7 @@ class InMemoryDistributedLockManager(DistributedLockManagerPort):
 
     async def acquire_lock(self, request: LockRequest) -> LockResult:
         lock_key = self._lock_key(request)
-        now = time.time()
+        now = time.monotonic()
         existing = self._locks.get(lock_key)
 
         if existing is not None and existing.expires_at <= now:
@@ -95,7 +95,7 @@ class InMemoryDistributedLockManager(DistributedLockManagerPort):
         agent_id: str,
         fencing_token: int,
     ) -> bool:
-        now = time.time()
+        now = time.monotonic()
         existing = self._locks.get(lock_key)
         if existing is None:
             return False

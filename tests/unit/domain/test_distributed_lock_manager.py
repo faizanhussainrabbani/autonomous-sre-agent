@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
 from sre_agent.domain.models.canonical import ComputeMechanism
@@ -86,3 +87,23 @@ async def test_release_lock_enforces_owner_and_token() -> None:
 
     assert released_wrong_owner is False
     assert released is True
+
+
+async def test_lock_manager_uses_monotonic_time_source() -> None:
+    manager = InMemoryDistributedLockManager()
+    real_monotonic = time.monotonic
+    base = real_monotonic()
+
+    original_monotonic = time.monotonic
+    try:
+        time.monotonic = lambda: base
+        first = await manager.acquire_lock(_request("sre-agent", priority=2, ttl_seconds=5))
+
+        time.monotonic = lambda: base + 6
+        second = await manager.acquire_lock(_request("finops-agent", priority=3, ttl_seconds=60))
+    finally:
+        time.monotonic = original_monotonic
+
+    assert first.granted is True
+    assert second.granted is True
+    assert second.holder_agent_id == "finops-agent"
