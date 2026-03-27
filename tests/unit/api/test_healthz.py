@@ -14,7 +14,6 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -130,3 +129,35 @@ def test_middleware_emits_request_log_events(client, capsys):
     assert "request_completed" in combined, (
         f"'request_completed' not found in stdout/stderr:\n{combined}"
     )
+
+
+def test_middleware_logs_standard_observability_fields(client, capsys):
+    """Request logs include core observability fields for correlation."""
+    client.get("/health")
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "component" in combined
+    assert "service" in combined
+    assert "client_ip" in combined
+
+
+def test_middleware_logs_request_failed_event_on_exception(capsys):
+    """Unhandled endpoint exceptions are logged with request_failed and return 500."""
+    from fastapi import APIRouter
+
+    from sre_agent.api.main import create_app
+
+    app = create_app()
+    router = APIRouter()
+
+    @router.get("/boom")
+    async def boom() -> dict[str, str]:
+        raise RuntimeError("boom")
+
+    app.include_router(router)
+    local_client = TestClient(app, raise_server_exceptions=False)
+    resp = local_client.get("/boom")
+    assert resp.status_code == 500
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "request_failed" in combined
