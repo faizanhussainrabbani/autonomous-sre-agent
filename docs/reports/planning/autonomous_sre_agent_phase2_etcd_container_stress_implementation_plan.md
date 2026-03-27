@@ -114,9 +114,9 @@ Planned new files:
 
 * `tests/integration/test_lock_contention_stress.py`
   * concurrent lock-contention stress tests for lock backend invariants
-* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_run_validation.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_etcd_container_stress_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_etcd_container_stress_run_validation.md`
 
 Planned changelog update:
 

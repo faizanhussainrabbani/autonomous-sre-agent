@@ -92,9 +92,9 @@ Planned new files:
 
 * `scripts/demo/live_demo_17_action_lock_orchestration.py`
 * `scripts/demo/live_demo_18_etcd_action_lock_flow.py`
-* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_run_validation.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_action_lock_live_demos_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_action_lock_live_demos_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_action_lock_live_demos_run_validation.md`
 
 Planned modified files:
 

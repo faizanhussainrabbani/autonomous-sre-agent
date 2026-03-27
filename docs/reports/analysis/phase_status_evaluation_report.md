@@ -46,7 +46,7 @@ gantt
 | **1.5** | Non-K8s Platforms | ✅ Complete | 100% | 8/8 task groups; AWS/Azure operators; resilience layer |
 | **2.1** | Observability | ✅ Complete | 100% | All 53 OBS tasks checked ✅ in `tasks.md` |
 | **2.2** | Token Optimization | ✅ Complete | 100% | CompressorPort, RerankerPort, cache, timeline filtering implemented |
-| **2.3** | AWS CloudWatch | ✅ Complete | 100% | 131/131 tests pass; [verification report](phase_2_3_verification_report.md) |
+| **2.3** | AWS CloudWatch | ✅ Complete | 100% | 131/131 tests pass; [verification report](../verification/phase_2_3_verification_report.md) |
 | **2.5** | Slow Response Detection | 🚧 In Progress | ~30% | Design + spec complete; implementation not started |
 | **2** | Intelligence Layer (Core) | 🚧 In Progress | ~65% | RAG pipeline, severity, confidence, validator exist; remediation + safety EMPTY |
 | **3** | Autonomous | ❌ Not Started | 0% | `domain/remediation/` and `domain/safety/` are empty directories |
@@ -57,11 +57,11 @@ gantt
 | Document | Key Finding |
 |---|---|
 | [roadmap.md](../../project/roadmap.md) | Defines 4 phases: Observe → Assist → Autonomous → Predictive |
-| [phase_2_preparation_guide.md](archive/phase_2_preparation_guide.md) | Confirms Phase 1 (100%) and Phase 1.5 (100%) complete as of Feb 2026 |
-| [phase_2_3_verification_report.md](phase_2_3_verification_report.md) | Phase 2.3 fully verified: 131/131 tests, 47 defects found and resolved |
+| [phase_2_preparation_guide.md](../archive/phase_2_preparation_guide.md) | Confirms Phase 1 (100%) and Phase 1.5 (100%) complete as of Feb 2026 |
+| [phase_2_3_verification_report.md](../verification/phase_2_3_verification_report.md) | Phase 2.3 fully verified: 131/131 tests, 47 defects found and resolved |
 | [phase_2_2_token_optimization_report.md](phase_2_2_token_optimization_report.md) | Phase 2.2 strategy and implementation documented |
-| [phase-2-1-observability tasks.md](../../openspec/changes/phase-2-1-observability/tasks.md) | All 53 OBS tasks marked ✅ |
-| [autonomous-sre-agent specs/](../../openspec/changes/autonomous-sre-agent/specs/) | 16 capability spec folders — baseline requirements |
+| [phase-2-1-observability tasks.md](../../../openspec/changes/phase-2-1-observability/tasks.md) | All 53 OBS tasks marked ✅ |
+| [autonomous-sre-agent specs/](../../../openspec/changes/autonomous-sre-agent/specs) | 16 capability spec folders — baseline requirements |
 
 ---
 
@@ -129,7 +129,7 @@ Phase 2 is a composite of multiple sub-phases. The Intelligence Layer core (RAG 
 
 #### Phase 2.1: Observability — ✅ 100%
 
-All 53 tasks in [tasks.md](../../openspec/changes/phase-2-1-observability/tasks.md) are marked ✅.
+All 53 tasks in [tasks.md](../../../openspec/changes/phase-2-1-observability/tasks.md) are marked ✅.
 
 | Capability | Status | Evidence |
 |---|---|---|
@@ -164,7 +164,7 @@ All 53 tasks in [tasks.md](../../openspec/changes/phase-2-1-observability/tasks.
 | Metric Polling Agent | ✅ | `domain/detection/polling_agent.py` (5.6K) |
 | Health Monitor | ✅ | `domain/detection/health_monitor.py` (7.5K) |
 | Events Router | ✅ | `api/rest/events_router.py` |
-| Verification | ✅ | [131/131 tests pass](phase_2_3_verification_report.md) |
+| Verification | ✅ | [131/131 tests pass](../verification/phase_2_3_verification_report.md) |
 
 #### Phase 2.5: Slow Response Detection — 🚧 ~30%
 
@@ -322,7 +322,7 @@ graph LR
 
 > **Why:** HITL approval flow for Sev 1-2 requires functional notification channels. Directories exist (`slack/`, `pagerduty/`, `jira/`) but are empty.
 
-**Concrete Deliverables:** As defined in [Phase 2.6 OpenSpec change](../../openspec/changes/phase-2-6-notification-integrations/tasks.md).
+**Concrete Deliverables:** As defined in [Phase 2.6 OpenSpec change](../../../openspec/changes/phase-2-6-notification-integrations/tasks.md).
 
 **Effort:** Medium — follows `NotificationPort` / `EscalationPort` pattern from Phase 2.6 design.
 
@@ -332,7 +332,7 @@ graph LR
 
 > **Why:** Design and spec are complete; implementation is the next step. Extends anomaly detection to cover latency degradation patterns across all compute platforms.
 
-**Concrete Deliverables:** As defined in [Phase 2.5 OpenSpec change](../../openspec/changes/phase-2-5-slow-response-detection/tasks.md).
+**Concrete Deliverables:** As defined in [Phase 2.5 OpenSpec change](../../../openspec/changes/phase-2-5-slow-response-detection/tasks.md).
 
 **Effort:** Medium — builds on existing anomaly detector infrastructure.
 
@@ -358,7 +358,7 @@ graph LR
 
 > **Why:** All competitors have dashboards. While not strictly required for Phase 2 graduation, it is critical for operator trust and confidence visualization.
 
-**Concrete Deliverables:** As defined in [Phase 2.7 OpenSpec change](../../openspec/changes/phase-2-7-operator-dashboard/tasks.md).
+**Concrete Deliverables:** As defined in [Phase 2.7 OpenSpec change](../../../openspec/changes/phase-2-7-operator-dashboard/tasks.md).
 
 **Effort:** Large — new frontend application.
 

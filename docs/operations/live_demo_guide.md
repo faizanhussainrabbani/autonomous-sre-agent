@@ -21,7 +21,7 @@ Validation scope for this revision:
 * All `../../scripts/demo/live_demo_*.py` scripts were executed in non-interactive mode (`SKIP_PAUSES=1`) with result capture
 * Full-suite validation completed with `TOTAL 25`, `PASS 25`, `FAIL 0`, `TIMEOUT 0`
 * Kubernetes Demo 12 was validated in both simulation mode and live `kubectl` mode
-* Results were cross-checked against `docs/reports/live_demo_verification_report.md`, `docs/reports/live_demo_review_report.md`, and `docs/operations/localstack_live_incident_demo.md`
+* Results were cross-checked against `docs/reports/verification/live_demo_verification_report.md`, `docs/reports/analysis/live_demo_review_report.md`, and `docs/operations/localstack_live_incident_demo.md`
 
 ## Demo inventory
 
@@ -324,15 +324,15 @@ Fix:
 ## Cross-reference alignment
 
 * Demo 7 behavior here matches script reality and recent runtime validation. The separate `localstack_live_incident_demo.md` document contains both Community and Pro-oriented instructions. For this guide, LocalStack requirement is based on services used by the script itself.
-* Validation outcomes align with `docs/reports/live_demo_verification_report.md` and expand it with explicit runtime caveats observed during full-suite execution.
-* Troubleshooting entries include issues highlighted in `docs/reports/live_demo_review_report.md` and issues observed during current execution.
+* Validation outcomes align with `docs/reports/verification/live_demo_verification_report.md` and expand it with explicit runtime caveats observed during full-suite execution.
+* Troubleshooting entries include issues highlighted in `docs/reports/analysis/live_demo_review_report.md` and issues observed during current execution.
 
 ## References
 
 * [Architecture overview](../architecture/architecture.md)
 * [LocalStack incident deep-dive](localstack_live_incident_demo.md)
-* [Live demo verification report](../reports/live_demo_verification_report.md)
-* [Live demo critical review](../reports/live_demo_review_report.md)
+* [Live demo verification report](../reports/verification/live_demo_verification_report.md)
+* [Live demo critical review](../reports/analysis/live_demo_review_report.md)
 * [LocalStack Pro guide](../testing/localstack_pro_guide.md)
 * [Incident taxonomy and severity model](../architecture/models/incident_taxonomy.md)
 * [Multi-agent coordination contract](../../AGENTS.md)

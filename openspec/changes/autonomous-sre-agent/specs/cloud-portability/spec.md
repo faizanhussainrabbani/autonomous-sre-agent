@@ -96,4 +96,4 @@ The system SHALL allow operators to configure the cloud provider and provider-sp
 
 > The following OpenSpec changes extend this capability with additional cloud providers:
 
-- **[Phase 3.2 — GCP Cloud Support](../../phase-3-2-gcp-support/specs/gcp-operator/spec.md)**: GKE workload remediation, Cloud Functions concurrency management, Cloud Run scaling, Google Secret Manager, and Cloud Storage integration. Extends tri-cloud coverage (AWS + Azure + GCP)
+- **[Phase 3.2 — GCP Cloud Support](../../../phase-3-2-gcp-support/specs/gcp-operator/spec.md)**: GKE workload remediation, Cloud Functions concurrency management, Cloud Run scaling, Google Secret Manager, and Cloud Storage integration. Extends tri-cloud coverage (AWS + Azure + GCP)

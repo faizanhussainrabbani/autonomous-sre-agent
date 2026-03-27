@@ -97,9 +97,9 @@ Planned new files:
 
 * `tests/e2e/test_phase2_action_lock_e2e.py`
 * `tests/e2e/test_phase2_etcd_action_lock_e2e.py`
-* `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_run_validation.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_e2e_action_lock_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_e2e_action_lock_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_e2e_action_lock_run_validation.md`
 
 Planned modified files:
 

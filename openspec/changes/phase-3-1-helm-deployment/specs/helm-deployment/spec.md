@@ -1,6 +1,6 @@
 ## ADDED Requirements — Phase 3.1 Helm Deployment
 
-> **Source:** [Competitively-Driven Roadmap](../../../../docs/project/roadmap_competitive_driven.md) — Item 7
+> **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Item 7
 > **Competitive Context:** Robusta deploys via Helm. Self-hosted deployment differentiates from SaaS-only competitors.
 
 ### Requirement: One-Command Deployment

@@ -9,7 +9,7 @@ status: APPROVED
 
 ## Traceability map
 
-Plan source: `docs/reports/documentation_restructure_execution_plan.md` version `1.1`
+Plan source: `docs/reports/planning/documentation_restructure_execution_plan.md` version `1.1`
 
 ## Acceptance criteria
 

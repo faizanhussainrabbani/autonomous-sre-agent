@@ -9,7 +9,7 @@ status: APPROVED
 
 ## Review scope
 
-Reviewed `docs/reports/documentation_restructure_execution_plan.md` against:
+Reviewed `docs/reports/planning/documentation_restructure_execution_plan.md` against:
 
 * `docs/project/standards/engineering_standards.md`
 * `docs/project/standards/FAANG_Documentation_Standards.md`

@@ -17,7 +17,7 @@ estimated_reading_time: 10
 
 Acceptance criteria source:
 
-* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
 
 Evidence commands:
 

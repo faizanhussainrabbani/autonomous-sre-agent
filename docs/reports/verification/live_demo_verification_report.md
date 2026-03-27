@@ -13,7 +13,7 @@ estimated_reading_time: 10
 
 ## Scope
 
-This report verifies implementation status against `docs/reports/live_demo_acceptance_criteria.md`.
+This report verifies implementation status against `docs/reports/acceptance-criteria/live_demo_acceptance_criteria.md`.
 
 ## Results by Acceptance Criterion
 

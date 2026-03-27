@@ -9,7 +9,7 @@ status: APPROVED
 
 ## Verification scope
 
-Acceptance criteria source: `docs/reports/documentation_restructure_acceptance_criteria.md`
+Acceptance criteria source: `docs/reports/acceptance-criteria/documentation_restructure_acceptance_criteria.md`
 
 ## Criteria results
 
@@ -78,8 +78,8 @@ Evidence:
 
 Evidence:
 
-* Step 5 report exists at `docs/reports/documentation_restructure_verification_report.md`
-* Step 6 run validation artifact exists at `docs/reports/documentation_restructure_run_validation.md`
+* Step 5 report exists at `docs/reports/verification/documentation_restructure_verification_report.md`
+* Step 6 run validation artifact exists at `docs/reports/validation/documentation_restructure_run_validation.md`
 
 ### AC-8: Changelog traceability
 

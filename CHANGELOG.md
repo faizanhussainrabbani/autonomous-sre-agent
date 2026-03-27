@@ -20,10 +20,10 @@ Introduces real-life live demos for newly implemented Phase 2 action-layer remed
 
 Execution artifacts:
 
-* Plan: `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_implementation_plan.md`
-* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_acceptance_criteria.md`
-* Verification Report: `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_verification_report.md`
-* Run Validation: `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_run_validation.md`
+* Plan: `docs/reports/planning/autonomous_sre_agent_phase2_action_lock_live_demos_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_action_lock_live_demos_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/autonomous_sre_agent_phase2_action_lock_live_demos_verification_report.md`
+* Run Validation: `docs/reports/validation/autonomous_sre_agent_phase2_action_lock_live_demos_run_validation.md`
 
 ### What changed and why
 
@@ -37,10 +37,10 @@ Execution artifacts:
 * `scripts/demo/live_demo_17_action_lock_orchestration.py`
 * `scripts/demo/live_demo_18_etcd_action_lock_flow.py`
 * `docs/operations/live_demo_guide.md`
-* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_implementation_plan.md`
-* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_run_validation.md`
+* `docs/reports/planning/autonomous_sre_agent_phase2_action_lock_live_demos_implementation_plan.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_action_lock_live_demos_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_action_lock_live_demos_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_action_lock_live_demos_run_validation.md`
 
 ## [2026-03-27] Autonomous SRE Agent Phase 2 E2E Action and Lock Validation Slice
 
@@ -48,10 +48,10 @@ Implements end-to-end tests validating integrated remediation execution, safety 
 
 Execution artifacts:
 
-* Plan: `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_implementation_plan.md`
-* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_acceptance_criteria.md`
-* Verification Report: `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_verification_report.md`
-* Run Validation: `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_run_validation.md`
+* Plan: `docs/reports/planning/autonomous_sre_agent_phase2_e2e_action_lock_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_e2e_action_lock_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/autonomous_sre_agent_phase2_e2e_action_lock_verification_report.md`
+* Run Validation: `docs/reports/validation/autonomous_sre_agent_phase2_e2e_action_lock_run_validation.md`
 
 ### What changed and why
 
@@ -64,10 +64,10 @@ Execution artifacts:
 
 * `tests/e2e/test_phase2_action_lock_e2e.py`
 * `tests/e2e/test_phase2_etcd_action_lock_e2e.py`
-* `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_implementation_plan.md`
-* `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_e2e_action_lock_run_validation.md`
+* `docs/reports/planning/autonomous_sre_agent_phase2_e2e_action_lock_implementation_plan.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_e2e_action_lock_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_e2e_action_lock_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_e2e_action_lock_run_validation.md`
 
 ## [2026-03-27] Autonomous SRE Agent Phase 2 Etcd Container Integration and Lock Stress Slice
 
@@ -75,10 +75,10 @@ Implements containerized external etcd integration coverage and lock-contention 
 
 Execution artifacts:
 
-* Plan: `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_implementation_plan.md`
-* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
-* Verification Report: `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_verification_report.md`
-* Run Validation: `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_run_validation.md`
+* Plan: `docs/reports/planning/autonomous_sre_agent_phase2_etcd_container_stress_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/autonomous_sre_agent_phase2_etcd_container_stress_verification_report.md`
+* Run Validation: `docs/reports/validation/autonomous_sre_agent_phase2_etcd_container_stress_run_validation.md`
 
 ### What changed and why
 
@@ -93,10 +93,10 @@ Execution artifacts:
 * `src/sre_agent/adapters/coordination/etcd_lock_manager.py`
 * `tests/integration/test_etcd_lock_manager_integration.py`
 * `tests/integration/test_lock_contention_stress.py`
-* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_implementation_plan.md`
-* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_run_validation.md`
+* `docs/reports/planning/autonomous_sre_agent_phase2_etcd_container_stress_implementation_plan.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_etcd_container_stress_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_etcd_container_stress_run_validation.md`
 
 ## [2026-03-26] Autonomous SRE Agent Phase 2 Redis and Etcd Lock Backend Slice
 
@@ -104,10 +104,10 @@ Implements production-oriented Redis and etcd lock manager backends behind the e
 
 Execution artifacts:
 
-* Plan: `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_implementation_plan.md`
-* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
-* Verification Report: `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_verification_report.md`
-* Run Validation: `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_run_validation.md`
+* Plan: `docs/reports/planning/autonomous_sre_agent_phase2_redis_etcd_lock_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/autonomous_sre_agent_phase2_redis_etcd_lock_verification_report.md`
+* Run Validation: `docs/reports/validation/autonomous_sre_agent_phase2_redis_etcd_lock_run_validation.md`
 
 ### What changed and why
 
@@ -129,10 +129,10 @@ Execution artifacts:
 * `tests/integration/test_etcd_lock_manager_integration.py`
 * `tests/unit/config/test_settings.py`
 * `tests/unit/adapters/test_bootstrap.py`
-* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_implementation_plan.md`
-* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_run_validation.md`
+* `docs/reports/planning/autonomous_sre_agent_phase2_redis_etcd_lock_implementation_plan.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_redis_etcd_lock_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_redis_etcd_lock_run_validation.md`
 
 ## [2026-03-26] Autonomous SRE Agent Phase 2 Lock Manager and Kubernetes Adapter Slice
 
@@ -140,10 +140,10 @@ Implements the next remediation execution slice by integrating distributed lock 
 
 Execution artifacts:
 
-* Plan: `docs/reports/autonomous_sre_agent_phase2_lock_k8s_implementation_plan.md`
-* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_lock_k8s_acceptance_criteria.md`
-* Verification Report: `docs/reports/autonomous_sre_agent_phase2_lock_k8s_verification_report.md`
-* Run Validation: `docs/reports/autonomous_sre_agent_phase2_lock_k8s_run_validation.md`
+* Plan: `docs/reports/planning/autonomous_sre_agent_phase2_lock_k8s_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_lock_k8s_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/autonomous_sre_agent_phase2_lock_k8s_verification_report.md`
+* Run Validation: `docs/reports/validation/autonomous_sre_agent_phase2_lock_k8s_run_validation.md`
 
 ### What changed and why
 
@@ -167,10 +167,10 @@ Execution artifacts:
 * `tests/unit/adapters/test_kubernetes_operator.py`
 * `tests/unit/domain/test_remediation_engine.py`
 * `tests/unit/adapters/test_bootstrap.py`
-* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_implementation_plan.md`
-* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_run_validation.md`
+* `docs/reports/planning/autonomous_sre_agent_phase2_lock_k8s_implementation_plan.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_lock_k8s_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_lock_k8s_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_lock_k8s_run_validation.md`
 
 ## [2026-03-26] Autonomous SRE Agent Phase 2 Core Implementation Start
 
@@ -178,10 +178,10 @@ Initial implementation of Phase 2 core capabilities based on OpenSpec requiremen
 
 Execution artifacts:
 
-* Plan: `docs/reports/autonomous_sre_agent_phase2_core_implementation_plan.md`
-* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_core_acceptance_criteria.md`
-* Verification Report: `docs/reports/autonomous_sre_agent_phase2_core_verification_report.md`
-* Run Validation: `docs/reports/autonomous_sre_agent_phase2_core_run_validation.md`
+* Plan: `docs/reports/planning/autonomous_sre_agent_phase2_core_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_core_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/autonomous_sre_agent_phase2_core_verification_report.md`
+* Run Validation: `docs/reports/validation/autonomous_sre_agent_phase2_core_run_validation.md`
 
 ### Added
 
@@ -251,11 +251,11 @@ Implements phased documentation restructuring from the approved critical review 
 
 Execution artifacts:
 
-* Plan: `docs/reports/documentation_restructure_execution_plan.md`
-* Plan compliance check: `docs/reports/documentation_restructure_plan_compliance_check.md`
-* Acceptance criteria: `docs/reports/documentation_restructure_acceptance_criteria.md`
-* Verification report: `docs/reports/documentation_restructure_verification_report.md`
-* Run validation: `docs/reports/documentation_restructure_run_validation.md`
+* Plan: `docs/reports/planning/documentation_restructure_execution_plan.md`
+* Plan compliance check: `docs/reports/compliance/documentation_restructure_plan_compliance_check.md`
+* Acceptance criteria: `docs/reports/acceptance-criteria/documentation_restructure_acceptance_criteria.md`
+* Verification report: `docs/reports/verification/documentation_restructure_verification_report.md`
+* Run validation: `docs/reports/validation/documentation_restructure_run_validation.md`
 
 ### What changed and why
 
@@ -305,20 +305,20 @@ Execution artifacts:
 * `docs/project/ADRs/004-remediation-safety-boundaries.md`
 * `docs/project/ADRs/005-multi-agent-priority-preemption.md`
 * `docs/project/glossary.md`
-* `docs/reports/documentation_restructure_execution_plan.md`
-* `docs/reports/documentation_restructure_plan_compliance_check.md`
-* `docs/reports/documentation_restructure_acceptance_criteria.md`
-* `docs/reports/documentation_restructure_verification_report.md`
-* `docs/reports/documentation_restructure_run_validation.md`
+* `docs/reports/planning/documentation_restructure_execution_plan.md`
+* `docs/reports/compliance/documentation_restructure_plan_compliance_check.md`
+* `docs/reports/acceptance-criteria/documentation_restructure_acceptance_criteria.md`
+* `docs/reports/verification/documentation_restructure_verification_report.md`
+* `docs/reports/validation/documentation_restructure_run_validation.md`
 
 ## [2026-03-18] Live Demo Findings Implementation
 
-Implements findings from `docs/reports/live_demo_review_report.md` using the execution framework artifacts:
+Implements findings from `docs/reports/analysis/live_demo_review_report.md` using the execution framework artifacts:
 
-* Plan: `docs/reports/live_demo_implementation_plan.md`
-* Acceptance Criteria: `docs/reports/live_demo_acceptance_criteria.md`
-* Verification: `docs/reports/live_demo_verification_report.md`
-* Run Validation: `docs/reports/live_demo_run_validation.md`
+* Plan: `docs/reports/planning/live_demo_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/live_demo_acceptance_criteria.md`
+* Verification: `docs/reports/verification/live_demo_verification_report.md`
+* Run Validation: `docs/reports/validation/live_demo_run_validation.md`
 
 ### What changed and why
 
@@ -342,11 +342,11 @@ Implements findings from `docs/reports/live_demo_review_report.md` using the exe
 ### Files affected
 
 * `docs/operations/live_demo_guide.md`
-* `docs/reports/live_demo_implementation_plan.md`
-* `docs/reports/live_demo_plan_compliance_check.md`
-* `docs/reports/live_demo_acceptance_criteria.md`
-* `docs/reports/live_demo_verification_report.md`
-* `docs/reports/live_demo_run_validation.md`
+* `docs/reports/planning/live_demo_implementation_plan.md`
+* `docs/reports/compliance/live_demo_plan_compliance_check.md`
+* `docs/reports/acceptance-criteria/live_demo_acceptance_criteria.md`
+* `docs/reports/verification/live_demo_verification_report.md`
+* `docs/reports/validation/live_demo_run_validation.md`
 * `scripts/_demo_utils.py`
 * `scripts/demo/live_demo_1_telemetry_baseline.py`
 * `scripts/demo/live_demo_localstack_aws.py`
@@ -366,9 +366,9 @@ Implements findings from `docs/reports/live_demo_review_report.md` using the exe
 ## [Phase 2.4] — LLM Integration Hardening (2026-03-17)
 
 Closes all 4 gaps identified in
-[`docs/reports/llm_integration_gap_analysis.md`](docs/reports/llm_integration_gap_analysis.md)
+[`docs/reports/analysis/llm_integration_gap_analysis.md`](docs/reports/analysis/llm_integration_gap_analysis.md)
 as specified in
-[`docs/reports/llm-integration-hardening-addendum.md`](docs/reports/llm-integration-hardening-addendum.md).
+[`docs/reports/analysis/llm-integration-hardening-addendum.md`](docs/reports/analysis/llm-integration-hardening-addendum.md).
 
 ### Changed
 
@@ -439,7 +439,7 @@ as specified in
 ## [Phase 2.3] — AWS Data Collection Improvements (2025-07-15)
 
 Implements all 10 improvement areas identified in the AWS Data Collection Review
-([`docs/reports/aws_data_collection_review.md`](docs/reports/aws_data_collection_review.md))
+([`docs/reports/analysis/aws_data_collection_review.md`](docs/reports/analysis/aws_data_collection_review.md))
 and specified in
 [`docs/operations/aws_data_collection_improvements.md`](docs/operations/aws_data_collection_improvements.md).
 Full task list and acceptance criteria are in
@@ -808,7 +808,7 @@ the fenced string always raised `JSONDecodeError`, causing `root_cause` to be
 
 ### Documentation
 
-- `docs/reports/live_demo_evaluation.md` — 12-stage pipeline evaluation table; 7 improvement
+- `docs/reports/analysis/live_demo_evaluation.md` — 12-stage pipeline evaluation table; 7 improvement
   areas; quantitative summary (7 KPIs); priority roadmap P0–P6
 - `docs/security/security_review.md` — hardcoded credential audit (PASS); 8 security findings
   SEC-001 through SEC-008
@@ -837,7 +837,7 @@ _See `openspec/changes/autonomous-sre-agent/specs/rag-diagnostics/spec.md` for f
 - **`docs/testing/localstack_pro_live_testing_plan.md`** — live testing plan covering Chaos API
   (CHX-001–005), Cloud Pods (POD-001–002), Ephemeral Instances (EPH-001–002), Advanced API
   (ADS-001–002), IAM enforcement (IAM-001–002)
-- **`docs/reports/observability_improvement_areas.md`** — full observability posture review;
+- **`docs/reports/analysis/observability_improvement_areas.md`** — full observability posture review;
   9 gaps across metrics/tracing/logging/SLO/dashboards/alerting; Phase 3 sprint plan
 
 ### Changed

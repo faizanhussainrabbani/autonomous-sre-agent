@@ -17,7 +17,7 @@ estimated_reading_time: 15
 Implements all 10 improvement areas from
 [aws_data_collection_improvements.md](../operations/aws_data_collection_improvements.md)
 aligned to the gaps identified in
-[aws_data_collection_review.md](../reports/aws_data_collection_review.md).
+[aws_data_collection_review.md](../reports/analysis/aws_data_collection_review.md).
 
 ## Task List
 

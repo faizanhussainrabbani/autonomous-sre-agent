@@ -1,7 +1,7 @@
 # Live Demo Suite — Comprehensive Critical Review
 
 **Date:** 2026-03-18  
-**Scope:** 11 `live_demo_*.py` scripts + [docs/operations/live_demo_guide.md](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/docs/operations/live_demo_guide.md)
+**Scope:** 11 `live_demo_*.py` scripts + [docs/operations/live_demo_guide.md](../../operations/live_demo_guide.md)
 
 ---
 
@@ -22,17 +22,17 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 
 | # | Script | Phase | LLM? | LocalStack? | Documented? |
 |---|--------|-------|------|-------------|-------------|
-| 1 | [live_demo_1_telemetry_baseline.py](../../scripts/demo/live_demo_1_telemetry_baseline.py) | 1 | ❌ | Community | ✅ |
-| 2 | [live_demo_cascade_failure.py](../../scripts/demo/live_demo_cascade_failure.py) | 2 | ✅ | ❌ | ❌ |
-| 3 | [live_demo_deployment_regression.py](../../scripts/demo/live_demo_deployment_regression.py) | 2 | ✅ | ❌ | ❌ |
-| 4 | [live_demo_localstack_aws.py](../../scripts/demo/live_demo_localstack_aws.py) | 1.5 | ❌ | Pro | ❌ |
-| 5 | [live_demo_http_server.py](../../scripts/demo/live_demo_http_server.py) | 2 | ✅ | ❌ | ❌ |
-| 6 | [live_demo_http_optimizations.py](../../scripts/demo/live_demo_http_optimizations.py) | 2.2 | ✅ | ❌ | ❌ |
-| 7 | [live_demo_localstack_incident.py](../../scripts/demo/live_demo_localstack_incident.py) | 2 | ✅ | Pro | ✅ |
-| 8 | [live_demo_ecs_multi_service.py](../../scripts/demo/live_demo_ecs_multi_service.py) | 2 | ✅ | Pro | ✅ |
-| 9 | [live_demo_cloudwatch_enrichment.py](../../scripts/demo/live_demo_cloudwatch_enrichment.py) | 2.3 | ❌ | Community | ✅ |
-| 10 | [live_demo_eventbridge_reaction.py](../../scripts/demo/live_demo_eventbridge_reaction.py) | 2.3 | ❌ | ❌ | ✅ |
-| 11 | [live_demo_11_azure_operations.py](../../scripts/demo/live_demo_11_azure_operations.py) | 1.5 | ❌ | ❌ | ✅ |
+| 1 | [live_demo_1_telemetry_baseline.py](../../../scripts/demo/live_demo_1_telemetry_baseline.py) | 1 | ❌ | Community | ✅ |
+| 2 | [live_demo_cascade_failure.py](../../../scripts/demo/live_demo_cascade_failure.py) | 2 | ✅ | ❌ | ❌ |
+| 3 | [live_demo_deployment_regression.py](../../../scripts/demo/live_demo_deployment_regression.py) | 2 | ✅ | ❌ | ❌ |
+| 4 | [live_demo_localstack_aws.py](../../../scripts/demo/live_demo_localstack_aws.py) | 1.5 | ❌ | Pro | ❌ |
+| 5 | [live_demo_http_server.py](../../../scripts/demo/live_demo_http_server.py) | 2 | ✅ | ❌ | ❌ |
+| 6 | [live_demo_http_optimizations.py](../../../scripts/demo/live_demo_http_optimizations.py) | 2.2 | ✅ | ❌ | ❌ |
+| 7 | [live_demo_localstack_incident.py](../../../scripts/demo/live_demo_localstack_incident.py) | 2 | ✅ | Pro | ✅ |
+| 8 | [live_demo_ecs_multi_service.py](../../../scripts/demo/live_demo_ecs_multi_service.py) | 2 | ✅ | Pro | ✅ |
+| 9 | [live_demo_cloudwatch_enrichment.py](../../../scripts/demo/live_demo_cloudwatch_enrichment.py) | 2.3 | ❌ | Community | ✅ |
+| 10 | [live_demo_eventbridge_reaction.py](../../../scripts/demo/live_demo_eventbridge_reaction.py) | 2.3 | ❌ | ❌ | ✅ |
+| 11 | [live_demo_11_azure_operations.py](../../../scripts/demo/live_demo_11_azure_operations.py) | 1.5 | ❌ | ❌ | ✅ |
 
 ### Feature Coverage Across Demos
 
@@ -99,7 +99,7 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 | LocalStack | ❌ Not used — runs entirely in-process |
 
 > [!WARNING]
-> This demo is **entirely undocumented** in [live_demo_guide.md](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/docs/operations/live_demo_guide.md). It's an excellent showcase of event isolation and Prometheus observability but invisible to new users.
+> This demo is **entirely undocumented** in [live_demo_guide.md](../../operations/live_demo_guide.md). It's an excellent showcase of event isolation and Prometheus observability but invisible to new users.
 
 ---
 
@@ -133,7 +133,7 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 | LocalStack | **Requires Pro** for ECS + ASG. Region: `us-east-1`. Good edition detection + fallback messaging |
 
 > [!WARNING]
-> The docstring says "Live Demo 4" but it's stored as [live_demo_localstack_aws.py](../../scripts/demo/live_demo_localstack_aws.py). The naming convention mismatch with [live_demo_1_telemetry_baseline.py](../../scripts/demo/live_demo_1_telemetry_baseline.py) and [live_demo_11_azure_operations.py](../../scripts/demo/live_demo_11_azure_operations.py) is confusing.
+> The docstring says "Live Demo 4" but it's stored as [live_demo_localstack_aws.py](../../../scripts/demo/live_demo_localstack_aws.py). The naming convention mismatch with [live_demo_1_telemetry_baseline.py](../../../scripts/demo/live_demo_1_telemetry_baseline.py) and [live_demo_11_azure_operations.py](../../../scripts/demo/live_demo_11_azure_operations.py) is confusing.
 
 ---
 
@@ -162,7 +162,7 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 |-----------|---------|
 | Feature Accuracy | ✅ Validates 4 optimizations: novel incident short-circuit, timeline filtering, lightweight validation, semantic caching |
 | Missing Gaps | Undocumented in guide despite being the **only demo** for Phase 2.2 |
-| Correctness | ⚠️ Act 3 ([act3_lightweight_validation](../../scripts/demo/live_demo_http_optimizations.py#218-234)) parses the audit trail as strings with `split(":")` — breaks if audit trail format changes to structured dicts (which Demo 7/8 already handle) |
+| Correctness | ⚠️ Act 3 ([act3_lightweight_validation](../../../scripts/demo/live_demo_http_optimizations.py#218-234)) parses the audit trail as strings with `split(":")` — breaks if audit trail format changes to structured dicts (which Demo 7/8 already handle) |
 | Redundancy | None — unique Phase 2.2 coverage |
 | LocalStack | ❌ Not used |
 
@@ -246,11 +246,11 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 | LocalStack | ❌ Not applicable — uses unittest mocks |
 
 > [!WARNING]
-> The mock assertions may not match the real Azure SDK call signatures. The `restart` method is asserted as `restart(resource_group, resource_id)` but the real `WebAppsOperations.restart()` takes [(resource_group_name, name)](../../scripts/demo/live_demo_cascade_failure.py#46-56) where `name` is the app name, not the full resource URI.
+> The mock assertions may not match the real Azure SDK call signatures. The `restart` method is asserted as `restart(resource_group, resource_id)` but the real `WebAppsOperations.restart()` takes [(resource_group_name, name)](../../../scripts/demo/live_demo_cascade_failure.py#46-56) where `name` is the app name, not the full resource URI.
 
 ---
 
-## Documentation Assessment: [live_demo_guide.md](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/docs/operations/live_demo_guide.md)
+## Documentation Assessment: [live_demo_guide.md](../../operations/live_demo_guide.md)
 
 ### Issues Found
 
@@ -276,7 +276,7 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 
 | # | Recommendation | Rationale |
 |---|----------------|-----------|
-| H1 | **Document Demos 2, 3, 4, 6 in [live_demo_guide.md](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/docs/operations/live_demo_guide.md)** | 5 demos are invisible to users. Demos 4 and 6 are particularly important (only operator demo, only token optimization demo) |
+| H1 | **Document Demos 2, 3, 4, 6 in [live_demo_guide.md](../../operations/live_demo_guide.md)** | 5 demos are invisible to users. Demos 4 and 6 are particularly important (only operator demo, only token optimization demo) |
 | H2 | **Fix the "Two fully-scripted demonstrations" stale copy** (line 23) | Actively misleading — the guide now covers 6 demos and should say so |
 | H3 | **Standardize LocalStack region** across all demos | Demos 1, 4, 9 use `us-east-1`; Demos 7, 8 use `eu-west-3`. Pick one and make it configurable via `AWS_DEFAULT_REGION` everywhere |
 | H4 | **Fix Demo 7's hardcoded `host.docker.internal`** | Demo 7 (line 518) hardcodes it whereas Demo 8 correctly uses `BRIDGE_HOST` env var. Demo 7 will fail on Linux native LocalStack |
@@ -327,7 +327,7 @@ The live demo suite is **substantial and well-engineered**, covering a diverse r
 
 1. **Cloud Pods:** No demo uses Cloud Pods for state management. Pre-seeding ECS/Lambda resources as a Cloud Pod snapshot would reduce Demos 7/8 setup from ~3 minutes to ~30 seconds.
 
-2. **Ephemeral Instances:** No demo uses testcontainers for ephemeral isolated containers. The integration tests use this pattern (per [localstack_pro_guide.md](file:///Users/faizanhussain/Documents/Project/Practice/AiOps/docs/testing/localstack_pro_guide.md)), but demos could benefit from it for CI isolation.
+2. **Ephemeral Instances:** No demo uses testcontainers for ephemeral isolated containers. The integration tests use this pattern (per [localstack_pro_guide.md](../../testing/localstack_pro_guide.md)), but demos could benefit from it for CI isolation.
 
 3. **Alarm manual triggering quirk:** Demos 7/8 correctly use `set_alarm_state()` to skip the CloudWatch evaluation window — this is well-handled.
 

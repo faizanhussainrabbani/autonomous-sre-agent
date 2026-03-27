@@ -145,9 +145,9 @@ Planned tests:
 
 Planned documentation artifacts:
 
-* `docs/reports/autonomous_sre_agent_phase2_core_implementation_plan.md` (this file)
-* `docs/reports/autonomous_sre_agent_phase2_core_acceptance_criteria.md` (Step 3)
-* `docs/reports/autonomous_sre_agent_phase2_core_verification_report.md` (Step 5)
+* `docs/reports/planning/autonomous_sre_agent_phase2_core_implementation_plan.md` (this file)
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_core_acceptance_criteria.md` (Step 3)
+* `docs/reports/verification/autonomous_sre_agent_phase2_core_verification_report.md` (Step 5)
 
 ## Execution Sequence
 

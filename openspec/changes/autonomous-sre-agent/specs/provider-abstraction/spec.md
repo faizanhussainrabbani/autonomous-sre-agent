@@ -88,4 +88,4 @@ The telemetry provider interface SHALL be designed as a plugin system, allowing 
 
 > The following OpenSpec changes extend this capability with concrete adapter implementations:
 
-- **[Phase 2.8 — Datadog Telemetry Adapter](../../phase-2-8-datadog-adapter/specs/datadog-adapter/spec.md)**: First proprietary backend adapter validating the plugin architecture. Implements MetricsQuery, TraceQuery, LogQuery, and DependencyGraphQuery for Datadog APIs
+- **[Phase 2.8 — Datadog Telemetry Adapter](../../../phase-2-8-datadog-adapter/specs/datadog-adapter/spec.md)**: First proprietary backend adapter validating the plugin architecture. Implements MetricsQuery, TraceQuery, LogQuery, and DependencyGraphQuery for Datadog APIs

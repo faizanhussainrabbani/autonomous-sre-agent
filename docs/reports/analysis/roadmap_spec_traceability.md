@@ -2,7 +2,7 @@
 
 **Purpose:** Maps each Q1–Q4 2026 competitively-driven roadmap item to its corresponding OpenSpec change, capability spec, and implementation status.
 
-**Source:** [Competitively-Driven Roadmap](../project/roadmap_competitive_driven.md) | [Competitive Analysis Report](../reports/competitive_analysis_report.md)
+**Source:** [Competitively-Driven Roadmap](../../project/roadmap_competitive_driven.md) | [Competitive Analysis Report](competitive_analysis_report.md)
 
 ---
 

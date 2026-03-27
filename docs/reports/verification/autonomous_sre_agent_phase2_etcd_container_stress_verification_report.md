@@ -17,7 +17,7 @@ estimated_reading_time: 9
 
 Acceptance criteria source:
 
-* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
 
 Evidence command executed:
 

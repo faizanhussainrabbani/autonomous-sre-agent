@@ -96,15 +96,15 @@ These four docs describe overlapping testing concerns without clear differentiat
 
 This is a detailed implementation strategy + execution doc for a specific phase initiative. Placing it under `docs/architecture/` implies it is architectural reference; it is actually a phase implementation report.
 
-**Action:** Move to `docs/reports/phase_2_2_token_optimization_report.md` and add a stub `docs/architecture/phase_2_2_token_optimization.md` that links to it.
+**Action:** Move to `docs/reports/analysis/phase_2_2_token_optimization_report.md` and add a stub `docs/architecture/phase_2_2_token_optimization.md` that links to it.
 
 #### H-4: Two Ad-Hoc Research Docs at Root Level
 
 `ai_agent_architecture_research.md` (215 lines) and `alignment_report.md` (72 lines) sit at the project root, breaking the rule that root-level markdown files are only project governance docs (README, CHANGELOG, CONTRIBUTING, AGENTS).
 
 **Action:** Move both to `docs/reports/`:
-- `ai_agent_architecture_research.md` → `docs/reports/ai_agent_architecture_research.md`
-- `alignment_report.md` → `docs/reports/alignment_report.md`
+- `ai_agent_architecture_research.md` → `docs/reports/analysis/ai_agent_architecture_research.md`
+- `alignment_report.md` → `docs/reports/analysis/alignment_report.md`
 
 Update all inbound links.
 
@@ -185,11 +185,11 @@ The ADR template document appears alongside actual ADRs (001, 002) in the same f
 
 **Action:** Rename to `docs/project/ADRs/_template.md` (underscore prefix) so it appears clearly as metadata rather than a decision.
 
-#### L-2: `docs/reports/documentation_review.md` (Jan 2025) Is Superseded
+#### L-2: `docs/reports/archive/documentation_review.md` (Jan 2025) Is Superseded
 
 The previous documentation review is now superseded by this document.
 
-**Action:** Move it to `docs/reports/archive/` after this plan is merged.
+**Action:** Keep it in `docs/reports/archive/` as superseded historical reference.
 
 #### L-3: `.specify/memory/` Docs Should Stay Internal
 
@@ -278,7 +278,7 @@ docs/
 - `docs/project/engineering_standards.md` — exact duplicate
 - `docs/project/FAANG_Documentation_Standards.md` — near-duplicate
 - `docs/testing/localstack_e2e_live_specs.md` — incomplete, never implemented
-- `docs/reports/phase_1_status.md` — 33-line stub with no content
+- `phase_1_status.md` (deleted stub) — 33-line stub with no content
 - `phases/` directory — retire in favor of `openspec/changes/`
 
 ---
@@ -291,7 +291,7 @@ docs/
 |---|---|---|---|
 | 1 | Delete `docs/project/engineering_standards.md` (exact duplicate) | Any | 5 min |
 | 2 | Delete `docs/project/FAANG_Documentation_Standards.md` (near-duplicate) | Any | 5 min |
-| 3 | Delete `docs/reports/phase_1_status.md` (empty stub) | Any | 5 min |
+| 3 | Delete `phase_1_status.md` (empty stub) | Any | 5 min |
 | 4 | Delete `docs/testing/localstack_e2e_live_specs.md` (never implemented) | Any | 5 min |
 | 5 | Move `ai_agent_architecture_research.md` → `docs/reports/` | Any | 10 min |
 | 6 | Move `alignment_report.md` → `docs/reports/` | Any | 10 min |
@@ -350,7 +350,7 @@ Add these rules to `CONTRIBUTING.md`:
 |---|---|
 | `docs/project/engineering_standards.md` | Exact byte-for-byte duplicate of `docs/project/standards/engineering_standards.md` |
 | `docs/project/FAANG_Documentation_Standards.md` | Near-duplicate of `docs/project/standards/FAANG_Documentation_Standards.md` |
-| `docs/reports/phase_1_status.md` | 33-line empty status stub; information is in CHANGELOG |
+| `phase_1_status.md` (deleted) | 33-line empty status stub; information is in CHANGELOG |
 | `docs/testing/localstack_e2e_live_specs.md` | 87 lines of incomplete BDD specs; never implemented |
 
 **Total immediate deletes: 4 files**
@@ -359,15 +359,15 @@ Add these rules to `CONTRIBUTING.md`:
 
 | From | To | Reason |
 |---|---|---|
-| `ai_agent_architecture_research.md` | `docs/reports/ai_agent_architecture_research.md` | Research reports don't belong at root |
-| `alignment_report.md` | `docs/reports/alignment_report.md` | Reports don't belong at root |
-| `docs/architecture/phase_2_2_token_optimization.md` | `docs/reports/phase_2_2_token_optimization_report.md` | Phase report, not architecture reference |
+| `ai_agent_architecture_research.md` | `docs/reports/analysis/ai_agent_architecture_research.md` | Research reports don't belong at root |
+| `alignment_report.md` | `docs/reports/analysis/alignment_report.md` | Reports don't belong at root |
+| `docs/architecture/phase_2_2_token_optimization.md` | `docs/reports/analysis/phase_2_2_token_optimization_report.md` | Phase report, not architecture reference |
 | `docs/project/phase_2_preparation_guide.md` | `docs/reports/archive/phase_2_preparation_guide.md` | Phase complete; archive |
-| `docs/reports/documentation_review.md` | `docs/reports/archive/documentation_review.md` | Superseded by this plan |
-| `docs/reports/implementation_progress.md` | `docs/reports/archive/implementation_progress.md` | Superseded by CHANGELOG |
-| `docs/reports/localstack_test_resolution.md` | `docs/reports/archive/localstack_test_resolution.md` | No longer actionable |
-| `docs/reports/phase_2_changelog.md` | `docs/reports/archive/phase_2_changelog.md` | Duplicates root CHANGELOG |
-| `docs/reports/improvement_areas_phase_1_5.md` | `docs/reports/archive/improvement_areas_phase_1_5.md` | Superseded by roadmap |
+| `docs/reports/archive/documentation_review.md` | `docs/reports/archive/documentation_review.md` | Superseded by this plan |
+| `docs/reports/archive/implementation_progress.md` | `docs/reports/archive/implementation_progress.md` | Superseded by CHANGELOG |
+| `docs/reports/archive/localstack_test_resolution.md` | `docs/reports/archive/localstack_test_resolution.md` | No longer actionable |
+| `docs/reports/archive/phase_2_changelog.md` | `docs/reports/archive/phase_2_changelog.md` | Duplicates root CHANGELOG |
+| `docs/reports/archive/improvement_areas_phase_1_5.md` | `docs/reports/archive/improvement_areas_phase_1_5.md` | Superseded by roadmap |
 | `docs/testing/e2e_testing_plan.md` | `docs/reports/archive/e2e_testing_plan.md` | Superseded by testing_strategy.md |
 | `docs/testing/localstack_pro_live_testing_plan.md` | `docs/reports/archive/localstack_pro_live_testing_plan.md` | Superseded by actual scripts |
 | `phases/phase-1-5-review.md` | `docs/reports/archive/phase_1_5_review.md` | Phase complete; archive |

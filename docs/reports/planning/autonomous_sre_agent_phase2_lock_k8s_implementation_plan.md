@@ -116,9 +116,9 @@ Planned new files:
 * `src/sre_agent/adapters/cloud/kubernetes/operator.py`
 * `tests/unit/adapters/test_kubernetes_operator.py`
 * `tests/unit/domain/test_distributed_lock_manager.py`
-* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_run_validation.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_lock_k8s_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_lock_k8s_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_lock_k8s_run_validation.md`
 
 Planned modified files:
 

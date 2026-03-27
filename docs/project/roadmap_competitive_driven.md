@@ -4,7 +4,7 @@
 **Version:** 1.0.0  
 **Author:** SRE Agent Engineering Team  
 **Last Updated:** 2026-03-25  
-**Source:** [Competitive Analysis Report](../reports/competitive_analysis_report.md)
+**Source:** [Competitive Analysis Report](../reports/analysis/competitive_analysis_report.md)
 
 ---
 
@@ -221,7 +221,7 @@ gantt
 
 ---
 
-*This roadmap should be reviewed monthly and adjusted based on competitive developments and customer feedback. Cross-reference with [Competitive Analysis Report](../reports/competitive_analysis_report.md) for detailed competitor context.*
+*This roadmap should be reviewed monthly and adjusted based on competitive developments and customer feedback. Cross-reference with [Competitive Analysis Report](../reports/analysis/competitive_analysis_report.md) for detailed competitor context.*
 
 ---
 

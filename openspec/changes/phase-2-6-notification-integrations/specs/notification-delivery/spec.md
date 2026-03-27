@@ -1,8 +1,8 @@
 ## ADDED Requirements — Phase 2.6 Notification Delivery
 
-> **Source:** [Competitively-Driven Roadmap](../../../../docs/project/roadmap_competitive_driven.md) — Items 2+3
+> **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Items 2+3
 > **Competitive Context:** Every competitor (PagerDuty, Rootly, BigPanda, Robusta) has deep Slack integration. PagerDuty on-call is the enterprise standard.
-> **Extends:** [notifications capability spec](../../autonomous-sre-agent/specs/notifications/spec.md)
+> **Extends:** [notifications capability spec](../../../autonomous-sre-agent/specs/notifications/spec.md)
 
 ### Requirement: Slack Notification Delivery Latency
 The system SHALL deliver Slack notifications within a latency target that ensures timely human response during incidents.

@@ -15,7 +15,7 @@ estimated_reading_time: 12
 
 ## Scope and Objectives
 
-Implement the findings documented in `docs/reports/live_demo_review_report.md` with prioritized delivery that preserves current demo behavior while improving completeness, portability, correctness, and maintainability.
+Implement the findings documented in `docs/reports/analysis/live_demo_review_report.md` with prioritized delivery that preserves current demo behavior while improving completeness, portability, correctness, and maintainability.
 
 Primary objectives:
 

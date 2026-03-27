@@ -13,7 +13,7 @@ estimated_reading_time: 8
 
 ## Scope
 
-This document defines pass/fail acceptance criteria for implementing findings from `docs/reports/live_demo_review_report.md`, mapped to `docs/reports/live_demo_implementation_plan.md`.
+This document defines pass/fail acceptance criteria for implementing findings from `docs/reports/analysis/live_demo_review_report.md`, mapped to `docs/reports/planning/live_demo_implementation_plan.md`.
 
 ## Traceability Matrix
 

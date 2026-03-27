@@ -332,7 +332,7 @@ The project integrates with LLMs and autonomous agent frameworks through several
 | `.claude/` | Houses Claude-specific **commands** for custom agent interactions within the Claude AI environment. |
 | `.specify/` | Contains **memory** (Agent Constitution, persistent context), **scripts**, and **templates** for the Spec Kit planning framework. |
 
-The **Agent Constitution** ([.specify/memory/constitution.md](file:///d:/Projects10P/autonomous-sre-agent/.specify/memory/constitution.md)) defines the fundamental rules and behavioral constraints the agent must follow — serving as the ethical and operational "North Star" for all autonomous decision-making.
+The **Agent Constitution** ([.specify/memory/constitution.md](.specify/memory/constitution.md)) defines the fundamental rules and behavioral constraints the agent must follow — serving as the ethical and operational "North Star" for all autonomous decision-making.
 
 ### 3.4 RAG Diagnostic Pipeline
 
@@ -393,7 +393,7 @@ scripts/dev/run.sh server --reload   # Dev mode with auto-reload
 
 ### 4.3 Configuration Management
 
-#### [config/agent.yaml](file:///d:/Projects10P/autonomous-sre-agent/config/agent.yaml) — Agent Configuration File
+#### [config/agent.yaml](config/agent.yaml) — Agent Configuration File
 
 The primary configuration file supports the following sections:
 
@@ -464,7 +464,7 @@ LOCALSTACK_ENDPOINT=http://localhost:4566
 TOKENIZERS_PARALLELISM=false
 ```
 
-#### Configuration Dataclasses (in [settings.py](file:///d:/Projects10P/autonomous-sre-agent/src/sre_agent/config/settings.py))
+#### Configuration Dataclasses (in [settings.py](src/sre_agent/config/settings.py))
 
 | Config Class | Fields | Description |
 |---|---|---|
@@ -509,7 +509,7 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "pytest-cov>=5.0", "ruff>=0.3", "m
 
 #### Before Writing Code
 
-1. Read the **Agent Constitution** ([.specify/memory/constitution.md](file:///d:/Projects10P/autonomous-sre-agent/.specify/memory/constitution.md))
+1. Read the **Agent Constitution** ([.specify/memory/constitution.md](.specify/memory/constitution.md))
 2. Read the **CONTRIBUTING.md** guide
 3. Check the relevant specs in `openspec/changes/autonomous-sre-agent/specs/`
 

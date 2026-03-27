@@ -1,8 +1,8 @@
 ## ADDED Requirements — Phase 3.2 GCP Support
 
-> **Source:** [Competitively-Driven Roadmap](../../../../docs/project/roadmap_competitive_driven.md) — Item 10
+> **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Item 10
 > **Competitive Context:** Datadog, Dynatrace, and Sedai support tri-cloud. GCP gap limits TAM.
-> **Extends:** [cloud-portability capability spec](../../autonomous-sre-agent/specs/cloud-portability/spec.md)
+> **Extends:** [cloud-portability capability spec](../../../autonomous-sre-agent/specs/cloud-portability/spec.md)
 
 ### Requirement: GKE Workload Remediation
 The system SHALL remediate GKE workloads using the standard Kubernetes API.

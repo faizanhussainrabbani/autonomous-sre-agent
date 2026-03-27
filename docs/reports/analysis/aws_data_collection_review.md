@@ -321,4 +321,4 @@ forwarding an alert, the bridge should call `GetMetricData` and `FilterLogEvents
 existing `MetricsQuery` and `LogQuery` ports, and a few lines of change in the bridge.
 
 The full improvement roadmap is detailed in
-[docs/operations/aws_data_collection_improvements.md](../operations/aws_data_collection_improvements.md).
+[docs/operations/aws_data_collection_improvements.md](../../operations/aws_data_collection_improvements.md).

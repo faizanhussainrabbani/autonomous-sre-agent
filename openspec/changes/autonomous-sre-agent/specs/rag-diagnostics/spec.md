@@ -93,7 +93,7 @@ The system SHALL implement the Intelligence Layer strictly through abstract Port
 
 ## ADDED Requirements — Production Hardening (Competitive Roadmap Item 1)
 
-> **Source:** [Competitively-Driven Roadmap](../../../../docs/project/roadmap_competitive_driven.md) — Item 1: Intelligence Layer Hardening
+> **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Item 1: Intelligence Layer Hardening
 > **Competitive Context:** Datadog (Bits AI), Dynatrace (Davis AI), and Robusta (HolmesGPT) all have production-grade AI diagnosis. The hardening requirements below ensure our Intelligence Layer achieves competitive parity on reliability and performance.
 
 ### Requirement: Diagnosis Latency SLO

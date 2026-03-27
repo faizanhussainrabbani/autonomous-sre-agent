@@ -2,7 +2,7 @@
 
 Phase 2 delivered a working Intelligence Layer: RAG diagnostic pipeline, LLM hypothesis generation and validation, ThrottledLLMAdapter, Event Bus wiring, and the Severity Override API. Live E2E testing against Anthropic Claude confirmed correct diagnosis output.
 
-However, post-run analysis (`docs/reports/observability_improvement_areas.md`) identified nine observability gaps. Phase 2.1 closes the seven gaps that can be implemented entirely in code (OBS-001, OBS-003, OBS-004, OBS-006, OBS-007, OBS-008, OBS-009). Two gaps (OBS-002 distributed tracing, OBS-005 Grafana dashboards) require infrastructure components not yet deployed and are deferred to Phase 3 sprint 2.
+However, post-run analysis (`docs/reports/analysis/observability_improvement_areas.md`) identified nine observability gaps. Phase 2.1 closes the seven gaps that can be implemented entirely in code (OBS-001, OBS-003, OBS-004, OBS-006, OBS-007, OBS-008, OBS-009). Two gaps (OBS-002 distributed tracing, OBS-005 Grafana dashboards) require infrastructure components not yet deployed and are deferred to Phase 3 sprint 2.
 
 ## Goals / Non-Goals
 

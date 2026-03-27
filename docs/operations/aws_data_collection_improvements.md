@@ -1,7 +1,7 @@
 # AWS Incident Data Collection — Improvement Areas
 
 **Date:** 2025-07-14\
-**Based on:** [aws_data_collection_review.md](../reports/aws_data_collection_review.md)\
+**Based on:** [aws_data_collection_review.md](../reports/analysis/aws_data_collection_review.md)\
 **Industry research:** Datadog, New Relic, and Sentry AWS integration patterns
 
 ---
@@ -647,7 +647,7 @@ aws_health:
 
 ## Reference: Related Documents
 
-- [Current state review](../reports/aws_data_collection_review.md)
+- [Current state review](../reports/analysis/aws_data_collection_review.md)
 - [AGENTS.md](../../AGENTS.md) — multi-agent coordination protocol
-- [Phase 1.5 status](../reports/phase_1_5_test_findings.md)
-- [Observability improvement areas](../reports/observability_improvement_areas.md)
+- [Phase 1.5 status](../reports/analysis/phase_1_5_test_findings.md)
+- [Observability improvement areas](../reports/analysis/observability_improvement_areas.md)

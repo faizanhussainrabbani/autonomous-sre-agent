@@ -64,5 +64,5 @@ The system SHALL allow operators to configure notification channels, routing rul
 
 > The following OpenSpec changes extend this capability with concrete implementations:
 
-- **[Phase 2.6 — Notification Integrations](../../phase-2-6-notification-integrations/specs/notification-delivery/spec.md)**: Slack/Teams/PagerDuty/OpsGenie adapter implementations with delivery latency SLOs and fallback resilience
-- **[Phase 3.3 — FinOps-Aware Remediation](../../phase-3-3-finops-remediation/specs/finops-enrichment/spec.md)**: Cost impact context added to HITL approval notifications
+- **[Phase 2.6 — Notification Integrations](../../../phase-2-6-notification-integrations/specs/notification-delivery/spec.md)**: Slack/Teams/PagerDuty/OpsGenie adapter implementations with delivery latency SLOs and fallback resilience
+- **[Phase 3.3 — FinOps-Aware Remediation](../../../phase-3-3-finops-remediation/specs/finops-enrichment/spec.md)**: Cost impact context added to HITL approval notifications

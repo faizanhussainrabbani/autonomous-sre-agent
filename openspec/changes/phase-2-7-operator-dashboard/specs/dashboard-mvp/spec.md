@@ -1,8 +1,8 @@
 ## ADDED Requirements — Phase 2.7 Dashboard MVP
 
-> **Source:** [Competitively-Driven Roadmap](../../../../docs/project/roadmap_competitive_driven.md) — Item 4
+> **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Item 4
 > **Competitive Context:** Datadog, Dynatrace, and Sedai all have polished operational dashboards. This is expected by all operator users.
-> **Extends:** [operator-dashboard capability spec](../../autonomous-sre-agent/specs/operator-dashboard/spec.md)
+> **Extends:** [operator-dashboard capability spec](../../../autonomous-sre-agent/specs/operator-dashboard/spec.md)
 
 ### Requirement: Dashboard Page Load Performance
 The dashboard SHALL load within a strict latency budget to ensure operator productivity.

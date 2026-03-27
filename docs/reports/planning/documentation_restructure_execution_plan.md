@@ -100,9 +100,9 @@ Primary objectives:
 * `docs/project/ADRs/003-coordination-backend-selection.md`
 * `docs/project/ADRs/004-remediation-safety-boundaries.md`
 * `docs/project/ADRs/005-multi-agent-priority-preemption.md`
-* `docs/reports/documentation_restructure_acceptance_criteria.md` (Step 3)
-* `docs/reports/documentation_restructure_verification_report.md` (Step 5)
-* `docs/reports/documentation_restructure_run_validation.md` (Step 6)
+* `docs/reports/acceptance-criteria/documentation_restructure_acceptance_criteria.md` (Step 3)
+* `docs/reports/verification/documentation_restructure_verification_report.md` (Step 5)
+* `docs/reports/validation/documentation_restructure_run_validation.md` (Step 6)
 
 ### Files to update
 
@@ -110,7 +110,7 @@ Primary objectives:
 * `docs/README.md`
 * `docs/project/glossary.md`
 * `CHANGELOG.md`
-* `docs/reports/documentation_optimization_critical_review.md` (link references if required)
+* `docs/reports/analysis/documentation_optimization_critical_review.md` (link references if required)
 
 ## Execution sequence and controls
 

@@ -15,7 +15,7 @@ estimated_reading_time: 9
 
 ## Verification Scope
 
-Acceptance criteria source: `docs/reports/autonomous_sre_agent_phase2_core_acceptance_criteria.md`
+Acceptance criteria source: `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_core_acceptance_criteria.md`
 
 Executed validation commands:
 

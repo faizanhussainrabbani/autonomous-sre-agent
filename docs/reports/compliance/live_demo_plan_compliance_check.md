@@ -13,7 +13,7 @@ estimated_reading_time: 4
 
 ## Scope
 
-This document records the Step 2 review of `docs/reports/live_demo_implementation_plan.md` against required standards.
+This document records the Step 2 review of `docs/reports/planning/live_demo_implementation_plan.md` against required standards.
 
 ## Standards Reviewed
 
@@ -35,6 +35,6 @@ The implementation plan is compliant after updates and approved to proceed to St
 
 ## Traceability
 
-* Plan: `docs/reports/live_demo_implementation_plan.md`
-* Acceptance Criteria (Step 3): `docs/reports/live_demo_acceptance_criteria.md`
-* Verification (Step 5): `docs/reports/live_demo_verification_report.md`
+* Plan: `docs/reports/planning/live_demo_implementation_plan.md`
+* Acceptance Criteria (Step 3): `docs/reports/acceptance-criteria/live_demo_acceptance_criteria.md`
+* Verification (Step 5): `docs/reports/verification/live_demo_verification_report.md`

@@ -120,9 +120,9 @@ Planned new files:
 * `src/sre_agent/adapters/coordination/etcd_lock_manager.py`
 * `tests/integration/test_redis_lock_manager_integration.py`
 * `tests/integration/test_etcd_lock_manager_integration.py`
-* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
-* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_verification_report.md`
-* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_run_validation.md`
+* `docs/reports/acceptance-criteria/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
+* `docs/reports/verification/autonomous_sre_agent_phase2_redis_etcd_lock_verification_report.md`
+* `docs/reports/validation/autonomous_sre_agent_phase2_redis_etcd_lock_run_validation.md`
 
 Planned modified files:
 

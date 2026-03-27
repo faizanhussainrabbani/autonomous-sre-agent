@@ -1,8 +1,8 @@
 ## ADDED Requirements — Phase 2.8 Datadog Adapter
 
-> **Source:** [Competitively-Driven Roadmap](../../../../docs/project/roadmap_competitive_driven.md) — Item 8
+> **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Item 8
 > **Competitive Context:** Many enterprises use Datadog for observability. This adapter enables adoption without telemetry stack migration.
-> **Extends:** [provider-abstraction capability spec](../../autonomous-sre-agent/specs/provider-abstraction/spec.md)
+> **Extends:** [provider-abstraction capability spec](../../../autonomous-sre-agent/specs/provider-abstraction/spec.md)
 
 ### Requirement: Datadog Metric Ingestion
 The system SHALL query and canonicalize Datadog metrics using the Datadog Metrics API v2.
