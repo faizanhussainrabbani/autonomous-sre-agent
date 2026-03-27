@@ -6,7 +6,6 @@ Tests Sev1/2 override halts pipeline, Sev3 no halt, override recording.
 
 from __future__ import annotations
 
-import pytest
 from uuid import uuid4
 
 from sre_agent.api.severity_override import SeverityOverrideService
@@ -68,3 +67,23 @@ class TestSeverityOverrideService:
     def test_no_override_returns_none(self):
         service = SeverityOverrideService()
         assert service.get_override(uuid4()) is None
+
+    def test_revoke_override_removes_and_returns_true(self):
+        service = SeverityOverrideService()
+        alert_id = uuid4()
+        service.apply_override(
+            alert_id=alert_id,
+            original_severity=Severity.SEV3,
+            override_severity=Severity.SEV1,
+            operator="ops-lead",
+        )
+
+        revoked = service.revoke_override(alert_id)
+
+        assert revoked is True
+        assert service.has_active_override(alert_id) is False
+        assert service.get_override(alert_id) is None
+
+    def test_revoke_nonexistent_override_returns_false(self):
+        service = SeverityOverrideService()
+        assert service.revoke_override(uuid4()) is False

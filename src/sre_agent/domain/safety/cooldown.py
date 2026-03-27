@@ -27,7 +27,7 @@ class CooldownEnforcer:
             provider=provider,
             namespace=namespace,
         )
-        self._cooldowns[key] = time.time() + ttl_seconds
+        self._cooldowns[key] = time.monotonic() + ttl_seconds
         return key
 
     def is_in_cooldown(
@@ -49,7 +49,7 @@ class CooldownEnforcer:
             return False, 0
         if requester_priority == 1:
             return False, 0
-        remaining = int(expiry - time.time())
+        remaining = int(expiry - time.monotonic())
         if remaining <= 0:
             self._cooldowns.pop(key, None)
             return False, 0

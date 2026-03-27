@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.domain.remediation.models import (
     ApprovalState,
@@ -54,7 +56,12 @@ async def test_kill_switch_blocks_guardrail() -> None:
 
 def test_cooldown_key_formats() -> None:
     enforcer = CooldownEnforcer()
-    k8s_key = enforcer.build_key("deployment/checkout", ComputeMechanism.KUBERNETES, "kubernetes", "prod")
+    k8s_key = enforcer.build_key(
+        "deployment/checkout",
+        ComputeMechanism.KUBERNETES,
+        "kubernetes",
+        "prod",
+    )
     aws_key = enforcer.build_key(
         "arn:aws:lambda:us-east-1:123:function:handler",
         ComputeMechanism.SERVERLESS,
@@ -63,6 +70,35 @@ def test_cooldown_key_formats() -> None:
     )
     assert k8s_key == "cooldown:prod:deployment:checkout"
     assert aws_key.startswith("cooldown:aws:SERVERLESS:")
+
+
+def test_cooldown_uses_monotonic_time_source() -> None:
+    enforcer = CooldownEnforcer()
+    real_monotonic = time.monotonic
+    base = real_monotonic()
+
+    original_monotonic = time.monotonic
+    try:
+        time.monotonic = lambda: base
+        enforcer.record_action(
+            resource_id="deployment/checkout",
+            compute_mechanism=ComputeMechanism.KUBERNETES,
+            provider="kubernetes",
+            namespace="prod",
+            ttl_seconds=10,
+        )
+        time.monotonic = lambda: base + 3
+        in_cooldown, remaining = enforcer.is_in_cooldown(
+            resource_id="deployment/checkout",
+            compute_mechanism=ComputeMechanism.KUBERNETES,
+            provider="kubernetes",
+            namespace="prod",
+        )
+    finally:
+        time.monotonic = original_monotonic
+
+    assert in_cooldown is True
+    assert remaining == 7
 
 
 def test_phase_gate_failure_and_pass() -> None:
