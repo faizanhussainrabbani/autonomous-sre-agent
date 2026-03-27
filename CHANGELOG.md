@@ -14,6 +14,182 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [2026-03-27] Autonomous SRE Agent Phase 2 Etcd Container Integration and Lock Stress Slice
+
+Implements containerized external etcd integration coverage and lock-contention stress tests under the existing lock manager port.
+
+Execution artifacts:
+
+* Plan: `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
+* Verification Report: `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_verification_report.md`
+* Run Validation: `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_run_validation.md`
+
+### What changed and why
+
+* Reworked etcd integration tests to run against an external containerized etcd backend with readiness checks and explicit skip controls.
+* Added lock-contention stress tests covering concurrent acquisition invariants and fencing-token progression.
+* Hardened etcd import compatibility under strict warning policy and optional dependency behavior.
+* Strengthened etcd adapter concurrency behavior by using transaction-based atomic create and compare-and-swap preemption logic.
+* Stabilized lease-expiry validation behavior with bounded polling for real etcd timing characteristics.
+
+### Files affected
+
+* `src/sre_agent/adapters/coordination/etcd_lock_manager.py`
+* `tests/integration/test_etcd_lock_manager_integration.py`
+* `tests/integration/test_lock_contention_stress.py`
+* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_implementation_plan.md`
+* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_acceptance_criteria.md`
+* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_verification_report.md`
+* `docs/reports/autonomous_sre_agent_phase2_etcd_container_stress_run_validation.md`
+
+## [2026-03-26] Autonomous SRE Agent Phase 2 Redis and Etcd Lock Backend Slice
+
+Implements production-oriented Redis and etcd lock manager backends behind the existing lock port with config-driven bootstrap selection and integration tests.
+
+Execution artifacts:
+
+* Plan: `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
+* Verification Report: `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_verification_report.md`
+* Run Validation: `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_run_validation.md`
+
+### What changed and why
+
+* Added `RedisDistributedLockManager` with priority-aware acquire or deny behavior, preemption support, TTL handling, and fencing token progression
+* Added `EtcdDistributedLockManager` with lease-backed lock records, priority-aware contention behavior, and ownership-safe release checks
+* Added lock backend configuration in `AgentConfig` for backend selection and endpoint settings
+* Added lock manager bootstrap selection for `in_memory`, `redis`, and `etcd`, including safe fallback behavior
+* Added integration tests for Redis and etcd lock flows plus unit coverage for lock config and bootstrap wiring
+
+### Files affected
+
+* `src/sre_agent/adapters/coordination/redis_lock_manager.py`
+* `src/sre_agent/adapters/coordination/etcd_lock_manager.py`
+* `src/sre_agent/adapters/coordination/__init__.py`
+* `src/sre_agent/config/settings.py`
+* `src/sre_agent/adapters/bootstrap.py`
+* `pyproject.toml`
+* `tests/integration/test_redis_lock_manager_integration.py`
+* `tests/integration/test_etcd_lock_manager_integration.py`
+* `tests/unit/config/test_settings.py`
+* `tests/unit/adapters/test_bootstrap.py`
+* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_implementation_plan.md`
+* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_acceptance_criteria.md`
+* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_verification_report.md`
+* `docs/reports/autonomous_sre_agent_phase2_redis_etcd_lock_run_validation.md`
+
+## [2026-03-26] Autonomous SRE Agent Phase 2 Lock Manager and Kubernetes Adapter Slice
+
+Implements the next remediation execution slice by integrating distributed lock coordination into remediation execution and adding a Kubernetes cloud operator adapter.
+
+Execution artifacts:
+
+* Plan: `docs/reports/autonomous_sre_agent_phase2_lock_k8s_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_lock_k8s_acceptance_criteria.md`
+* Verification Report: `docs/reports/autonomous_sre_agent_phase2_lock_k8s_verification_report.md`
+* Run Validation: `docs/reports/autonomous_sre_agent_phase2_lock_k8s_run_validation.md`
+
+### What changed and why
+
+* Added lock manager port and in-memory lock adapter to enforce mutual exclusion, priority-aware preemption, and fencing token issuance during remediation execution
+* Integrated remediation engine with lock acquire/release lifecycle and fencing token propagation to actions
+* Added Kubernetes remediation adapter implementing restart and scale operations through `CloudOperatorPort`
+* Updated bootstrap flow to register Kubernetes operator when Kubernetes client dependency is available
+* Added and updated unit tests for lock manager, Kubernetes operator, remediation engine lock integration, and bootstrap behavior
+
+### Files affected
+
+* `src/sre_agent/ports/lock_manager.py`
+* `src/sre_agent/ports/__init__.py`
+* `src/sre_agent/adapters/coordination/__init__.py`
+* `src/sre_agent/adapters/coordination/in_memory_lock_manager.py`
+* `src/sre_agent/adapters/cloud/kubernetes/__init__.py`
+* `src/sre_agent/adapters/cloud/kubernetes/operator.py`
+* `src/sre_agent/adapters/bootstrap.py`
+* `src/sre_agent/domain/remediation/engine.py`
+* `tests/unit/domain/test_distributed_lock_manager.py`
+* `tests/unit/adapters/test_kubernetes_operator.py`
+* `tests/unit/domain/test_remediation_engine.py`
+* `tests/unit/adapters/test_bootstrap.py`
+* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_implementation_plan.md`
+* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_acceptance_criteria.md`
+* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_verification_report.md`
+* `docs/reports/autonomous_sre_agent_phase2_lock_k8s_run_validation.md`
+
+## [2026-03-26] Autonomous SRE Agent Phase 2 Core Implementation Start
+
+Initial implementation of Phase 2 core capabilities based on OpenSpec requirements for remediation engine, safety guardrails, and RAG diagnostics hardening.
+
+Execution artifacts:
+
+* Plan: `docs/reports/autonomous_sre_agent_phase2_core_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_core_acceptance_criteria.md`
+* Verification Report: `docs/reports/autonomous_sre_agent_phase2_core_verification_report.md`
+* Run Validation: `docs/reports/autonomous_sre_agent_phase2_core_run_validation.md`
+
+### Added
+
+* `src/sre_agent/ports/remediation.py` — new remediation port abstraction
+* `src/sre_agent/domain/remediation/` package with:
+  * `models.py` (strategy, plan, action, result models)
+  * `strategies.py` (deterministic diagnosis-to-strategy mapping)
+  * `planner.py` (plan creation with confidence/severity approval routing)
+  * `verification.py` (post-remediation metric verification)
+  * `engine.py` (execution orchestration, cloud routing, canary sizing, cooldown write)
+* `src/sre_agent/domain/safety/` package with:
+  * `kill_switch.py`
+  * `blast_radius.py`
+  * `cooldown.py`
+  * `phase_gate.py`
+  * `guardrails.py`
+* New tests:
+  * `tests/unit/domain/test_remediation_models.py`
+  * `tests/unit/domain/test_remediation_planner.py`
+  * `tests/unit/domain/test_remediation_engine.py`
+  * `tests/unit/domain/test_safety_guardrails.py`
+  * `tests/unit/domain/test_rag_pipeline_hardening.py`
+
+### Changed
+
+* `src/sre_agent/ports/__init__.py` — exports `RemediationPort`
+* `src/sre_agent/domain/diagnostics/timeline.py` — added prompt-injection sanitization for untrusted telemetry text
+* `src/sre_agent/domain/diagnostics/rag_pipeline.py` — added stale-evidence freshness penalty before confidence scoring
+
+### Validation
+
+* `.venv/bin/pytest tests/unit/domain/test_remediation_models.py tests/unit/domain/test_remediation_planner.py tests/unit/domain/test_safety_guardrails.py tests/unit/domain/test_remediation_engine.py tests/unit/domain/test_rag_pipeline_hardening.py`
+* `.venv/bin/pytest tests/unit/domain/test_timeline_constructor.py tests/unit/domain/test_rag_pipeline.py`
+
+All listed tests passed.
+
+## [2026-03-26] Remediation Engine — Specification Gap Closure & Implementation Planning
+
+Completes specification readiness evaluation for the Remediation Engine (Phase 2 Core — Action Layer). Identified 12 specification gaps across 4 categories, updated BDD specs, created domain model specification, and generated implementation strategy and tasks.
+
+### Added
+
+- **BDD Specifications**: Expanded `remediation-engine/spec.md` from 7 to 30 scenarios covering strategy selection, multi-cloud routing, error handling, multi-agent coordination, severity routing, and audit trail
+- **BDD Specifications**: Expanded `safety-guardrails/spec.md` from 11 to 28 scenarios covering canary batch sizing formula, cooldown protocol enforcement, phase gate graduation criteria, and kill switch lifecycle
+- **Domain Model Specification**: Created `remediation_models.md` defining 8 data types, strategy selection matrix, and 11 new `EventTypes`
+- **Implementation Strategy**: Generated `plan.md` (speckit.plan) covering 14 new source files, 11 test files, and key design decisions
+- **Implementation Tasks**: Generated `tasks.md` (speckit.tasks) with 48 granular tasks across 9 phases
+
+### Changed
+
+- **`src/sre_agent/domain/models/canonical.py`** — Added 11 event type constants to `EventTypes`: 6 remediation events and 5 safety events
+
+### Files Affected
+
+- `openspec/changes/autonomous-sre-agent/specs/remediation-engine/spec.md`
+- `openspec/changes/autonomous-sre-agent/specs/remediation-engine/remediation_models.md` [NEW]
+- `openspec/changes/autonomous-sre-agent/specs/remediation-engine/plan.md` [NEW]
+- `openspec/changes/autonomous-sre-agent/specs/remediation-engine/tasks.md` [NEW]
+- `openspec/changes/autonomous-sre-agent/specs/safety-guardrails/spec.md`
+- `src/sre_agent/domain/models/canonical.py`
+
+---
+
 ## [2026-03-19] Documentation Restructure Framework Execution
 
 Implements phased documentation restructuring from the approved critical review using the required execution framework.

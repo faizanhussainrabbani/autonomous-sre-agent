@@ -13,7 +13,9 @@ from __future__ import annotations
 import structlog
 
 from sre_agent.config.plugin import ProviderPlugin, ProviderFactory
-from sre_agent.config.settings import AgentConfig
+from sre_agent.config.settings import AgentConfig, LockBackendType
+from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
+from sre_agent.ports.lock_manager import DistributedLockManagerPort
 from sre_agent.domain.detection.provider_registry import ProviderRegistry
 from sre_agent.ports.telemetry import TelemetryProvider
 
@@ -107,6 +109,17 @@ def bootstrap_cloud_operators(config: AgentConfig):
 
     registry = CloudOperatorRegistry()
 
+    # Kubernetes operator (requires kubernetes client)
+    try:
+        from kubernetes import client as _k8s_client  # noqa: F401
+
+        from sre_agent.adapters.cloud.kubernetes.operator import KubernetesOperator
+
+        registry.register(KubernetesOperator())
+        logger.info("kubernetes_operator_bootstrapped")
+    except ImportError:
+        logger.debug("kubernetes_operator_skipped", reason="kubernetes client not installed")
+
     # AWS operators (requires boto3)
     try:
         import boto3  # noqa: F401
@@ -141,3 +154,58 @@ def bootstrap_cloud_operators(config: AgentConfig):
         logger.debug("azure_operators_skipped", reason="azure-mgmt-web not installed")
 
     return registry
+
+
+def bootstrap_lock_manager(config: AgentConfig) -> DistributedLockManagerPort:
+    """Bootstrap lock manager backend based on configuration."""
+    backend = config.lock.backend
+
+    if backend == LockBackendType.REDIS:
+        try:
+            from sre_agent.adapters.coordination.redis_lock_manager import (
+                RedisDistributedLockManager,
+                RedisLockConfig,
+            )
+
+            lock_manager = RedisDistributedLockManager(
+                config=RedisLockConfig(
+                    url=config.lock.redis_url,
+                    key_prefix=config.lock.key_prefix,
+                )
+            )
+            logger.info("lock_manager_bootstrapped", backend="redis")
+            return lock_manager
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "lock_manager_backend_failed",
+                backend="redis",
+                error=str(exc),
+                fallback="in_memory",
+            )
+
+    if backend == LockBackendType.ETCD:
+        try:
+            from sre_agent.adapters.coordination.etcd_lock_manager import (
+                EtcdDistributedLockManager,
+                EtcdLockConfig,
+            )
+
+            lock_manager = EtcdDistributedLockManager(
+                config=EtcdLockConfig(
+                    host=config.lock.etcd_host,
+                    port=config.lock.etcd_port,
+                    key_prefix=config.lock.key_prefix,
+                )
+            )
+            logger.info("lock_manager_bootstrapped", backend="etcd")
+            return lock_manager
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "lock_manager_backend_failed",
+                backend="etcd",
+                error=str(exc),
+                fallback="in_memory",
+            )
+
+    logger.info("lock_manager_bootstrapped", backend="in_memory")
+    return InMemoryDistributedLockManager()

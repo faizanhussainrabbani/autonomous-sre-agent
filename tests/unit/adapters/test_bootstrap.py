@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from sre_agent.config.plugin import ProviderPlugin
+from sre_agent.config.settings import AgentConfig
+from sre_agent.domain.models.canonical import ComputeMechanism
 
 
 # ---------------------------------------------------------------------------
@@ -49,11 +51,76 @@ def test_bootstrap_cloud_operators_without_sdks():
 
     mock_config = MagicMock()
 
-    with patch.dict("sys.modules", {"boto3": None, "azure.mgmt.web": None, "azure.identity": None}):
+    with patch.dict(
+        "sys.modules",
+        {"boto3": None, "azure.mgmt.web": None, "azure.identity": None, "kubernetes": None},
+    ):
         registry = bootstrap_cloud_operators(mock_config)
         assert registry is not None
         # Registry should have no registered operators
         assert len(registry._operators) == 0
+
+
+def test_bootstrap_cloud_operators_registers_kubernetes_when_sdk_present():
+    """Kubernetes operator is registered when kubernetes module is importable."""
+    from sre_agent.adapters.bootstrap import bootstrap_cloud_operators
+
+    mock_config = MagicMock()
+
+    with patch.dict(
+        "sys.modules",
+        {
+            "kubernetes": MagicMock(),
+            "boto3": None,
+            "azure.mgmt.web": None,
+            "azure.identity": None,
+        },
+    ):
+        registry = bootstrap_cloud_operators(mock_config)
+
+    assert registry.get_operator("kubernetes", ComputeMechanism.KUBERNETES) is not None
+
+
+def test_bootstrap_lock_manager_redis_selected(monkeypatch):
+    from sre_agent.adapters.bootstrap import bootstrap_lock_manager
+    from sre_agent.config.settings import LockBackendType
+
+    class _FakeRedisLockManager:
+        def __init__(self, config=None):
+            self.config = config
+
+    class _FakeRedisLockConfig:
+        def __init__(self, url: str = "", key_prefix: str = ""):
+            self.url = url
+            self.key_prefix = key_prefix
+
+    module = MagicMock(
+        RedisDistributedLockManager=_FakeRedisLockManager,
+        RedisLockConfig=_FakeRedisLockConfig,
+    )
+    monkeypatch.setitem(__import__("sys").modules, "sre_agent.adapters.coordination.redis_lock_manager", module)
+
+    config = AgentConfig.from_dict({"lock": {"backend": LockBackendType.REDIS.value}})
+    lock_manager = bootstrap_lock_manager(config)
+
+    assert lock_manager.__class__.__name__ == "_FakeRedisLockManager"
+
+
+def test_bootstrap_lock_manager_falls_back_to_in_memory(monkeypatch):
+    from sre_agent.adapters.bootstrap import bootstrap_lock_manager
+    from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
+    from sre_agent.config.settings import LockBackendType
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "sre_agent.adapters.coordination.redis_lock_manager",
+        None,
+    )
+
+    config = AgentConfig.from_dict({"lock": {"backend": LockBackendType.REDIS.value}})
+    lock_manager = bootstrap_lock_manager(config)
+
+    assert isinstance(lock_manager, InMemoryDistributedLockManager)
 
 
 # ---------------------------------------------------------------------------

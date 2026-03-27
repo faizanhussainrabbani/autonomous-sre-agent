@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import time
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import structlog
 
@@ -66,6 +66,8 @@ logger = structlog.get_logger(__name__)
 
 # Minimum relevance score for a search result to be included as evidence
 _MIN_RELEVANCE_SCORE = 0.3
+_DOCUMENT_TTL_DAYS = 90
+_STALE_DOC_PENALTY_FACTOR = 0.5
 
 
 class RAGDiagnosticPipeline(DiagnosticPort):
@@ -182,6 +184,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 min_score=_MIN_RELEVANCE_SCORE,
             )
             search_results = await self._vector_store.search(search_query)
+            search_results = self._apply_freshness_penalty(search_results)
 
             logger.info(
                 "vector_search_complete",
@@ -227,9 +230,11 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                         source=rd.source,
                         score=rd.rerank_score,
                         doc_id=rd.doc_id,
+                        metadata=getattr(rd, "metadata", {}),
                     )
                     for rd in reranked
                 ]
+                search_results = self._apply_freshness_penalty(search_results)
                 audit.append(AuditEntry(
                     stage="retrieval",
                     action="evidence_reranked",
@@ -637,6 +642,31 @@ class RAGDiagnosticPipeline(DiagnosticPort):
 
         return result
 
+    def _apply_freshness_penalty(self, search_results: list) -> list:
+        from types import SimpleNamespace
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=_DOCUMENT_TTL_DAYS)
+        adjusted = []
+
+        for result in search_results:
+            metadata = getattr(result, "metadata", {}) or {}
+            score = float(getattr(result, "score", 0.0))
+            timestamp = _extract_timestamp(metadata)
+            if timestamp is not None and timestamp < cutoff:
+                score = max(0.0, score * _STALE_DOC_PENALTY_FACTOR)
+
+            adjusted.append(
+                SimpleNamespace(
+                    doc_id=getattr(result, "doc_id", ""),
+                    content=getattr(result, "content", ""),
+                    score=score,
+                    metadata=metadata,
+                    source=getattr(result, "source", ""),
+                ),
+            )
+
+        return adjusted
+
     @staticmethod
     def _render_audit_trail(audit: list[AuditEntry]) -> list[str]:
         """Render audit entries to a stable string format for API/test consumers."""
@@ -644,3 +674,18 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         for entry in audit:
             rendered.append(f"{entry.stage}:{entry.action}")
         return rendered
+
+
+def _extract_timestamp(metadata: dict[str, str]) -> datetime | None:
+    for key in ("last_validated_at", "updated_at", "created_at", "timestamp"):
+        if key not in metadata:
+            continue
+        value = metadata[key]
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except ValueError:
+            continue
+    return None

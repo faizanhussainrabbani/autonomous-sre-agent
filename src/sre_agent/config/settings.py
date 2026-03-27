@@ -36,6 +36,14 @@ class CloudProviderType(Enum):
     NONE = "none"  # Self-managed / no cloud provider
 
 
+class LockBackendType(Enum):
+    """Supported distributed lock backends."""
+
+    IN_MEMORY = "in_memory"
+    REDIS = "redis"
+    ETCD = "etcd"
+
+
 @dataclass
 class OTelConfig:
     """Configuration for the OTel/Prometheus/Jaeger/Loki adapter."""
@@ -103,6 +111,17 @@ class AzureConfig:
     managed_identity_client_id: str | None = None
 
 
+@dataclass
+class LockConfig:
+    """Distributed lock backend configuration."""
+
+    backend: LockBackendType = LockBackendType.IN_MEMORY
+    key_prefix: str = "sre-agent"
+    redis_url: str = "redis://localhost:6379/0"
+    etcd_host: str = "localhost"
+    etcd_port: int = 2379
+
+
 # DetectionConfig is domain-owned (§1.1 — domain never imports config)
 # Re-exported here so the config layer can populate it from YAML.
 from sre_agent.domain.models.detection_config import DetectionConfig  # noqa: F401, E402
@@ -156,6 +175,7 @@ class AgentConfig:
     cloudwatch: CloudWatchConfig = field(default_factory=CloudWatchConfig)
     enrichment: EnrichmentConfig = field(default_factory=EnrichmentConfig)
     aws_health: AWSHealthConfig = field(default_factory=AWSHealthConfig)
+    lock: LockConfig = field(default_factory=LockConfig)
 
     # Detection & performance
     detection: DetectionConfig = field(default_factory=DetectionConfig)
@@ -207,6 +227,11 @@ class AgentConfig:
             config.azure = AzureConfig(**data["azure"])
         if "cloudwatch" in data:
             config.cloudwatch = CloudWatchConfig(**data["cloudwatch"])
+        if "lock" in data:
+            raw_lock = dict(data["lock"])
+            if "backend" in raw_lock:
+                raw_lock["backend"] = LockBackendType(raw_lock["backend"])
+            config.lock = LockConfig(**raw_lock)
         if "enrichment" in data:
             config.enrichment = EnrichmentConfig(**data["enrichment"])
         if "aws_health" in data:
@@ -258,5 +283,13 @@ class AgentConfig:
                 errors.append("Azure: resource_group is required")
             if not self.azure.aks_cluster_name:
                 errors.append("Azure: aks_cluster_name is required")
+
+        if self.lock.backend == LockBackendType.REDIS and not self.lock.redis_url:
+            errors.append("Lock: redis_url is required for redis backend")
+        if self.lock.backend == LockBackendType.ETCD:
+            if not self.lock.etcd_host:
+                errors.append("Lock: etcd_host is required for etcd backend")
+            if self.lock.etcd_port <= 0:
+                errors.append("Lock: etcd_port must be a positive integer")
 
         return errors

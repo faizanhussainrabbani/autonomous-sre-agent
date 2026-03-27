@@ -57,3 +57,12 @@ The system SHALL allow operators to configure notification channels, routing rul
 - **WHEN** a configured notification channel becomes unhealthy (API errors, timeout)
 - **THEN** the system SHALL generate an internal alert to the platform operations team
 - **AND** automatically activate the fallback channel
+
+---
+
+## Cross-References — Extended by OpenSpec Changes
+
+> The following OpenSpec changes extend this capability with concrete implementations:
+
+- **[Phase 2.6 — Notification Integrations](../../phase-2-6-notification-integrations/specs/notification-delivery/spec.md)**: Slack/Teams/PagerDuty/OpsGenie adapter implementations with delivery latency SLOs and fallback resilience
+- **[Phase 3.3 — FinOps-Aware Remediation](../../phase-3-3-finops-remediation/specs/finops-enrichment/spec.md)**: Cost impact context added to HITL approval notifications

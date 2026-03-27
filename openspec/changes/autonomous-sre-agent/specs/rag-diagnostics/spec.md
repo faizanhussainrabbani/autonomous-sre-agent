@@ -88,3 +88,72 @@ The system SHALL implement the Intelligence Layer strictly through abstract Port
 - **WHEN** the system orchestrates the RAG diagnostic pipeline
 - **THEN** it SHALL rely exclusively on abstract ports (`DiagnosticPort`, `VectorStorePort`, `LLMReasoningPort`)
 - **AND** the concrete adapters (e.g., ChromaDB, OpenAI, Anthropic, Pinescone) SHALL be injected at runtime via the bootstrap configuration
+
+---
+
+## ADDED Requirements — Production Hardening (Competitive Roadmap Item 1)
+
+> **Source:** [Competitively-Driven Roadmap](../../../../docs/project/roadmap_competitive_driven.md) — Item 1: Intelligence Layer Hardening
+> **Competitive Context:** Datadog (Bits AI), Dynatrace (Davis AI), and Robusta (HolmesGPT) all have production-grade AI diagnosis. The hardening requirements below ensure our Intelligence Layer achieves competitive parity on reliability and performance.
+
+### Requirement: Diagnosis Latency SLO
+The system SHALL meet a P99 diagnosis latency target to ensure competitive parity with commercial AIOps platforms.
+
+#### Scenario: P99 diagnosis latency under SLO
+- **GIVEN** the RAG diagnostic pipeline is processing a Sev 3-4 incident
+- **WHEN** diagnosis completes
+- **THEN** end-to-end latency (from alert receipt to diagnosis output) SHALL be <30 seconds at P99
+- **AND** `DIAGNOSIS_DURATION` Prometheus histogram SHALL be observed for every diagnosis
+
+#### Scenario: Latency degradation detection
+- **GIVEN** rolling P99 diagnosis latency exceeds 30 seconds for 2 consecutive minutes
+- **WHEN** Prometheus alert rule evaluates
+- **THEN** `DiagnosisLatencySLOBreach` alert SHALL fire
+- **AND** the system SHALL log a warning with `latency_p99`, `active_queue_depth`, and `llm_provider`
+
+### Requirement: Diagnostic Accuracy SLO
+The system SHALL achieve a minimum diagnostic accuracy target over a rolling evaluation window, measured against human-validated outcomes.
+
+#### Scenario: Accuracy meets graduation threshold
+- **GIVEN** the system has processed ≥50 incidents in the evaluation window
+- **WHEN** comparing agent diagnosis against human-validated root cause
+- **THEN** agreement rate SHALL be ≥90%
+- **AND** accuracy SHALL be tracked per anomaly category (OOM, latency spike, error surge, deployment regression, cert expiry)
+
+#### Scenario: Accuracy drops below threshold
+- **GIVEN** rolling accuracy drops below 85% over 7 days
+- **WHEN** evaluated by the graduation gate
+- **THEN** the system SHALL NOT graduate from Observe → Assist (or Assist → Autonomous)
+- **AND** an internal alert SHALL fire recommending RAG knowledge base review
+
+### Requirement: Concurrent Diagnosis Stability
+The system SHALL handle concurrent diagnosis requests without crashes, deadlocks, or resource exhaustion.
+
+#### Scenario: Concurrent diagnosis load
+- **GIVEN** 10 concurrent diagnosis requests arrive within 5 seconds
+- **WHEN** all requests are processed
+- **THEN** all 10 SHALL complete without error or crash
+- **AND** no request SHALL exceed 3× the median single-request latency
+
+#### Scenario: Memory pressure under sustained load
+- **GIVEN** sustained diagnosis load of 5 requests/minute for 30 minutes
+- **WHEN** agent memory usage is monitored
+- **THEN** memory SHALL not grow unboundedly (no memory leak)
+- **AND** agent memory SHALL remain within the 4–8 GB resource budget
+
+### Requirement: Graceful Degradation on LLM Failure
+The system SHALL degrade gracefully when the LLM provider is unavailable, falling back to rule-based severity assignment rather than halting entirely.
+
+#### Scenario: LLM timeout triggers fallback
+- **GIVEN** the LLM provider fails to respond within the configured SLA (30s)
+- **WHEN** retries are exhausted
+- **THEN** the system SHALL assign severity based on rule-based heuristics (anomaly type + service tier)
+- **AND** mark the diagnosis as `degraded_mode=true` and `confidence=low`
+- **AND** escalate to a human responder with available telemetry context
+
+#### Scenario: Vector store unavailable
+- **GIVEN** the vector store is unreachable (connection refused, timeout)
+- **WHEN** a diagnosis is requested
+- **THEN** the system SHALL skip RAG evidence retrieval
+- **AND** proceed with LLM reasoning using only real-time telemetry context (no historical evidence)
+- **AND** mark the diagnosis as `rag_available=false` and reduce confidence score accordingly

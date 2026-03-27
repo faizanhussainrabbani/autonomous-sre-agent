@@ -17,6 +17,7 @@ from sre_agent.config.settings import (
     AzureConfig,
     CloudProviderType,
     FeatureFlags,
+    LockBackendType,
     NewRelicConfig,
     OTelConfig,
     PerformanceConfig,
@@ -151,3 +152,41 @@ def test_validate_azure_valid():
     )
     errors = config.validate()
     assert len(errors) == 0
+
+
+def test_from_dict_lock_backend_parsing():
+    config = AgentConfig.from_dict(
+        {
+            "lock": {
+                "backend": "redis",
+                "redis_url": "redis://redis:6379/1",
+                "key_prefix": "custom-prefix",
+            }
+        }
+    )
+
+    assert config.lock.backend == LockBackendType.REDIS
+    assert config.lock.redis_url == "redis://redis:6379/1"
+    assert config.lock.key_prefix == "custom-prefix"
+
+
+def test_validate_lock_backend_redis_missing_url():
+    config = AgentConfig.from_dict({"lock": {"backend": "redis", "redis_url": ""}})
+    errors = config.validate()
+
+    assert any("redis_url" in error for error in errors)
+
+
+def test_validate_lock_backend_etcd_invalid_port():
+    config = AgentConfig.from_dict(
+        {
+            "lock": {
+                "backend": "etcd",
+                "etcd_host": "etcd.local",
+                "etcd_port": 0,
+            }
+        }
+    )
+    errors = config.validate()
+
+    assert any("etcd_port" in error for error in errors)

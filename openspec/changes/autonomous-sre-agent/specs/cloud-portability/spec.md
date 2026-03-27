@@ -89,3 +89,11 @@ The system SHALL allow operators to configure the cloud provider and provider-sp
 - **WHEN** the cloud provider is set to "none" or omitted
 - **THEN** the system SHALL operate using only Kubernetes-native resources and the configured secrets/storage providers
 - **AND** log a warning that cloud-specific features (managed identity, cloud storage encryption) are unavailable
+
+---
+
+## Cross-References — Extended by OpenSpec Changes
+
+> The following OpenSpec changes extend this capability with additional cloud providers:
+
+- **[Phase 3.2 — GCP Cloud Support](../../phase-3-2-gcp-support/specs/gcp-operator/spec.md)**: GKE workload remediation, Cloud Functions concurrency management, Cloud Run scaling, Google Secret Manager, and Cloud Storage integration. Extends tri-cloud coverage (AWS + Azure + GCP)

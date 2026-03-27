@@ -13,6 +13,7 @@ Phase 2.2: Token Optimization — Smart Timeline Filtering
 from __future__ import annotations
 
 from datetime import datetime
+import re
 
 from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
@@ -46,6 +47,21 @@ SIGNAL_RELEVANCE: dict[str, set[str]] = {
     },
 }
 
+_INJECTION_PATTERNS = [
+    re.compile(r"ignore\s+previous\s+instructions", re.IGNORECASE),
+    re.compile(r"disregard\s+all\s+prior", re.IGNORECASE),
+    re.compile(r"system\s*prompt", re.IGNORECASE),
+    re.compile(r"reveal\s+secret", re.IGNORECASE),
+]
+
+
+def sanitize_prompt_text(value: str) -> str:
+    """Neutralize common prompt-injection phrases in untrusted telemetry text."""
+    sanitized = value
+    for pattern in _INJECTION_PATTERNS:
+        sanitized = pattern.sub("[redacted-injection-pattern]", sanitized)
+    return sanitized
+
 
 class TimelineConstructor:
     """Assembles correlated signals into a chronological timeline string."""
@@ -78,16 +94,18 @@ class TimelineConstructor:
 
         # Logs
         for log in signals.logs:
+            safe_message = sanitize_prompt_text(log.message)
             entries.append((
                 log.timestamp,
-                f"[LOG:{log.severity}] {log.message} (service={log.labels.service})",
+                f"[LOG:{log.severity}] {safe_message} (service={log.labels.service})",
             ))
 
         # Events
         for evt in signals.events:
+            safe_metadata = sanitize_prompt_text(str(evt.metadata))
             entries.append((
                 evt.timestamp,
-                f"[EVENT:{evt.event_type}] source={evt.source} {evt.metadata}",
+                f"[EVENT:{evt.event_type}] source={evt.source} {safe_metadata}",
             ))
 
         # Traces (use root span if available)
@@ -144,14 +162,16 @@ class TimelineConstructor:
                 f"[METRIC] {m.name}={m.value:.4f} (service={m.labels.service})",
             ))
         for log in signals.logs:
+            safe_message = sanitize_prompt_text(log.message)
             entries.append((
                 log.timestamp,
-                f"[LOG:{log.severity}] {log.message} (service={log.labels.service})",
+                f"[LOG:{log.severity}] {safe_message} (service={log.labels.service})",
             ))
         for evt in signals.events:
+            safe_metadata = sanitize_prompt_text(str(evt.metadata))
             entries.append((
                 evt.timestamp,
-                f"[EVENT:{evt.event_type}] source={evt.source} {evt.metadata}",
+                f"[EVENT:{evt.event_type}] source={evt.source} {safe_metadata}",
             ))
         for trace in signals.traces:
             root = trace.root_span

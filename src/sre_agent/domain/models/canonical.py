@@ -401,3 +401,18 @@ class EventTypes:
     DIAGNOSIS_GENERATED = "diagnosis.generated"
     SECOND_OPINION_COMPLETED = "second_opinion.completed"
     SEVERITY_ASSIGNED = "severity.assigned"
+
+    # Phase 2 — Remediation layer (remediation-engine/spec.md §Audit Trail)
+    REMEDIATION_PLANNED = "remediation.planned"
+    REMEDIATION_APPROVED = "remediation.approved"
+    REMEDIATION_STARTED = "remediation.started"
+    REMEDIATION_COMPLETED = "remediation.completed"
+    REMEDIATION_FAILED = "remediation.failed"
+    REMEDIATION_ROLLED_BACK = "remediation.rolled_back"
+
+    # Phase 2 — Safety layer (safety-guardrails/spec.md)
+    KILL_SWITCH_ACTIVATED = "kill_switch.activated"
+    KILL_SWITCH_DEACTIVATED = "kill_switch.deactivated"
+    BLAST_RADIUS_EXCEEDED = "blast_radius.exceeded"
+    COOLDOWN_ENFORCED = "cooldown.enforced"
+    PHASE_GATE_EVALUATED = "phase_gate.evaluated"
