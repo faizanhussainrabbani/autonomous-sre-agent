@@ -3,7 +3,7 @@
 **Status:** DRAFT  
 **Version:** 1.0.0  
 **Author:** SRE Agent Engineering Team  
-**Last Updated:** 2026-03-25  
+**Last Updated:** 2026-03-27  
 
 ---
 
@@ -421,6 +421,27 @@ Effort: S = Small (<2 weeks), M = Medium (2-6 weeks), L = Large (6+ weeks)
 
 ---
 
+## March 27 Milestone Mirror (Companion Status Sync)
+
+This section mirrors the corrected implementation status in `docs/reports/analysis/phase_status_evaluation_report.md` and `docs/project/roadmap_competitive_driven.md`.
+
+| Milestone | Status (2026-03-27) | Evidence Anchor |
+|---|---|---|
+| Intelligence layer core | ✅ Implemented, hardening ongoing | `domain/diagnostics/*` + verification streams |
+| Core remediation engine | ✅ Implemented | `domain/remediation/engine.py`, `planner.py` |
+| Core safety guardrails | ✅ Implemented | `domain/safety/*` |
+| Distributed lock backends | ✅ Implemented | `adapters/coordination/*` |
+| Kubernetes operator path | ✅ Implemented | `adapters/cloud/kubernetes/operator.py` |
+| Notification adapters | ❌ Not implemented | `adapters/notifications/slack/`, `pagerduty/`, `jira/` empty |
+| GitOps adapters | ❌ Not implemented | `adapters/gitops/` empty |
+| Slow response detection (2.5) | 🚧 In progress | design/spec/tasks complete, implementation pending |
+| Dashboard MVP (2.7) | ❌ Planned | no runtime UI implementation yet |
+
+> [!IMPORTANT]
+> Competitive positioning should treat action-layer safety and coordination as implemented core primitives, while tracking notifications, GitOps, and dashboard as the active execution gap for Phase 2 closeout.
+
+---
+
 ## Sources
 
 | Source | Type | URL / Reference |
@@ -468,6 +489,7 @@ Effort: S = Small (<2 weeks), M = Medium (2-6 weeks), L = Large (6+ weeks)
 |---|---|---|---|
 | COMP-P1-001 | Positioning Narrative | “First-mover advantage” stated as definitive without runtime completion caveat | Updated to “early design lead” with implementation dependency |
 | COMP-P1-002 | Compliance Narrative | Compliance posture language mixed design intent and verified operational evidence | Reframed as compliance direction and called for capability-level evidence tracking |
+| COMP-P1-003 | Milestone Drift | Competitive narrative lagged newly completed Phase 2 action-layer milestones | Added March 27 milestone mirror to align status across strategy docs |
 
 ### P2 — Medium (Quality Improvement)
 

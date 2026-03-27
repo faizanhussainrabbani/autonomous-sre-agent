@@ -3,7 +3,7 @@
 **Status:** DRAFT  
 **Version:** 1.0.0  
 **Author:** SRE Agent Engineering Team  
-**Last Updated:** 2026-03-25  
+**Last Updated:** 2026-03-27  
 **Source:** [Competitive Analysis Report](../reports/analysis/competitive_analysis_report.md)
 
 ---
@@ -19,10 +19,14 @@ gantt
     axisFormat  %b
 
     section Phase 2: ASSIST
-    Intelligence Layer (RAG Pipeline)       :crit, p2-rag, 2026-01-01, 2026-04-30
-    Slack/Teams Integration                 :p2-slack, 2026-03-01, 2026-04-30
-    PagerDuty/OpsGenie Integration          :p2-pager, 2026-04-01, 2026-05-31
-    Operator Dashboard MVP                  :p2-dash, 2026-04-01, 2026-06-30
+    Intelligence Layer Hardening            :done, p2-rag, 2026-01-01, 2026-03-31
+    Core Remediation Engine                 :done, p2-rem, 2026-03-01, 2026-03-31
+    Core Safety Guardrails                  :done, p2-safe, 2026-03-01, 2026-03-31
+    Slack/Teams Integration                 :active, p2-slack, 2026-04-01, 2026-05-31
+    PagerDuty/OpsGenie Integration          :active, p2-pager, 2026-04-01, 2026-05-31
+    GitOps Integration                      :active, p2-gitops, 2026-04-01, 2026-05-31
+    Slow Response Detection (Phase 2.5)     :active, p2-slow, 2026-04-01, 2026-05-31
+    Operator Dashboard MVP                  :p2-dash, 2026-05-01, 2026-07-31
 
     section Phase 2.5: Differentiation
     Publish Multi-Agent Protocol Spec       :p25-agents, 2026-04-01, 2026-04-30
@@ -209,6 +213,27 @@ gantt
 
 ---
 
+## March 27 Milestone Mirror (Companion Status Sync)
+
+This section mirrors the corrected implementation status in `docs/reports/analysis/phase_status_evaluation_report.md`.
+
+| Milestone | Status (2026-03-27) | Evidence Anchor |
+|---|---|---|
+| Intelligence layer core | ✅ Implemented, hardening ongoing | `domain/diagnostics/*` + verification streams |
+| Core remediation engine | ✅ Implemented | `domain/remediation/engine.py`, `planner.py` |
+| Core safety guardrails | ✅ Implemented | `domain/safety/*` |
+| Distributed lock backends | ✅ Implemented | `adapters/coordination/*` |
+| Kubernetes operator path | ✅ Implemented | `adapters/cloud/kubernetes/operator.py` |
+| Notification adapters | ❌ Not implemented | `adapters/notifications/slack/`, `pagerduty/`, `jira/` empty |
+| GitOps adapters | ❌ Not implemented | `adapters/gitops/` empty |
+| Slow response detection (2.5) | 🚧 In progress | design/spec/tasks complete, implementation pending |
+| Dashboard MVP (2.7) | ❌ Planned | no runtime UI implementation yet |
+
+> [!IMPORTANT]
+> The competitive roadmap sequence now reflects the current execution reality: core action-layer capabilities are complete, while integration and operator-experience milestones form the active critical path.
+
+---
+
 ## Risk Mitigation
 
 | Risk | Probability | Impact | Mitigation |
@@ -217,7 +242,7 @@ gantt
 | Sedai reaches open-source before us | Low | High | Fast-track Q3 2026 OSS launch |
 | Enterprise customers require SOC 2 before evaluation | High | Medium | Start SOC 2 readiness assessment in Q2 (don't wait for Q3) |
 | Nvidia-backed Shoreline pivots to autonomous remediation | Medium | Medium | Focus on GitOps-native and open-source differentiators |
-| Intelligence Layer takes longer than estimated | Medium | Critical | De-risk by using proven RAG patterns; accept lower initial accuracy |
+| Integration streams (notifications/GitOps/dashboard) slip beyond Q2 | Medium | High | Execute focused P0 sequence: notifications and GitOps before dashboard scope expansion |
 
 ---
 
@@ -239,6 +264,7 @@ gantt
 |---|---|---|---|
 | ROADMAP-P1-001 | Success Metrics | Accuracy target (≥70%) was below project graduation thresholds | Updated target to ≥90% accuracy to align with phase-gate expectations |
 | ROADMAP-P1-002 | Multi-Cloud Positioning | Claim implied fully implemented K8s+AWS+Azure execution parity | Updated wording to partial multi-cloud support with explicit GCP gap |
+| ROADMAP-P1-003 | Milestone Drift | Timeline implied core action layer was still future work | Synced roadmap milestones to March 27 implementation reality |
 
 ### P2 — Medium (Quality Improvement)
 

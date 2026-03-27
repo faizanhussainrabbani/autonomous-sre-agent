@@ -1,0 +1,10 @@
+# Global default ownership
+* @faizanhussain
+
+# Critical paths
+/src/ @faizanhussain
+/tests/ @faizanhussain
+/docs/ @faizanhussain
+/infra/ @faizanhussain
+/scripts/ @faizanhussain
+/.github/ @faizanhussain

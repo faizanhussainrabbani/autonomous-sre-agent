@@ -55,6 +55,7 @@ status: APPROVED
 | Task | Document |
 |---|---|
 | Run first-time setup | [getting-started.md](getting-started.md) |
+| Configure branch protection gates | [operations/branch_protection_setup_guide.md](operations/branch_protection_setup_guide.md) |
 | Understand detection-to-remediation flow | [architecture/overview.md](architecture/overview.md) |
 | Configure permissions safely | [architecture/permissions-and-rbac.md](architecture/permissions-and-rbac.md) |
 | Execute an incident runbook | [reference/runbooks.md](reference/runbooks.md) |
