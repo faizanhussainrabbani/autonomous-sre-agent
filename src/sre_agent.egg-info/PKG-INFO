@@ -27,6 +27,9 @@ Requires-Dist: azure-storage-blob>=12.19; extra == "azure"
 Requires-Dist: azure-mgmt-web>=7.0; extra == "azure"
 Provides-Extra: vault
 Requires-Dist: hvac>=2.1; extra == "vault"
+Provides-Extra: coordination
+Requires-Dist: redis>=5.0; extra == "coordination"
+Requires-Dist: etcd3>=0.12; extra == "coordination"
 Provides-Extra: intelligence
 Requires-Dist: chromadb>=0.4; extra == "intelligence"
 Requires-Dist: sentence-transformers>=2.2; extra == "intelligence"
@@ -44,5 +47,6 @@ Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
 Requires-Dist: pytest-cov>=5.0; extra == "dev"
 Requires-Dist: testcontainers>=3.7; extra == "dev"
+Requires-Dist: fakeredis>=2.23; extra == "dev"
 Requires-Dist: ruff>=0.3; extra == "dev"
 Requires-Dist: mypy>=1.8; extra == "dev"
