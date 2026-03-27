@@ -43,6 +43,8 @@ Validation scope for this revision:
 | 14 | [../../scripts/demo/live_demo_14_disk_exhaustion.py](../../scripts/demo/live_demo_14_disk_exhaustion.py) | Disk exhaustion anomaly simulation payload | No | No |
 | 15 | [../../scripts/demo/live_demo_15_traffic_anomaly.py](../../scripts/demo/live_demo_15_traffic_anomaly.py) | Traffic anomaly simulation payload | No | No |
 | 16 | [../../scripts/demo/live_demo_16_xray_tracing_placeholder.py](../../scripts/demo/live_demo_16_xray_tracing_placeholder.py) | X-Ray tracing placeholder for future phase work | No | No |
+| 17 | [../../scripts/demo/live_demo_17_action_lock_orchestration.py](../../scripts/demo/live_demo_17_action_lock_orchestration.py) | Action-plan execution with guardrail denial and lock-backed success path | No | No |
+| 18 | [../../scripts/demo/live_demo_18_etcd_action_lock_flow.py](../../scripts/demo/live_demo_18_etcd_action_lock_flow.py) | External etcd-backed lock acquisition and remediation execution | No | No |
 
 ### Standardized numbering aliases
 
@@ -72,7 +74,7 @@ pip install -e .[dev]
 
 * Community demos: 1, 7, 9
 * Pro demos: 8, plus full-feature execution for Demo 4
-* No LocalStack required: 2, 3, 5, 6, 10, 11, 12, 13, 14, 15, 16
+* No LocalStack required: 2, 3, 5, 6, 10, 11, 12, 13, 14, 15, 16, 17, 18
 
 Community quick start:
 
@@ -258,6 +260,22 @@ SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_16_xray_tracing_placeholder.p
 ```
 
 Expected behavior: prints placeholder scope for future trace-driven coverage.
+
+### Demo 17: Action-lock orchestration
+
+```bash
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_17_action_lock_orchestration.py
+```
+
+Expected behavior: first action is denied by blast-radius guardrail, then approved action executes with lock acquisition and fencing token output.
+
+### Demo 18: External etcd action-lock flow
+
+```bash
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_18_etcd_action_lock_flow.py
+```
+
+Expected behavior: starts an ephemeral etcd container, executes approved action with etcd-backed lock manager, prints fencing token, and stops the container.
 
 ## Execution notes from validation runs
 

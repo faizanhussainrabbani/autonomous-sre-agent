@@ -14,6 +14,34 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [2026-03-27] Autonomous SRE Agent Phase 2 Action and Lock Live Demo Slice
+
+Introduces real-life live demos for newly implemented Phase 2 action-layer remediation and lock coordination, including external etcd-backed execution.
+
+Execution artifacts:
+
+* Plan: `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_implementation_plan.md`
+* Acceptance Criteria: `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_acceptance_criteria.md`
+* Verification Report: `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_verification_report.md`
+* Run Validation: `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_run_validation.md`
+
+### What changed and why
+
+* Added Demo 17 to show integrated planner, guardrail evaluation, lock acquisition, and remediation execution with both denied and successful paths.
+* Added Demo 18 to show external etcd-backed distributed lock coordination in a runnable end-to-end remediation scenario.
+* Added graceful dependency handling in Demo 18 for missing `etcd3`, missing `testcontainers`, and Docker/container startup failures.
+* Updated the canonical live demo operations guide with inventory and run commands for demos 17 and 18.
+
+### Files affected
+
+* `scripts/demo/live_demo_17_action_lock_orchestration.py`
+* `scripts/demo/live_demo_18_etcd_action_lock_flow.py`
+* `docs/operations/live_demo_guide.md`
+* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_implementation_plan.md`
+* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_acceptance_criteria.md`
+* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_verification_report.md`
+* `docs/reports/autonomous_sre_agent_phase2_action_lock_live_demos_run_validation.md`
+
 ## [2026-03-27] Autonomous SRE Agent Phase 2 Etcd Container Integration and Lock Stress Slice
 
 Implements containerized external etcd integration coverage and lock-contention stress tests under the existing lock manager port.
