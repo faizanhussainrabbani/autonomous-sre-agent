@@ -90,23 +90,43 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
     async def log_requests(request: Request, call_next):
         """Emit structured logs for every HTTP request with a correlation ID."""
         request_id = str(uuid.uuid4())
+        client_ip = request.client.host if request.client else "unknown"
         _log.info(
             "request_received",
             method=request.method,
             path=request.url.path,
             request_id=request_id,
+            component="api.main",
+            service="sre-agent",
+            client_ip=client_ip,
         )
         t0 = time.monotonic()
-        response: Response = await call_next(request)
+        try:
+            response: Response = await call_next(request)
+        except Exception:  # noqa: BLE001 - top-level request logging guard
+            _log.exception(
+                "request_failed",
+                method=request.method,
+                path=request.url.path,
+                request_id=request_id,
+                component="api.main",
+                service="sre-agent",
+                client_ip=client_ip,
+            )
+            raise
         elapsed = round(time.monotonic() - t0, 4)
         response.headers["X-Request-ID"] = request_id
-        _log.info(
+        log_method = _log.error if response.status_code >= 500 else _log.info
+        log_method(
             "request_completed",
             method=request.method,
             path=request.url.path,
             status_code=response.status_code,
             duration_seconds=elapsed,
             request_id=request_id,
+            component="api.main",
+            service="sre-agent",
+            client_ip=client_ip,
         )
         return response
 
@@ -253,4 +273,3 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
 
 # Module-level app instance (for uvicorn: sre_agent.api.main:app)
 app = create_app() if _FASTAPI_AVAILABLE else None
-
