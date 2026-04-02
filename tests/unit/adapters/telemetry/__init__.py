@@ -1,0 +1,1 @@
+# Kubernetes telemetry adapter tests.

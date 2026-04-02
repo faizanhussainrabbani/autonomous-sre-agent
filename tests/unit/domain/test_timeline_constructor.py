@@ -101,3 +101,42 @@ class TestTimelineConstructor:
         signals = _make_signals(n_metrics=1)
         result = timeline.build(signals)
         assert "test-svc" in result
+
+    def test_build_timeline_with_enrichment_canonical_logs(self):
+        """TimelineConstructor processes enrichment output without AttributeError.
+
+        AC-LF-2.2: CorrelatedSignals.logs populated with _to_canonical_logs()
+        output must not cause AttributeError on .severity or .labels.service.
+        """
+        from sre_agent.domain.models.canonical import ComputeMechanism, DataQuality
+
+        now = datetime.now(timezone.utc)
+        enrichment_logs = [
+            CanonicalLogEntry(
+                timestamp=now,
+                message="ERROR: Lambda timeout after 30s",
+                severity="ERROR",
+                labels=ServiceLabels(
+                    service="payment-handler",
+                    compute_mechanism=ComputeMechanism.SERVERLESS,
+                ),
+                provider_source="cloudwatch",
+                quality=DataQuality.LOW,
+                ingestion_timestamp=now,
+            ),
+        ]
+
+        signals = CorrelatedSignals(
+            service="payment-handler",
+            time_window_start=now,
+            time_window_end=now + timedelta(hours=1),
+            logs=enrichment_logs,
+        )
+
+        timeline = TimelineConstructor()
+        result = timeline.build(signals)
+
+        # Must not raise AttributeError and must contain formatted log
+        assert "[LOG:ERROR]" in result
+        assert "payment-handler" in result
+

@@ -1,7 +1,7 @@
 ---
 title: Changelog
 description: Historical record of notable project changes with references to plans, criteria, and verification artifacts.
-ms.date: 2026-03-19
+ms.date: 2026-03-31
 ms.topic: reference
 author: SRE Agent Engineering Team
 ---
@@ -13,6 +13,179 @@ All notable changes to the Autonomous SRE Agent project are documented here.
 Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by Phase.
 
 ---
+
+## [2026-04-02] Phase 2.9 — Log Fetching Gap Closure
+
+Completion-closure execution for Phase 2.9 was run using the seven-step framework and produced runtime closure for fallback wiring, resolver sharing, and New Relic contract hardening.
+
+Execution artifacts:
+
+* Plan: `docs/reports/planning/phase_2_9_completion_closure_implementation_plan.md`
+* Compliance Check: `docs/reports/compliance/phase_2_9_completion_closure_plan_compliance_check.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/phase_2_9_completion_closure_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/phase_2_9_completion_closure_verification_report.md`
+* Run Validation: `docs/reports/validation/phase_2_9_completion_closure_run_validation.md`
+
+### What changed and why
+
+* **OTel runtime fallback is now active:** bootstrap composes Loki primary plus Kubernetes fallback via `FallbackLogAdapter` and injects it into `OTelProvider`.
+* **Provider bootstrap hardening:** `bootstrap_provider()` now wraps create/register/activate with structured diagnostics and explicit re-raise semantics.
+* **Shared CloudWatch resolver:** log-group resolution now lives in `CloudWatchLogGroupResolver` and is reused by both CloudWatch logs adapter and AWS enrichment.
+* **Kubernetes fallback performance and behavior:** pod log reads are bounded and concurrent; `query_by_trace_id()` now performs explicit all-pod namespace queries when service context is unknown.
+* **Fallback adapter robustness:** removed silent `except/pass` in health and close paths; failures are now logged while preserving graceful behavior.
+* **Bridge enrichment governance alignment:** bridge default now resolves from central `AgentConfig`; env variable remains explicit override.
+* **New Relic contract modernization:** New Relic log adapter tests now use `httpx.MockTransport` and shared factories from `tests/factories/newrelic_responses.py`.
+* **Diagnostics test alignment:** observability, token optimization, and affected e2e event-sourcing tests were updated to include evidence citations required by stricter rule-based validation.
+* **Dependency guardrail:** Kubernetes optional dependency now uses bounded major range (`kubernetes>=29.0.0,<30.0.0`).
+
+### Key files affected in closure execution
+
+* `src/sre_agent/adapters/bootstrap.py`
+* `src/sre_agent/adapters/telemetry/otel/provider.py`
+* `src/sre_agent/adapters/telemetry/cloudwatch/log_group_resolver.py` [NEW]
+* `src/sre_agent/adapters/telemetry/cloudwatch/logs_adapter.py`
+* `src/sre_agent/adapters/cloud/aws/enrichment.py`
+* `src/sre_agent/adapters/telemetry/kubernetes/pod_log_adapter.py`
+* `src/sre_agent/adapters/telemetry/fallback_log_adapter.py`
+* `scripts/demo/localstack_bridge.py`
+* `pyproject.toml`
+* `tests/factories/newrelic_responses.py` [NEW]
+* `tests/unit/adapters/test_cloudwatch_log_group_resolver.py` [NEW]
+* `tests/unit/adapters/test_bootstrap.py`
+* `tests/unit/adapters/test_enrichment.py`
+* `tests/unit/adapters/telemetry/newrelic/test_newrelic_log_adapter.py`
+* `tests/unit/domain/test_pipeline_observability.py`
+* `tests/unit/domain/test_token_optimization.py`
+* `tests/e2e/test_gap_closure_e2e.py`
+* `tests/integration/test_cloudwatch_bootstrap.py` [NEW]
+
+### Validation outcomes
+
+* `bash scripts/dev/run.sh test:unit`: **pass** (`666 passed`)
+* `pytest tests/integration/test_cloudwatch_bootstrap.py -q`: **pass** (`1 passed`)
+* Combined New Relic adapter coverage command: **pass** (`92.6%` for `sre_agent.adapters.telemetry.newrelic`)
+* `bash scripts/dev/run.sh coverage`: tests pass (`790 passed`) but global fail-under still fails (`85.07% < 90%`)
+* `bash scripts/dev/run.sh lint`: fails with broad pre-existing Ruff debt (795 findings)
+
+### Status
+
+Phase 2.9 completion closure is **partially complete**:
+
+* Runtime and feature-completion gaps for Phase 2.9 are closed.
+* Repository-wide coverage and lint baseline debt remain unresolved and require a dedicated follow-on quality initiative.
+
+## [2026-03-31] Live Demo Five Critical Findings Remediation Slice
+
+Completed the seven-step execution framework to remediate the five highest-severity demo-suite findings from the critical evaluation report.
+
+Execution artifacts:
+
+* Plan: `docs/reports/planning/live_demo_five_critical_findings_implementation_plan.md`
+* Compliance Check: `docs/reports/compliance/live_demo_five_critical_findings_plan_compliance_check.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/live_demo_five_critical_findings_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/live_demo_five_critical_findings_verification_report.md`
+* Run Validation: `docs/reports/validation/live_demo_five_critical_findings_run_validation.md`
+
+### What changed and why
+
+* Retired Demo 5 from canonical usage to remove strict subset duplication of Demo 6.
+* Retired Demo 14, Demo 15, and Demo 16 to remove payload-only and placeholder scripts that created false coverage confidence.
+* Retired Demo 17 to reduce overlapping action-lock narratives with stronger retained demos.
+* Hardened Demo 6 Act 3 with explicit audit-stage validation and fail-fast behavior for empty or incomplete audit trails.
+* Verified Demo 7 bridge callback behavior remains environment-driven through `BRIDGE_HOST` with no hardcoded callback endpoint.
+* Updated canonical operations guides to remove retired demo references and align run instructions with retained demos.
+
+### Files affected
+
+* `scripts/demo/live_demo_http_optimizations.py`
+* `scripts/demo/live_demo_http_server.py` (deleted)
+* `scripts/demo/live_demo_14_disk_exhaustion.py` (deleted)
+* `scripts/demo/live_demo_15_traffic_anomaly.py` (deleted)
+* `scripts/demo/live_demo_16_xray_tracing_placeholder.py` (deleted)
+* `scripts/demo/live_demo_17_action_lock_orchestration.py` (deleted)
+* `docs/operations/live_demo_guide.md`
+* `docs/operations/localstack_live_incident_demo.md`
+* `docs/reports/planning/live_demo_five_critical_findings_implementation_plan.md`
+* `docs/reports/compliance/live_demo_five_critical_findings_plan_compliance_check.md`
+* `docs/reports/acceptance-criteria/live_demo_five_critical_findings_acceptance_criteria.md`
+* `docs/reports/verification/live_demo_five_critical_findings_verification_report.md`
+* `docs/reports/validation/live_demo_five_critical_findings_run_validation.md`
+* `CHANGELOG.md`
+
+## [2026-03-31] Executive Live Demos 20-23 Governance and Safety Slice
+
+Implemented four executive-facing end-to-end live demos focused on safety posture, human governance, change-causality context, and guardrail-first remediation behavior.
+
+Execution artifacts:
+
+* Plan: `docs/reports/planning/live_demo_20_23_execution_plan.md`
+* Compliance Check: `docs/reports/compliance/live_demo_20_23_plan_compliance_check.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/live_demo_20_23_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/live_demo_20_23_verification_report.md`
+* Run Validation: `docs/reports/validation/live_demo_20_23_run_validation.md`
+
+### What changed and why
+
+* Added Demo 20 to show safe behavior for unknown incidents before and after runbook-grounded diagnosis.
+* Added Demo 21 to show full human governance lifecycle with severity override apply, verify, and revoke.
+* Added Demo 22 to show change-event causality flow using event ingestion, recent-event retrieval, and diagnosis correlation.
+* Added Demo 23 to show guardrail-first behavior where high blast-radius actions are denied before safe actions are allowed.
+* Updated the live demo operations guide with inventory, prerequisites, commands, expected outcomes, and troubleshooting for demos 20 to 23.
+* Added framework-linked planning, compliance, acceptance criteria, verification, and run-validation artifacts for deterministic reproducibility.
+
+### Files affected
+
+* `scripts/demo/live_demo_20_unknown_incident_safety_net.py`
+* `scripts/demo/live_demo_21_human_governance_lifecycle.py`
+* `scripts/demo/live_demo_22_change_event_causality.py`
+* `scripts/demo/live_demo_23_ai_says_no_before_it_acts.py`
+* `docs/operations/live_demo_guide.md`
+* `docs/reports/planning/live_demo_20_23_execution_plan.md`
+* `docs/reports/compliance/live_demo_20_23_plan_compliance_check.md`
+* `docs/reports/acceptance-criteria/live_demo_20_23_acceptance_criteria.md`
+* `docs/reports/verification/live_demo_20_23_verification_report.md`
+* `docs/reports/validation/live_demo_20_23_run_validation.md`
+* `CHANGELOG.md`
+
+## [2026-03-30] RAG Pipeline Six-Gap Closure Execution Slice
+
+Completed the six-gap RAG closure initiative from planning through runtime validation, addressing fallback behavior, explicit diagnostic states, unresolved validation handling, freshness metadata integrity, ingest path normalization, and diagnostics contract alignment.
+
+Execution artifacts:
+
+* Plan: `docs/reports/planning/rag_gap_closure_execution_plan.md`
+* Compliance Check: `docs/reports/compliance/rag_gap_closure_plan_compliance_check.md`
+* Acceptance Criteria: `docs/reports/acceptance-criteria/rag_gap_closure_acceptance_criteria.md`
+* Verification Report: `docs/reports/verification/rag_gap_closure_verification_report.md`
+* Run Validation: `docs/reports/validation/rag_gap_closure_run_validation.md`
+
+### What changed and why
+
+* Added retrieval-miss fallback invocation with explicit audit actions and deterministic confidence-capped best-effort inference path when evidence retrieval returns empty.
+* Added explicit diagnosis state transitions for retrieval miss, fallback reasoning, and unresolved root cause to remove ambiguous branch handling.
+* Added deterministic unresolved escalation behavior when validation disagrees without a corrected root cause, preserving human-approval safety posture.
+* Preserved vector-search timestamp metadata to keep freshness-penalty logic effective.
+* Refactored diagnose ingest route to use `DocumentIngestionPipeline` instead of one-shot vector writes for chunk-consistent ingestion behavior.
+* Aligned diagnostics contract typing for evidence citations with runtime payload structure.
+* Added and updated unit, integration, and selected e2e tests to validate all closure behaviors.
+
+### Files affected
+
+* `src/sre_agent/domain/models/diagnosis.py`
+* `src/sre_agent/domain/diagnostics/rag_pipeline.py`
+* `src/sre_agent/adapters/vectordb/chroma/adapter.py`
+* `src/sre_agent/api/rest/diagnose_router.py`
+* `src/sre_agent/ports/diagnostics.py`
+* `tests/unit/domain/test_rag_pipeline.py`
+* `tests/integration/test_rag_pipeline_integration.py`
+* `tests/integration/test_chroma_integration.py`
+* `tests/unit/api/test_diagnose_router.py`
+* `docs/reports/planning/rag_gap_closure_execution_plan.md`
+* `docs/reports/compliance/rag_gap_closure_plan_compliance_check.md`
+* `docs/reports/acceptance-criteria/rag_gap_closure_acceptance_criteria.md`
+* `docs/reports/verification/rag_gap_closure_verification_report.md`
+* `docs/reports/validation/rag_gap_closure_run_validation.md`
+* `CHANGELOG.md`
 
 ## [2026-03-27] P0 Governance Controls Implementation (CODEOWNERS + CI + Dependency Review)
 

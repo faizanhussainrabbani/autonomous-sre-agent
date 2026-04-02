@@ -18,9 +18,13 @@ from typing import Any
 import structlog
 
 from sre_agent.adapters.cloud.aws.resource_metadata import AWSResourceMetadataFetcher
+from sre_agent.adapters.telemetry.cloudwatch.log_group_resolver import (
+    CloudWatchLogGroupResolver,
+)
 from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
     CanonicalMetric,
+    ComputeMechanism,
     DataQuality,
     ServiceLabels,
 )
@@ -41,6 +45,7 @@ class AlertEnricher:
         cloudwatch_client: Any,
         logs_client: Any,
         metadata_fetcher: AWSResourceMetadataFetcher | None = None,
+        log_group_resolver: CloudWatchLogGroupResolver | None = None,
         log_window_minutes: int = 30,
         metric_window_minutes: int = 30,
         log_filter_pattern: str = "ERROR",
@@ -48,6 +53,9 @@ class AlertEnricher:
         self._cw = cloudwatch_client
         self._logs = logs_client
         self._metadata = metadata_fetcher
+        self._log_group_resolver = log_group_resolver or CloudWatchLogGroupResolver(
+            logs_client=logs_client,
+        )
         self._log_window = log_window_minutes
         self._metric_window = metric_window_minutes
         self._log_filter = log_filter_pattern
@@ -245,7 +253,7 @@ class AlertEnricher:
         end_time: datetime,
     ) -> list[dict[str, Any]]:
         """Fetch recent error logs from CloudWatch Logs."""
-        log_group = f"/aws/lambda/{service}"
+        log_group = await self._log_group_resolver.resolve(service)
         start_ms = int(start_time.timestamp() * 1000)
         end_ms = int(end_time.timestamp() * 1000)
 
@@ -314,16 +322,26 @@ class AlertEnricher:
         self,
         log_events: list[dict[str, Any]],
         service: str,
-    ) -> list[dict[str, Any]]:
-        """Convert CloudWatch log events to serialisable log dicts."""
+    ) -> list[CanonicalLogEntry]:
+        """Convert CloudWatch log events to CanonicalLogEntry instances.
+
+        Anti-Corruption Layer (Evans DDD Ch.14): adapter translates external
+        CloudWatch data format into domain types at the boundary.
+        """
         return [
-            {
-                "message": event.get("message", ""),
-                "timestamp": datetime.fromtimestamp(
+            CanonicalLogEntry(
+                timestamp=datetime.fromtimestamp(
                     event.get("timestamp", 0) / 1000, tz=timezone.utc
-                ).isoformat(),
-                "severity": "ERROR",
-                "labels": {"service": service},
-            }
+                ),
+                message=event.get("message", ""),
+                severity="ERROR",
+                labels=ServiceLabels(
+                    service=service,
+                    compute_mechanism=ComputeMechanism.SERVERLESS,
+                ),
+                provider_source="cloudwatch",
+                quality=DataQuality.LOW,
+                ingestion_timestamp=datetime.now(timezone.utc),
+            )
             for event in log_events
         ]

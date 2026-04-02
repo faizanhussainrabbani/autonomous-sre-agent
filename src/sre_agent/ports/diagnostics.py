@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Any
 
 from sre_agent.domain.models.canonical import AnomalyAlert, CorrelatedSignals, Severity
+from sre_agent.domain.models.diagnosis import EvidenceCitation
 
 
 @dataclass
@@ -36,7 +37,7 @@ class DiagnosisResult:
     confidence: float
     severity: Severity
     reasoning: str
-    evidence_citations: list[str] = field(default_factory=list)
+    evidence_citations: list[EvidenceCitation] = field(default_factory=list)
     suggested_remediation: str = ""
     is_novel: bool = False
     requires_human_approval: bool = True

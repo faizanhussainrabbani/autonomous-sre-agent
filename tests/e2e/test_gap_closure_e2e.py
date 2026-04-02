@@ -53,7 +53,7 @@ def _make_inner_llm(delay: float = 0.0) -> MagicMock:
             root_cause="Memory leak in payment-service",
             confidence=0.88,
             reasoning="Sustained RSS growth.",
-            evidence_citations=[],
+            evidence_citations=["runbook/oom-0.md"],
             suggested_remediation="Restart pod.",
         )
 
@@ -226,7 +226,7 @@ class TestE2EConcurrencyLimiting:
                 root_cause="Leak",
                 confidence=0.8,
                 reasoning="RSS growth",
-                evidence_citations=[],
+                evidence_citations=["runbook/oom-0.md"],
                 suggested_remediation="Restart",
             )
 

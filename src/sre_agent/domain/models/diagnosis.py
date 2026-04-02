@@ -55,6 +55,9 @@ class DiagnosticState(IntEnum):
     COMPLETE = 5
     FAILED = 6
     ESCALATED = 7
+    RETRIEVAL_MISS = 8
+    FALLBACK_REASONING = 9
+    ROOT_CAUSE_UNRESOLVED = 10
 
 
 # ---------------------------------------------------------------------------

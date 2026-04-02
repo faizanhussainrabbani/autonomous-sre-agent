@@ -10,14 +10,16 @@ This module is called at application startup (e.g., from main.py).
 
 from __future__ import annotations
 
+import os
+
 import structlog
 
-from sre_agent.config.plugin import ProviderPlugin, ProviderFactory
+from sre_agent.config.plugin import ProviderPlugin
 from sre_agent.config.settings import AgentConfig, LockBackendType
 from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
 from sre_agent.ports.lock_manager import DistributedLockManagerPort
 from sre_agent.domain.detection.provider_registry import ProviderRegistry
-from sre_agent.ports.telemetry import TelemetryProvider
+from sre_agent.ports.telemetry import LogQuery, TelemetryProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -29,7 +31,66 @@ logger = structlog.get_logger(__name__)
 def _otel_factory(config: AgentConfig) -> TelemetryProvider:
     """Factory for the OTel provider (Prometheus + Jaeger + Loki)."""
     from sre_agent.adapters.telemetry.otel.provider import OTelProvider
-    return OTelProvider(config.otel)
+
+    logs_adapter = _build_otel_log_adapter(config)
+    return OTelProvider(config.otel, logs_adapter=logs_adapter)
+
+
+def _build_otel_log_adapter(config: AgentConfig) -> LogQuery:
+    """Build OTel log adapter chain with optional Kubernetes fallback.
+
+    The primary path stays Loki. When the Kubernetes client and kube config
+    are available, compose Loki with Kubernetes API fallback through the
+    FallbackLogAdapter decorator.
+    """
+    from sre_agent.adapters.telemetry.otel.loki_adapter import LokiLogAdapter
+
+    primary = LokiLogAdapter(config.otel.loki_url)
+    fallback = _maybe_build_kubernetes_log_adapter()
+
+    if fallback is None:
+        return primary
+
+    from sre_agent.adapters.telemetry.fallback_log_adapter import FallbackLogAdapter
+
+    logger.info("otel_logs_fallback_enabled", primary="loki", fallback="kubernetes_api")
+    return FallbackLogAdapter(
+        primary=primary,
+        fallback=fallback,
+        primary_name="loki",
+        fallback_name="kubernetes_api",
+    )
+
+
+def _maybe_build_kubernetes_log_adapter() -> LogQuery | None:
+    """Create Kubernetes log adapter when client + config are available."""
+    try:
+        from kubernetes import client as k8s_client
+        from kubernetes import config as k8s_config
+    except ImportError:
+        logger.debug(
+            "kubernetes_log_fallback_unavailable",
+            reason="kubernetes client not installed",
+        )
+        return None
+
+    try:
+        k8s_config.load_incluster_config()
+    except Exception:  # noqa: BLE001
+        try:
+            k8s_config.load_kube_config()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "kubernetes_log_fallback_unavailable",
+                reason="kube configuration unavailable",
+                error=str(exc),
+            )
+            return None
+
+    from sre_agent.adapters.telemetry.kubernetes.pod_log_adapter import KubernetesLogAdapter
+
+    namespace = os.getenv("KUBERNETES_NAMESPACE", "default")
+    return KubernetesLogAdapter(core_v1_api=k8s_client.CoreV1Api(), namespace=namespace)
 
 
 def _newrelic_factory(config: AgentConfig) -> TelemetryProvider:
@@ -42,6 +103,29 @@ def _newrelic_factory(config: AgentConfig) -> TelemetryProvider:
     # In production, api_key comes from secrets manager (AWS SM, Azure KV, Vault)
     api_key = ""  # Placeholder — resolved at runtime
     return NewRelicProvider(config.newrelic, api_key=api_key)
+
+
+def _cloudwatch_factory(config: AgentConfig) -> TelemetryProvider:
+    """Factory for the CloudWatch provider (Metrics + Logs + X-Ray).
+
+    Uses lazy imports: ``boto3`` is imported only when this factory
+    is called, so non-AWS environments can import bootstrap.py
+    without triggering an ImportError.
+    """
+    import boto3
+
+    from sre_agent.adapters.telemetry.cloudwatch.provider import CloudWatchProvider
+
+    cw = config.cloudwatch
+    kwargs: dict[str, str] = {}
+    if cw.endpoint_url:
+        kwargs["endpoint_url"] = cw.endpoint_url
+    return CloudWatchProvider(
+        cloudwatch_client=boto3.client("cloudwatch", region_name=cw.region, **kwargs),
+        logs_client=boto3.client("logs", region_name=cw.region, **kwargs),
+        xray_client=boto3.client("xray", region_name=cw.region, **kwargs),
+        region=cw.region,
+    )
 
 
 def _create_pixie_adapter(config: AgentConfig):
@@ -60,9 +144,10 @@ def _create_pixie_adapter(config: AgentConfig):
 
 
 def register_builtin_providers() -> None:
-    """Register the built-in OTel and New Relic provider factories."""
+    """Register the built-in OTel, New Relic, and CloudWatch provider factories."""
     ProviderPlugin.register("otel", _otel_factory)
     ProviderPlugin.register("newrelic", _newrelic_factory)
+    ProviderPlugin.register("cloudwatch", _cloudwatch_factory)
 
 
 async def bootstrap_provider(
@@ -83,9 +168,18 @@ async def bootstrap_provider(
     provider_name = config.telemetry_provider.value
     logger.info("bootstrapping_provider", provider=provider_name)
 
-    provider = ProviderPlugin.create_provider(provider_name, config)
-    registry.register(provider)
-    await registry.activate(provider_name)
+    try:
+        provider = ProviderPlugin.create_provider(provider_name, config)
+        registry.register(provider)
+        await registry.activate(provider_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "provider_bootstrap_failed",
+            provider=provider_name,
+            available=ProviderPlugin.available_providers(),
+            error=str(exc),
+        )
+        raise
 
     logger.info(
         "provider_bootstrapped",

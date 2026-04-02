@@ -53,11 +53,11 @@ class OTelProvider(TelemetryProvider):
     adapters behind the unified TelemetryProvider interface.
     """
 
-    def __init__(self, config: OTelConfig) -> None:
+    def __init__(self, config: OTelConfig, *, logs_adapter: LogQuery | None = None) -> None:
         self._config = config
         self._metrics = PrometheusMetricsAdapter(config.prometheus_url)
         self._traces = JaegerTraceAdapter(config.jaeger_url)
-        self._logs = LokiLogAdapter(config.loki_url)
+        self._logs = logs_adapter or LokiLogAdapter(config.loki_url)
         self._dep_graph = OTelDependencyGraphAdapter()
 
     @property

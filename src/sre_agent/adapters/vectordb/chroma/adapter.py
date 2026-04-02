@@ -128,14 +128,14 @@ class ChromaVectorStoreAdapter(VectorStorePort):
             if score < query.min_score:
                 continue
 
-            source = metadata.pop("source", "") if metadata else ""
-            metadata.pop("created_at", None)
+            metadata_copy = dict(metadata or {})
+            source = metadata_copy.pop("source", "")
 
             search_results.append(SearchResult(
                 doc_id=doc_id,
                 content=content or "",
                 score=score,
-                metadata=metadata or {},
+                metadata=metadata_copy,
                 source=source,
             ))
 

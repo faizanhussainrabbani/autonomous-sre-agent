@@ -114,6 +114,57 @@ class TestRAGDiagnosticPipeline:
         assert result.is_novel is True
         assert result.severity == Severity.SEV1
         assert result.requires_human_approval is True
+        assert "novel" in result.root_cause.lower()
+        pipeline._llm.generate_hypothesis.assert_called_once()
+        assert "retrieval:retrieval_miss" in result.audit_trail
+        assert "fallback:general_inference_started" in result.audit_trail
+
+    async def test_retrieval_miss_fallback_failure_uses_novel_result(self):
+        pipeline = _make_pipeline(search_results=[])
+        pipeline._llm.generate_hypothesis = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
+
+        alert = AnomalyAlert(
+            service="checkout-service",
+            anomaly_type=AnomalyType.LATENCY_SPIKE,
+            description="Unknown anomaly pattern",
+        )
+
+        result = await pipeline.diagnose(DiagnosisRequest(alert=alert))
+
+        assert result.is_novel is True
+        assert result.severity == Severity.SEV1
+        assert "no matching evidence" in result.root_cause.lower()
+
+    async def test_validation_disagreement_without_correction_escalates_unresolved(self):
+        validation = ValidationResult(
+            agrees=False,
+            confidence=0.2,
+            reasoning="Hypothesis is not supported by evidence.",
+            contradictions=["Unsupported claim"],
+        )
+        pipeline = _make_pipeline(
+            search_results=_make_search_results(),
+            validation=validation,
+        )
+        pipeline._validator.validate = AsyncMock(return_value=validation)
+
+        alert = AnomalyAlert(
+            service="checkout-service",
+            anomaly_type=AnomalyType.MEMORY_PRESSURE,
+            description="OOM kill detected",
+            metric_name="container_memory_rss",
+            current_value=4.0,
+            baseline_value=2.0,
+            deviation_sigma=4.5,
+        )
+
+        result = await pipeline.diagnose(DiagnosisRequest(alert=alert))
+
+        assert result.severity == Severity.SEV1
+        assert result.requires_human_approval is True
+        assert "unresolved" in result.root_cause.lower()
+        assert result.confidence == 0.0
+        assert "validation:root_cause_unresolved" in result.audit_trail
 
     async def test_connection_failure_handling(self):
         pipeline = _make_pipeline()

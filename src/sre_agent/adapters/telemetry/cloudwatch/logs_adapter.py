@@ -24,17 +24,13 @@ from sre_agent.domain.models.canonical import (
     DataQuality,
     ServiceLabels,
 )
+from sre_agent.adapters.telemetry.cloudwatch.log_group_resolver import (
+    LOG_GROUP_PATTERNS,
+    CloudWatchLogGroupResolver,
+)
 from sre_agent.ports.telemetry import LogQuery
 
 logger = structlog.get_logger(__name__)
-
-# Service name → log group pattern resolution
-LOG_GROUP_PATTERNS: list[str] = [
-    "/aws/lambda/{service}",
-    "/ecs/{service}",
-    "/aws/ecs/{service}",
-]
-
 
 class CloudWatchLogsAdapter(LogQuery):
     """LogQuery port backed by CloudWatch Logs FilterLogEvents API.
@@ -47,6 +43,7 @@ class CloudWatchLogsAdapter(LogQuery):
         self,
         logs_client: Any,
         log_group_overrides: dict[str, str] | None = None,
+        log_group_resolver: CloudWatchLogGroupResolver | None = None,
     ) -> None:
         """Initialise with an injected boto3 CloudWatch Logs client.
 
@@ -56,9 +53,12 @@ class CloudWatchLogsAdapter(LogQuery):
                 override the default resolution logic.
         """
         self._client = logs_client
-        self._overrides = log_group_overrides or {}
-        # Cache of resolved log groups to avoid repeated DescribeLogGroups calls
-        self._resolved_groups: dict[str, str | None] = {}
+        self._resolver = log_group_resolver or CloudWatchLogGroupResolver(
+            logs_client=logs_client,
+            overrides=log_group_overrides,
+        )
+        # Backward-compatible alias used by trace-query iteration logic.
+        self._resolved_groups = self._resolver.resolved_groups
 
     async def query_logs(
         self,
@@ -187,40 +187,13 @@ class CloudWatchLogsAdapter(LogQuery):
         2. Check known patterns against DescribeLogGroups
         3. Cache the result
         """
-        if service in self._resolved_groups:
-            return self._resolved_groups[service]
-
-        # Check overrides first
-        if service in self._overrides:
-            group = self._overrides[service]
-            self._resolved_groups[service] = group
-            return group
-
-        # Try known patterns
-        for pattern in LOG_GROUP_PATTERNS:
-            candidate = pattern.format(service=service)
-            try:
-                response = self._client.describe_log_groups(
-                    logGroupNamePrefix=candidate,
-                    limit=1,
-                )
-                groups = response.get("logGroups", [])
-                if groups:
-                    resolved = groups[0]["logGroupName"]
-                    self._resolved_groups[service] = resolved
-                    logger.debug(
-                        "cloudwatch_logs_group_resolved",
-                        service=service,
-                        log_group=resolved,
-                    )
-                    return resolved
-            except Exception:
-                continue
-
-        # Fallback: use the Lambda pattern directly (most common)
-        fallback = f"/aws/lambda/{service}"
-        self._resolved_groups[service] = fallback
-        return fallback
+        resolved = await self._resolver.resolve(service)
+        logger.debug(
+            "cloudwatch_logs_group_resolved",
+            service=service,
+            log_group=resolved,
+        )
+        return resolved
 
     def _build_filter(
         self,

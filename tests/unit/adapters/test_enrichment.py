@@ -131,6 +131,32 @@ async def test_enrich_fetches_logs():
 
 
 @pytest.mark.asyncio
+async def test_enrich_resolves_ecs_log_group_with_shared_resolver():
+    """ECS enrichment should resolve log groups via shared resolver patterns."""
+    cw_client = _make_cw_client()
+    logs_client = MagicMock()
+    logs_client.filter_log_events.return_value = {"events": []}
+
+    def _describe_groups(*, logGroupNamePrefix: str, limit: int):
+        if logGroupNamePrefix == "/ecs/orders-service":
+            return {"logGroups": [{"logGroupName": "/ecs/orders-service"}]}
+        return {"logGroups": []}
+
+    logs_client.describe_log_groups.side_effect = _describe_groups
+
+    enricher = _make_enricher(cw_client=cw_client, logs_client=logs_client)
+    await enricher.enrich(
+        service="orders-service",
+        metric_name="CPUUtilization",
+        metric_namespace="AWS/ECS",
+        threshold=1.0,
+    )
+
+    call_kwargs = logs_client.filter_log_events.call_args[1]
+    assert call_kwargs["logGroupName"] == "/ecs/orders-service"
+
+
+@pytest.mark.asyncio
 async def test_enrich_with_metadata_fetcher():
     """When metadata fetcher is provided, resource_metadata should be populated."""
     from unittest.mock import AsyncMock
@@ -200,3 +226,50 @@ def test_compute_deviation_insufficient_data():
     enricher = _make_enricher()
     sigma = enricher._compute_deviation([1.0], 5.0)
     assert sigma == 10.0
+
+
+# ── _to_canonical_logs() — AC-LF-2.1 ─────────────────────────────────────────
+
+def test_to_canonical_logs_returns_canonical_entry_instances():
+    """Enrichment must return CanonicalLogEntry instances, not dicts."""
+    from sre_agent.domain.models.canonical import (
+        CanonicalLogEntry,
+        DataQuality,
+        ServiceLabels,
+    )
+
+    enricher = _make_enricher()
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    events = [
+        {"timestamp": now_ms, "message": "ERROR: Lambda timeout"},
+        {"timestamp": now_ms, "message": "ERROR: Connection refused"},
+    ]
+    result = enricher._to_canonical_logs(events, "payment-handler")
+
+    assert len(result) == 2
+    for entry in result:
+        assert isinstance(entry, CanonicalLogEntry), f"Expected CanonicalLogEntry, got {type(entry)}"
+        assert entry.provider_source == "cloudwatch"
+        assert isinstance(entry.labels, ServiceLabels)
+        assert entry.labels.service == "payment-handler"
+        assert entry.quality == DataQuality.LOW
+        assert entry.severity == "ERROR"
+        assert isinstance(entry.timestamp, datetime)
+        assert entry.ingestion_timestamp is not None
+
+
+def test_to_canonical_logs_empty_input_returns_empty_list():
+    """Empty log_events list must return []."""
+    enricher = _make_enricher()
+    result = enricher._to_canonical_logs([], "any-service")
+    assert result == []
+
+
+def test_to_canonical_logs_missing_timestamp_defaults_to_epoch():
+    """Missing 'timestamp' key defaults to epoch 0 (1970-01-01T00:00:00Z)."""
+    enricher = _make_enricher()
+    events = [{"message": "no timestamp field"}]
+    result = enricher._to_canonical_logs(events, "svc")
+    assert len(result) == 1
+    # timestamp 0 / 1000 = 0 → epoch
+    assert result[0].timestamp == datetime(1970, 1, 1, tzinfo=timezone.utc)

@@ -116,6 +116,7 @@ class TestRAGPipelineIntegration:
         assert result.severity == Severity.SEV1
         assert result.requires_human_approval is True
         assert "novel" in result.root_cause.lower()
+        pipeline._llm.generate_hypothesis.assert_called_once()
 
     async def test_provenance_chain(self):
         """Provenance logs map final hypothesis back to explicit runbook vectors."""

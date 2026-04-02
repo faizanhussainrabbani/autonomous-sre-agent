@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-04-02
+phase: "2.9"
+title: "Log Fetching Gap Closure — Runtime Wiring and Adapter Completeness"

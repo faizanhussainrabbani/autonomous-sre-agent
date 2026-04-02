@@ -88,7 +88,7 @@ features:
   new_relic_adapter: false
   otel_adapter: true
   cloudwatch_adapter: false
-  bridge_enrichment: false
+  bridge_enrichment: true
   background_polling: false
   eventbridge_integration: false
   aws_health_polling: false

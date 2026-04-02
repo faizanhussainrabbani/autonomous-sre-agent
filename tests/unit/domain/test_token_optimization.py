@@ -432,6 +432,7 @@ class TestRAGPipelineOptimizations:
             root_cause="Memory leak in payment handler",
             confidence=0.88,
             reasoning="Evidence shows OOM pattern",
+            evidence_citations=["pm-1", "rb-2"],
         ))
         from sre_agent.ports.llm import ValidationResult
         llm.validate_hypothesis = AsyncMock(return_value=ValidationResult(

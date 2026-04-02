@@ -190,3 +190,14 @@ def test_validate_lock_backend_etcd_invalid_port():
     errors = config.validate()
 
     assert any("etcd_port" in error for error in errors)
+
+
+# ---------------------------------------------------------------------------
+# Tests: FeatureFlags defaults — AC-LF-3.2
+# ---------------------------------------------------------------------------
+
+def test_feature_flags_bridge_enrichment_defaults_true():
+    """FeatureFlags.bridge_enrichment defaults to True (Phase 2.9)."""
+    flags = FeatureFlags()
+    assert flags.bridge_enrichment is True
+

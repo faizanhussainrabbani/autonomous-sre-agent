@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -48,15 +49,41 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, Request
 
+from sre_agent.config.settings import AgentConfig
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-BRIDGE_HOST = "127.0.0.1"
-BRIDGE_PORT = 8080
-AGENT_URL = "http://127.0.0.1:8181"
+# Host used for uvicorn bind (listening interface).
+BRIDGE_BIND_HOST = os.environ.get("BRIDGE_BIND_HOST", "127.0.0.1")
+# Host used in logs for external callback endpoint visibility.
+BRIDGE_HOST = os.environ.get("BRIDGE_HOST", "127.0.0.1")
+BRIDGE_PORT = int(os.environ.get("BRIDGE_PORT", "8080"))
+AGENT_URL = os.environ.get("AGENT_URL", "http://127.0.0.1:8181")
 
-# Enrichment toggle — set BRIDGE_ENRICHMENT=1 to enable CloudWatch enrichment
-ENRICHMENT_ENABLED = os.environ.get("BRIDGE_ENRICHMENT", "0") == "1"
+
+def _load_bridge_enrichment_default() -> bool:
+    """Load bridge enrichment default from central AgentConfig.
+
+    Falls back to FeatureFlags default when config file is unavailable.
+    """
+    config_path = Path(__file__).resolve().parents[2] / "config" / "agent.yaml"
+    try:
+        if config_path.exists():
+            return AgentConfig.from_yaml(config_path).features.bridge_enrichment
+    except Exception as exc:  # noqa: BLE001
+        print(f"[bridge-config] failed to load agent config: {exc}")
+
+    return AgentConfig().features.bridge_enrichment
+
+# Enrichment toggle source-of-truth: AgentConfig feature flag.
+# BRIDGE_ENRICHMENT is an explicit operator override when set.
+_enrichment_override = os.environ.get("BRIDGE_ENRICHMENT")
+if _enrichment_override is None:
+    ENRICHMENT_ENABLED = _load_bridge_enrichment_default()
+else:
+    ENRICHMENT_ENABLED = _enrichment_override == "1"
+
 LOCALSTACK_ENDPOINT = os.environ.get(
     "LOCALSTACK_ENDPOINT", "http://localhost:4566"
 )
@@ -365,7 +392,8 @@ async def health() -> dict[str, str]:
 if __name__ == "__main__":
     print(
         f"\n{C.BOLD}{C.BLUE}LocalStack SNS → SRE Agent Bridge{C.RESET}\n"
-        f"{C.DIM}Listening on http://{BRIDGE_HOST}:{BRIDGE_PORT}/sns/webhook{C.RESET}\n"
+        f"{C.DIM}Listening on http://{BRIDGE_BIND_HOST}:{BRIDGE_PORT}/sns/webhook{C.RESET}\n"
+        f"{C.DIM}Callback endpoint http://{BRIDGE_HOST}:{BRIDGE_PORT}/sns/webhook{C.RESET}\n"
         f"{C.DIM}Forwarding alerts to {AGENT_URL}/api/v1/diagnose{C.RESET}\n"
     )
-    uvicorn.run(app, host=BRIDGE_HOST, port=BRIDGE_PORT)
+    uvicorn.run(app, host=BRIDGE_BIND_HOST, port=BRIDGE_PORT)

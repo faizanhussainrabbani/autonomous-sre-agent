@@ -68,6 +68,7 @@ logger = structlog.get_logger(__name__)
 _MIN_RELEVANCE_SCORE = 0.3
 _DOCUMENT_TTL_DAYS = 90
 _STALE_DOC_PENALTY_FACTOR = 0.5
+_FALLBACK_MAX_CONFIDENCE = 0.69
 
 
 class RAGDiagnosticPipeline(DiagnosticPort):
@@ -204,7 +205,23 @@ class RAGDiagnosticPipeline(DiagnosticPort):
 
             # Novel incident detection: no relevant evidence found
             if not search_results:
+                diagnosis.state = DiagnosticState.RETRIEVAL_MISS
                 DIAGNOSIS_ERRORS.labels(error_type="novel_incident").inc()
+                audit.append(AuditEntry(
+                    stage="retrieval",
+                    action="retrieval_miss",
+                    details={"service": request.alert.service},
+                ))
+
+                diagnosis.state = DiagnosticState.FALLBACK_REASONING
+                fallback_result = await self._attempt_general_inference_fallback(
+                    request=request,
+                    alert_text=alert_text,
+                    audit=audit,
+                )
+                if fallback_result is not None:
+                    return fallback_result
+
                 return self._handle_novel_incident(request, audit)
 
             # Stage 2.5: Cross-encoder reranking (Phase 2.2)
@@ -353,6 +370,24 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                     "validation_confidence": validation_result.confidence,
                 },
             ))
+
+            if not validation_result.agrees and not validation_result.corrected_root_cause:
+                diagnosis.state = DiagnosticState.ROOT_CAUSE_UNRESOLVED
+                DIAGNOSIS_ERRORS.labels(error_type="root_cause_unresolved").inc()
+                audit.append(AuditEntry(
+                    stage="validation",
+                    action="root_cause_unresolved",
+                    details={
+                        "reasoning": validation_result.reasoning[:100],
+                    },
+                ))
+                return self._handle_unresolved_root_cause(
+                    request=request,
+                    hypothesis=hypothesis,
+                    validation_result=validation_result,
+                    search_results=search_results,
+                    audit=audit,
+                )
 
             # Stage 7: Compute confidence score
             retrieval_scores = [r.score for r in search_results]
@@ -552,6 +587,136 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 event_type=event.event_type,
                 error=str(exc),
             )
+
+    async def _attempt_general_inference_fallback(
+        self,
+        request: DiagnosisRequest,
+        alert_text: str,
+        audit: list[AuditEntry],
+    ) -> DiagnosisResult | None:
+        """Attempt best-effort inference when retrieval returns no evidence."""
+        timeline_text = ""
+        if request.correlated_signals:
+            timeline_text = self._timeline.build(
+                request.correlated_signals,
+                anomaly_type=request.alert.anomaly_type.value,
+            )
+
+        audit.append(AuditEntry(
+            stage="fallback",
+            action="general_inference_started",
+            details={"service": request.alert.service},
+        ))
+
+        fallback_request = HypothesisRequest(
+            alert_description=alert_text,
+            service_name=request.alert.service,
+            timeline=timeline_text,
+            evidence=[],
+            system_context=(
+                "No relevant runbook or post-mortem evidence was retrieved. "
+                "Provide a best-effort root-cause candidate from alert and timeline only. "
+                "Be explicit about uncertainty."
+            ),
+        )
+
+        try:
+            hypothesis = await self._llm.generate_hypothesis(fallback_request)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "general_inference_fallback_failed",
+                alert_id=request.alert.alert_id,
+                error=str(exc),
+            )
+            audit.append(AuditEntry(
+                stage="fallback",
+                action="general_inference_failed",
+                details={"error": str(exc)},
+            ))
+            return None
+
+        if not hypothesis.root_cause.strip():
+            audit.append(AuditEntry(
+                stage="fallback",
+                action="general_inference_empty",
+            ))
+            return None
+
+        fallback_confidence = min(
+            max(float(hypothesis.confidence), 0.0),
+            _FALLBACK_MAX_CONFIDENCE,
+        )
+
+        audit.append(AuditEntry(
+            stage="fallback",
+            action="general_inference_completed",
+            details={
+                "confidence": fallback_confidence,
+                "root_cause": hypothesis.root_cause[:100],
+            },
+        ))
+
+        return DiagnosisResult(
+            root_cause=f"Novel incident inferred candidate: {hypothesis.root_cause}",
+            confidence=fallback_confidence,
+            severity=Severity.SEV1,
+            reasoning=(
+                "General inference fallback executed because retrieval returned no evidence. "
+                f"{hypothesis.reasoning}"
+            ),
+            suggested_remediation=hypothesis.suggested_remediation,
+            is_novel=True,
+            requires_human_approval=True,
+            diagnosed_at=datetime.now(timezone.utc),
+            audit_trail=self._render_audit_trail(audit),
+        )
+
+    def _handle_unresolved_root_cause(
+        self,
+        request: DiagnosisRequest,
+        hypothesis,
+        validation_result,
+        search_results: list,
+        audit: list[AuditEntry],
+    ) -> DiagnosisResult:
+        """Return a deterministic escalation result for unresolved root cause paths."""
+        audit.append(AuditEntry(
+            stage="validation",
+            action="unresolved_escalated",
+            details={"service": request.alert.service},
+        ))
+
+        citations = [
+            EvidenceCitation(
+                source=r.source,
+                content_snippet=r.content[:200],
+                relevance_score=r.score,
+                doc_id=r.doc_id,
+            )
+            for r in search_results
+        ]
+
+        return DiagnosisResult(
+            root_cause=(
+                "Root cause unresolved: validation disagreed and did not provide "
+                "a corrected root cause."
+            ),
+            confidence=0.0,
+            severity=Severity.SEV1,
+            reasoning=(
+                "Hypothesis could not be safely confirmed. "
+                f"Initial hypothesis: {hypothesis.root_cause}. "
+                f"Validation reasoning: {validation_result.reasoning}"
+            ),
+            suggested_remediation=(
+                validation_result.corrected_remediation or hypothesis.suggested_remediation
+            ),
+            is_novel=False,
+            requires_human_approval=True,
+            diagnosed_at=datetime.now(timezone.utc),
+            evidence_citations=citations,
+            audit_trail=self._render_audit_trail(audit),
+        )
 
     def _handle_novel_incident(
         self,

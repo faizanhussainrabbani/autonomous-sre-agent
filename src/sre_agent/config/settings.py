@@ -27,6 +27,7 @@ class TelemetryProviderType(Enum):
     """Supported telemetry providers."""
     OTEL = "otel"
     NEWRELIC = "newrelic"
+    CLOUDWATCH = "cloudwatch"
 
 
 class CloudProviderType(Enum):
@@ -152,7 +153,7 @@ class FeatureFlags:
     new_relic_adapter: bool = False
     otel_adapter: bool = True
     cloudwatch_adapter: bool = False
-    bridge_enrichment: bool = False
+    bridge_enrichment: bool = True
     background_polling: bool = False
     eventbridge_integration: bool = False
     aws_health_polling: bool = False

@@ -244,7 +244,7 @@ The `StateValue` should be `INSUFFICIENT_DATA` or `OK` (no errors yet).
 
 ## Step 4: Start the SRE Agent FastAPI Server
 
-Open a second terminal and start the server directly via `uvicorn`. Do **not** use `python ../../scripts/demo/live_demo_http_server.py` here — that script is self-contained and shuts the server down after one request.
+Open a second terminal and start the server directly via `uvicorn`. Do not launch any short-lived demo wrapper process for this step because the incident flow requires a persistent API server.
 
 ```bash
 source .venv/bin/activate
@@ -498,8 +498,8 @@ For a live demo presentation, arrange four terminal panes:
 ```text
 ┌────────────────────────────┬────────────────────────────┐
 │  Terminal 1: LocalStack    │  Terminal 2: SRE Agent     │
-│  localstack start -d       │  python scripts/           │
-│  awslocal commands...      │    live_demo_http_server.py│
+│  localstack start -d       │  .venv/bin/uvicorn         │
+│  awslocal commands...      │    sre_agent.api.main:app  │
 ├────────────────────────────┼────────────────────────────┤
 │  Terminal 3: Bridge        │  Terminal 4: Chaos Trigger │
 │  python scripts/           │  awslocal lambda invoke    │
@@ -517,7 +517,7 @@ For a live demo presentation, arrange four terminal panes:
 | No alarm fires after `lambda invoke`       | LocalStack does not auto-evaluate alarms on schedule | Force the alarm: `awslocal cloudwatch set-alarm-state --alarm-name PaymentProcessorErrorSpike --state-value ALARM --state-reason "manual"` |
 | Agent returns HTTP 500 on `/api/v1/diagnose` | `ANTHROPIC_API_KEY` is missing or invalid         | Export it: `export ANTHROPIC_API_KEY=sk-...`                                     |
 | `awslocal: command not found`              | `awscli-local` is not installed                     | Run `pip install awscli-local`.                                                  |
-| `ConnectionRefused` on port 8181           | Used `live_demo_http_server.py` which self-terminates | Use `nohup .venv/bin/uvicorn sre_agent.api.main:app --host 127.0.0.1 --port 8181 > /tmp/sre_agent.log 2>&1 &` instead. |
+| `ConnectionRefused` on port 8181           | Started a short-lived process instead of a persistent API server | Use `nohup .venv/bin/uvicorn sre_agent.api.main:app --host 127.0.0.1 --port 8181 > /tmp/sre_agent.log 2>&1 &` instead. |
 | SNS subscription stays `pending confirmation` | Bridge endpoint unreachable from LocalStack container | Use `http://host.docker.internal:8080` on macOS/Docker Desktop. Check bridge is listening: `curl http://127.0.0.1:8080/health`. |
 | ARN region mismatch errors                 | LocalStack uses your configured AWS region, not `us-east-1` | Run `aws configure get region` and substitute that region in all ARNs. Use `$TOPIC_ARN` variable from Step 3.1. |
 
@@ -560,7 +560,6 @@ This script bypasses HTTP and optimizations entirely, pumping a complex simulate
 |----------------------------------------------|-------------------------------------------------|
 | Incident Bridge script                       | `../../scripts/demo/localstack_bridge.py`                  |
 | Mock Lambda handler                          | `../../scripts/demo/mock_lambda.py`                        |
-| HTTP server demo                             | `../../scripts/demo/live_demo_http_server.py`              |
 | HTTP optimizations demo                      | `../../scripts/demo/live_demo_http_optimizations.py`       |
 | AWS remediation operators demo (LocalStack)  | `../../scripts/demo/live_demo_localstack_aws.py`           |
 | LocalStack Pro testing guide                 | `docs/testing/localstack_pro_guide.md`          |

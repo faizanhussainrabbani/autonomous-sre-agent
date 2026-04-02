@@ -260,24 +260,50 @@ async def act3_lightweight_validation(audit_trail: list):
     act_header("ACT 3: Lightweight Validation Breakdown")
     step("3.1 Inspecting Audit Trail Metrics from Act 2")
     
-    # Normally we'd fetch metrics from prometheus, but we can infer from the successful Act 2
-    # The audit trail contains the evidence counts and prompts
-    
-    def _normalize_stage(entry: object) -> str:
+    # Act 3 is now a strict validation gate: if expected reasoning stages are
+    # absent, the demo fails explicitly instead of silently printing success.
+    def _extract_stage_and_action(entry: object) -> tuple[str, str]:
         if isinstance(entry, dict):
+            stage = ""
+            action = ""
+
             for key in ("stage", "step", "type", "event"):
                 value = entry.get(key)
                 if isinstance(value, str) and value:
-                    return value
-            return "structured_entry"
-        if isinstance(entry, str):
-            return entry.split(":", 1)[0] if ":" in entry else entry
-        return str(entry)
+                    stage = value.strip()
+                    break
 
-    stages = [_normalize_stage(item) for item in audit_trail]
-    unique_stages = sorted({stage for stage in stages if stage})
-    
-    ok("Discovered 2-stage reasoning pipeline in audit trail:")
+            value = entry.get("action")
+            if isinstance(value, str) and value:
+                action = value.strip()
+
+            return stage or "structured_entry", action
+
+        if isinstance(entry, str):
+            head = entry.split(":", 1)[0].strip() if ":" in entry else entry.strip()
+            if "/" in head:
+                stage, action = head.split("/", 1)
+                return stage.strip(), action.strip()
+            return head, ""
+
+        return str(entry), ""
+
+    stage_action_pairs = [_extract_stage_and_action(item) for item in audit_trail]
+    unique_stages = sorted({stage for stage, _ in stage_action_pairs if stage})
+    observed_actions = {action for _, action in stage_action_pairs if action}
+    expected_actions = {"hypothesis_generated", "hypothesis_validated"}
+
+    if not stage_action_pairs:
+        raise RuntimeError("Act 3 validation failed: audit trail is empty")
+
+    missing_actions = sorted(expected_actions - observed_actions)
+    if missing_actions:
+        raise RuntimeError(
+            "Act 3 validation failed: missing expected audit actions: "
+            + ", ".join(missing_actions)
+        )
+
+    ok("Validated 2-stage reasoning pipeline in audit trail:")
     field("Stage 1", "Hypothesis Generation (Sends full evidence)")
     field("Stage 2", "Hypothesis Cross-Validation")
     field("Observed Stages", ", ".join(unique_stages[:6]) if unique_stages else "none")

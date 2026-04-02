@@ -116,3 +116,23 @@ class TestChromaIntegration:
             top_k=1,
         ))
         assert "Version 2" in results[0].content
+
+    async def test_search_preserves_created_at_metadata(self, chroma_store: ChromaVectorStoreAdapter):
+        created_at = datetime(2024, 1, 2, tzinfo=timezone.utc)
+        doc = VectorDocument(
+            doc_id="doc-ts",
+            content="Timestamped runbook",
+            embedding=[0.5, 0.4, 0.3, 0.2, 0.1],
+            metadata={"type": "runbook"},
+            source="runbook/ts.md",
+            created_at=created_at,
+        )
+
+        await chroma_store.store(doc)
+        results = await chroma_store.search(SearchQuery(
+            embedding=doc.embedding,
+            top_k=1,
+        ))
+
+        assert len(results) == 1
+        assert results[0].metadata.get("created_at") == created_at.isoformat()

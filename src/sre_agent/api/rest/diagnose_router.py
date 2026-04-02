@@ -4,9 +4,9 @@ from pydantic import BaseModel
 import structlog
 
 from sre_agent.domain.models.canonical import AnomalyAlert
+from sre_agent.domain.diagnostics.ingestion import DocumentIngestionPipeline
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
 from sre_agent.ports.diagnostics import DiagnosisRequest
-from sre_agent.ports.vector_store import VectorDocument
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/diagnose", tags=["Diagnostics"])
@@ -59,23 +59,24 @@ class IngestRequestPayload(BaseModel):
 @router.post("/ingest", status_code=200)
 async def ingest_document(payload: IngestRequestPayload, pipeline: RAGDiagnosticPipeline = Depends(get_pipeline)) -> Dict[str, Any]:
     """Ingest a markdown runbook/post-mortem into the server's vector db for RAG."""
-    import uuid
-    from datetime import datetime
     try:
-        # Embed the content
-        embedding = await pipeline._embedding.embed_text(payload.content)
-        
-        doc = VectorDocument(
-            doc_id=str(uuid.uuid4()),
-            content=payload.content,
-            embedding=embedding,
-            metadata=payload.metadata,
-            source=payload.source,
-            created_at=datetime.utcnow()
+        ingestor = DocumentIngestionPipeline(
+            vector_store=pipeline._vector_store,
+            embedding=pipeline._embedding,
         )
-        
-        await pipeline._vector_store.store(doc)
-        return {"status": "success", "doc_id": doc.doc_id, "source": doc.source, "chunks": 1}
+        stored_chunks = await ingestor.ingest(
+            content=payload.content,
+            source=payload.source,
+            metadata=payload.metadata,
+        )
+
+        doc_id = f"{payload.source}::chunk-0" if stored_chunks == 1 else None
+        return {
+            "status": "success",
+            "doc_id": doc_id,
+            "source": payload.source,
+            "chunks": stored_chunks,
+        }
     except Exception as e:
         logger.exception("ingest_route_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))

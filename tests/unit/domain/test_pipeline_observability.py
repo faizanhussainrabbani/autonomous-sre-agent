@@ -73,6 +73,7 @@ def _make_pipeline() -> tuple[RAGDiagnosticPipeline, dict]:
         root_cause="Connection pool exhaustion",
         confidence=0.85,
         reasoning="Memory pressure correlates with P99 spike.",
+        evidence_citations=["runbooks/checkout.md"],
         suggested_remediation="Scale deployment to 4 replicas.",
     ))
     mocks["llm"].validate_hypothesis = AsyncMock(return_value=ValidationResult(
