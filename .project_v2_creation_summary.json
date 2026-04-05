@@ -1,0 +1,36 @@
+{
+  "user": {
+    "login": "faizanhussainrabbani",
+    "node_id": "MDQ6VXNlcjEwMTUxODky",
+    "id": 10151892
+  },
+  "project": {
+    "id": "PVT_kwHOAJrn1M4BTjl4",
+    "number": 1,
+    "title": "Autonomous SRE Agent - Development Tracker",
+    "url": "https://github.com/users/faizanhussainrabbani/projects/1",
+    "created": false,
+    "totalItems": 500
+  },
+  "counts": {
+    "draftItemsCreated": 498,
+    "contentItemsAdded": 2,
+    "taskItems": 466,
+    "plannedItems": 30,
+    "branchItems": 2,
+    "prItems": 2,
+    "issueItems": 0
+  },
+  "statusCounts": {
+    "Backlog": 374,
+    "Done": 122,
+    "In Progress": 2,
+    "In Review": 2
+  },
+  "sourceCounts": {
+    "task": 466,
+    "planned": 30,
+    "branch": 2,
+    "pr": 2
+  }
+}

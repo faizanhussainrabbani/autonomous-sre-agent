@@ -139,6 +139,7 @@ Contributions are welcome from reliability engineers, platform teams, and AI inf
 Before opening a pull request, read:
 
 * [Contributing guide](CONTRIBUTING.md)
+* [Release and security sign-off checklist](CONTRIBUTING.md#github-pr-checklist-for-release-and-security-sign-off)
 * [Engineering standards](docs/project/standards/engineering_standards.md)
 * [Testing strategy](docs/testing/testing_strategy.md)
 

@@ -19,10 +19,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
           cache: pip
@@ -47,10 +47,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
           cache: pip
@@ -61,7 +61,7 @@ jobs:
           pip install -e ".[dev,aws]"
 
       - name: Start LocalStack Pro
-        uses: LocalStack/setup-localstack@v0.2.3
+        uses: LocalStack/setup-localstack@a9b3e54ee0052a2f40a4eb4ca8b39dfd3bc2bc65 # v0.2.3
         with:
           image-tag: 'latest'
           install-awslocal: 'true'

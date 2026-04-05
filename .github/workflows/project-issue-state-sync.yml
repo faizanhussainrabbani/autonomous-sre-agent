@@ -1,0 +1,188 @@
+name: Project Issue State Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  repository-projects: read
+
+env:
+  PROJECT_OWNER_LOGIN: faizanhussainrabbani
+  PROJECT_NUMBER: '1'
+  STATUS_FIELD_NAME: Status
+  CLOSED_STATUSES: Done,Released
+  OPEN_STATUSES: Backlog,Ready,In Progress,Blocked,In Review
+
+jobs:
+  sync-issue-state:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Sync issue open/closed state from project status
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          github-token: ${{ secrets.PROJECT_AUTOMATION_PAT != '' && secrets.PROJECT_AUTOMATION_PAT || github.token }}
+          script: |
+            const ownerLogin = process.env.PROJECT_OWNER_LOGIN;
+            const projectNumber = Number(process.env.PROJECT_NUMBER);
+            const statusFieldName = process.env.STATUS_FIELD_NAME;
+            const closedStatuses = new Set(
+              String(process.env.CLOSED_STATUSES || '')
+                .split(',')
+                .map((value) => value.trim())
+                .filter(Boolean)
+            );
+            const openStatuses = new Set(
+              String(process.env.OPEN_STATUSES || '')
+                .split(',')
+                .map((value) => value.trim())
+                .filter(Boolean)
+            );
+
+            async function getProject() {
+              const data = await github.graphql(
+                `query($login: String!, $number: Int!) {
+                  user(login: $login) {
+                    projectV2(number: $number) {
+                      id
+                    }
+                  }
+                }`,
+                { login: ownerLogin, number: projectNumber }
+              );
+
+              const project = data.user?.projectV2;
+              if (!project) {
+                throw new Error(`Project #${projectNumber} not found for ${ownerLogin}`);
+              }
+
+              return project;
+            }
+
+            async function fetchIssueItems(projectId) {
+              const issueItems = [];
+              let hasNextPage = true;
+              let cursor = null;
+
+              while (hasNextPage) {
+                const data = await github.graphql(
+                  `query($projectId: ID!, $cursor: String) {
+                    node(id: $projectId) {
+                      ... on ProjectV2 {
+                        items(first: 100, after: $cursor) {
+                          pageInfo {
+                            hasNextPage
+                            endCursor
+                          }
+                          nodes {
+                            id
+                            status: fieldValueByName(name: "${statusFieldName}") {
+                              ... on ProjectV2ItemFieldSingleSelectValue {
+                                name
+                              }
+                            }
+                            content {
+                              __typename
+                              ... on Issue {
+                                id
+                                number
+                                state
+                                repository {
+                                  nameWithOwner
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }`,
+                  { projectId, cursor }
+                );
+
+                const page = data.node.items;
+                for (const item of page.nodes || []) {
+                  if (item.content?.__typename !== 'Issue') continue;
+
+                  issueItems.push({
+                    issueId: item.content.id,
+                    issueNumber: item.content.number,
+                    issueState: item.content.state,
+                    status: item.status?.name || null,
+                    repository: item.content.repository?.nameWithOwner || null
+                  });
+                }
+
+                hasNextPage = page.pageInfo.hasNextPage;
+                cursor = page.pageInfo.endCursor;
+              }
+
+              return issueItems;
+            }
+
+            async function closeIssue(owner, repo, issueNumber) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                state: 'closed'
+              });
+            }
+
+            async function reopenIssue(owner, repo, issueNumber) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                state: 'open'
+              });
+            }
+
+            const project = await getProject();
+            const issueItems = await fetchIssueItems(project.id);
+
+            let closedNow = 0;
+            let reopenedNow = 0;
+            let unchanged = 0;
+            let skipped = 0;
+
+            for (const item of issueItems) {
+              const status = item.status;
+              if (!status || (!closedStatuses.has(status) && !openStatuses.has(status))) {
+                skipped += 1;
+                continue;
+              }
+
+              const repoFull = item.repository || '';
+              const slashIndex = repoFull.indexOf('/');
+              if (slashIndex <= 0) {
+                skipped += 1;
+                continue;
+              }
+
+              const owner = repoFull.slice(0, slashIndex);
+              const repo = repoFull.slice(slashIndex + 1);
+
+              if (closedStatuses.has(status) && item.issueState === 'OPEN') {
+                await closeIssue(owner, repo, item.issueNumber);
+                closedNow += 1;
+                continue;
+              }
+
+              if (openStatuses.has(status) && item.issueState === 'CLOSED') {
+                await reopenIssue(owner, repo, item.issueNumber);
+                reopenedNow += 1;
+                continue;
+              }
+
+              unchanged += 1;
+            }
+
+            core.info(
+              `Issue-state sync complete. scanned=${issueItems.length}, closedNow=${closedNow}, reopenedNow=${reopenedNow}, unchanged=${unchanged}, skipped=${skipped}`
+            );

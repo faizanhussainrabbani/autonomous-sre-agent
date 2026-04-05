@@ -14,6 +14,59 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [2026-04-05] GitHub Governance, Security Scanning, and Workflow Hardening
+
+Established a complete GitHub community-health and security governance baseline,
+added automated dependency and code scanning, and hardened workflows with
+immutable action pinning.
+
+### What changed and why
+
+* **Community-health baseline:** Added root governance files for licensing,
+  conduct, support, and security reporting (`LICENSE`, `CODE_OF_CONDUCT.md`,
+  `SUPPORT.md`, `SECURITY.md`) to align with GitHub recommended repository
+  standards.
+
+* **Contributor intake consistency:** Added issue templates and a PR template,
+  then aligned release and security sign-off expectations between
+  `CONTRIBUTING.md` and `.github/pull_request_template.md`.
+
+* **Dependency and SAST automation:** Added Dependabot configuration for `pip`
+  and GitHub Actions updates, plus a Python CodeQL workflow for scheduled and
+  PR-triggered static analysis.
+
+* **Workflow supply-chain hardening:** Replaced mutable version tags with full
+  commit SHAs across all workflow action references.
+
+* **Contributor discoverability:** Added a README cross-link to the release and
+  security sign-off checklist so contributors encounter it earlier in the PR
+  flow.
+
+* **Project tracking artifacts:** Added project automation workflows and the
+  project creation summary artifact tracked in this change set.
+
+### Key files affected
+
+* `.github/workflows/ci.yml`
+* `.github/workflows/dependency-review.yml`
+* `.github/workflows/security-gates.yml`
+* `.github/workflows/codeql.yml` [NEW]
+* `.github/workflows/project-status-automation.yml` [NEW]
+* `.github/workflows/project-issue-state-sync.yml` [NEW]
+* `.github/dependabot.yml` [NEW]
+* `.github/ISSUE_TEMPLATE/bug_report.yml` [NEW]
+* `.github/ISSUE_TEMPLATE/feature_request.yml` [NEW]
+* `.github/ISSUE_TEMPLATE/config.yml` [NEW]
+* `.github/pull_request_template.md` [NEW]
+* `LICENSE` [NEW]
+* `CODE_OF_CONDUCT.md` [NEW]
+* `SECURITY.md` [NEW]
+* `SUPPORT.md` [NEW]
+* `CONTRIBUTING.md`
+* `README.md`
+* `.project_v2_creation_summary.json` [NEW]
+* `CHANGELOG.md`
+
 ## [2026-04-05] LocalStack Pro Standardization & Auth Simplification
 
 Resolved three concrete failures observed during live demo verification: `live_demo_ecs_multi_service.py` crashing with "Service 'sns' is not enabled", `live_demo_localstack_incident.py` timing out on Lambda cold starts, and inconsistent authentication across 5 separate token resolution implementations.

@@ -1,0 +1,277 @@
+name: Project Status Automation
+
+on:
+  issues:
+    types:
+      - opened
+      - reopened
+      - closed
+      - labeled
+      - unlabeled
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+      - converted_to_draft
+      - review_requested
+      - labeled
+      - unlabeled
+      - closed
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  repository-projects: write
+
+concurrency:
+  group: project-status-automation-${{ github.event_name }}-${{ github.event.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_OWNER_LOGIN: faizanhussainrabbani
+  PROJECT_NUMBER: '1'
+  PROJECT_STATUS_FIELD_NAME: Status
+  BLOCKED_LABELS: blocked,on-hold,on_hold,dependency
+
+jobs:
+  sync-project-status:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Add item to project and map status
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          github-token: ${{ secrets.PROJECT_AUTOMATION_PAT != '' && secrets.PROJECT_AUTOMATION_PAT || github.token }}
+          script: |
+            const owner = process.env.PROJECT_OWNER_LOGIN;
+            const projectNumber = Number(process.env.PROJECT_NUMBER);
+            const statusFieldName = process.env.PROJECT_STATUS_FIELD_NAME;
+            const blockedLabels = new Set(
+              String(process.env.BLOCKED_LABELS || '')
+                .split(',')
+                .map((item) => item.trim().toLowerCase())
+                .filter(Boolean)
+            );
+
+            const eventName = context.eventName;
+            const action = context.payload.action;
+
+            function currentLabels() {
+              const labels =
+                eventName === 'issues'
+                  ? context.payload.issue?.labels || []
+                  : context.payload.pull_request?.labels || [];
+
+              return labels
+                .map((label) => (typeof label === 'string' ? label : label?.name))
+                .filter(Boolean)
+                .map((name) => String(name).toLowerCase());
+            }
+
+            function hasBlockedLabel() {
+              const labels = currentLabels();
+              for (const name of labels) {
+                if (blockedLabels.has(name)) return true;
+              }
+              return false;
+            }
+
+            function resolveTargetStatus() {
+              if (eventName === 'issues') {
+                const issue = context.payload.issue;
+                if (!issue) return null;
+
+                if (action === 'closed') return 'Done';
+                if (hasBlockedLabel()) return 'Blocked';
+                if (action === 'opened' || action === 'reopened') return 'Backlog';
+                if (action === 'labeled' || action === 'unlabeled') {
+                  return issue.state === 'closed' ? 'Done' : 'Backlog';
+                }
+                return null;
+              }
+
+              if (eventName === 'pull_request') {
+                const pr = context.payload.pull_request;
+                if (!pr) return null;
+
+                if (action === 'closed') {
+                  return pr.merged ? 'Released' : 'Done';
+                }
+                if (hasBlockedLabel()) return 'Blocked';
+                if (action === 'ready_for_review' || action === 'review_requested') return 'In Review';
+                if (
+                  action === 'opened' ||
+                  action === 'reopened' ||
+                  action === 'synchronize' ||
+                  action === 'converted_to_draft'
+                ) {
+                  return 'In Progress';
+                }
+                if (action === 'labeled' || action === 'unlabeled') {
+                  return pr.draft ? 'In Progress' : 'In Review';
+                }
+                return null;
+              }
+
+              return null;
+            }
+
+            function contentNodeId() {
+              if (eventName === 'issues') return context.payload.issue?.node_id || null;
+              if (eventName === 'pull_request') return context.payload.pull_request?.node_id || null;
+              return null;
+            }
+
+            async function getProjectMetadata() {
+              const data = await github.graphql(
+                `query($login: String!, $number: Int!) {
+                  user(login: $login) {
+                    projectV2(number: $number) {
+                      id
+                      fields(first: 100) {
+                        nodes {
+                          __typename
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            name
+                            options {
+                              id
+                              name
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { login: owner, number: projectNumber }
+              );
+
+              const project = data.user?.projectV2;
+              if (!project) {
+                throw new Error(`Project #${projectNumber} not found for ${owner}`);
+              }
+
+              const statusField = (project.fields.nodes || []).find(
+                (field) => field.__typename === 'ProjectV2SingleSelectField' && field.name === statusFieldName
+              );
+
+              if (!statusField) {
+                throw new Error(`Status field '${statusFieldName}' not found in project`);
+              }
+
+              return {
+                projectId: project.id,
+                statusFieldId: statusField.id,
+                statusOptionIdByName: Object.fromEntries(
+                  (statusField.options || []).map((option) => [option.name, option.id])
+                )
+              };
+            }
+
+            async function findProjectItemIdByContent(projectId, targetContentId) {
+              let hasNextPage = true;
+              let cursor = null;
+
+              while (hasNextPage) {
+                const data = await github.graphql(
+                  `query($projectId: ID!, $cursor: String) {
+                    node(id: $projectId) {
+                      ... on ProjectV2 {
+                        items(first: 100, after: $cursor) {
+                          pageInfo {
+                            hasNextPage
+                            endCursor
+                          }
+                          nodes {
+                            id
+                            content {
+                              __typename
+                              ... on Issue { id }
+                              ... on PullRequest { id }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }`,
+                  { projectId, cursor }
+                );
+
+                const page = data.node.items;
+                for (const item of page.nodes || []) {
+                  const id = item.content?.id;
+                  if (id === targetContentId) {
+                    return item.id;
+                  }
+                }
+
+                hasNextPage = page.pageInfo.hasNextPage;
+                cursor = page.pageInfo.endCursor;
+              }
+
+              return null;
+            }
+
+            async function ensureProjectItem(projectId, targetContentId) {
+              const existingItemId = await findProjectItemIdByContent(projectId, targetContentId);
+              if (existingItemId) return existingItemId;
+
+              try {
+                const result = await github.graphql(
+                  `mutation($projectId: ID!, $contentId: ID!) {
+                    addProjectV2ItemById(input: {
+                      projectId: $projectId,
+                      contentId: $contentId
+                    }) {
+                      item { id }
+                    }
+                  }`,
+                  { projectId, contentId: targetContentId }
+                );
+                return result.addProjectV2ItemById.item.id;
+              } catch (error) {
+                const fallbackItemId = await findProjectItemIdByContent(projectId, targetContentId);
+                if (fallbackItemId) return fallbackItemId;
+                throw error;
+              }
+            }
+
+            async function setStatus(projectId, itemId, fieldId, optionId) {
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }`,
+                { projectId, itemId, fieldId, optionId }
+              );
+            }
+
+            const targetStatus = resolveTargetStatus();
+            const contentId = contentNodeId();
+
+            if (!targetStatus || !contentId) {
+              core.info('No status mapping required for this event. Skipping.');
+              return;
+            }
+
+            const metadata = await getProjectMetadata();
+            const optionId = metadata.statusOptionIdByName[targetStatus];
+
+            if (!optionId) {
+              throw new Error(`Status option '${targetStatus}' does not exist in project workflow`);
+            }
+
+            const itemId = await ensureProjectItem(metadata.projectId, contentId);
+            await setStatus(metadata.projectId, itemId, metadata.statusFieldId, optionId);
+
+            core.info(`Mapped ${eventName}#${context.issue.number} (${action}) -> ${targetStatus}`);

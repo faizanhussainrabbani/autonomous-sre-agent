@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support Guide
+    url: https://github.com/faizanhussainrabbani/autonomous-sre-agent/blob/main/SUPPORT.md
+    about: Read support channels and troubleshooting guidance.
+  - name: Security Policy
+    url: https://github.com/faizanhussainrabbani/autonomous-sre-agent/blob/main/SECURITY.md
+    about: Report vulnerabilities privately using the security process.

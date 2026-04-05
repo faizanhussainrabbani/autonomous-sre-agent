@@ -31,6 +31,14 @@ When submitting a PR, ensure the following checklist is complete:
 - [ ] **Coverage Limits:** Code coverage must meet the CI/CD pipeline constraints: 100% for `domain/` logic and >85% for `adapters/`.
 - [ ] **Linting:** Your code complies with `flake8` and `black` (for Python) or `eslint` (for TS/JS).
 
+### GitHub PR checklist for release and security sign-off
+
+- [ ] I assessed security impact (auth, secrets, data exposure, least privilege).
+- [ ] I reviewed dependency and supply-chain impact.
+- [ ] I documented release impact (breaking changes, migrations, runbooks).
+- [ ] I documented rollback or mitigation steps for risky changes.
+- [ ] I requested required maintainer sign-off for release-critical or security-sensitive changes.
+
 ### PR Title & Description
 Please use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 *   *Feat: Add new Redis lock coordinator*
