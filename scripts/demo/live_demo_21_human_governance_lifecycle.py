@@ -41,7 +41,10 @@ from _demo_utils import (
     ok,
     pause_if_interactive,
     phase,
+    register_cleanup_handler,
+    start_or_reuse_agent,
     step,
+    stop_agent,
 )
 
 
@@ -74,66 +77,6 @@ def require_llm_key() -> None:
     )
 
 
-def is_agent_healthy() -> bool:
-    try:
-        with httpx.Client(timeout=2.0) as client:
-            response = client.get(f"{AGENT_URL}/health")
-        return response.status_code == 200
-    except Exception:
-        return False
-
-
-def start_or_reuse_agent() -> tuple[subprocess.Popen | None, bool, object | None]:
-    if is_agent_healthy():
-        info("Reusing existing SRE Agent API process")
-        return None, False, None
-
-    if not VENV_UVICORN.exists():
-        raise DemoError(f"uvicorn executable not found at {VENV_UVICORN}")
-
-    log_handle = open(LOG_PATH, "w")
-    process = subprocess.Popen(
-        [
-            str(VENV_UVICORN),
-            "sre_agent.api.main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(AGENT_PORT),
-        ],
-        cwd=str(REPO_ROOT),
-        stdout=log_handle,
-        stderr=log_handle,
-    )
-
-    deadline = time.time() + 40
-    while time.time() < deadline:
-        if is_agent_healthy():
-            ok(f"SRE Agent API started on {AGENT_URL}")
-            info(f"Agent logs: {LOG_PATH}")
-            return process, True, log_handle
-        time.sleep(1)
-
-    tail = ""
-    try:
-        tail = LOG_PATH.read_text()[-1200:]
-    except Exception:
-        tail = "<unable to read log tail>"
-    raise DemoError(f"Agent failed to start within 40s. Log tail:\n{tail}")
-
-
-def stop_agent(process: subprocess.Popen | None, started_by_demo: bool, log_handle: object | None) -> None:
-    if started_by_demo and process is not None and process.poll() is None:
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-    if log_handle is not None:
-        try:
-            log_handle.close()
-        except Exception:
-            pass
 
 
 def localstack_clients() -> tuple[Any, Any]:
@@ -339,7 +282,10 @@ def main() -> None:
         field("LocalStack endpoint", LOCALSTACK_ENDPOINT)
 
         phase(2, "Start or reuse API process")
-        process, started_by_demo, log_handle = start_or_reuse_agent()
+        process, started_by_demo, log_handle = start_or_reuse_agent(
+            port=AGENT_PORT, log_path=str(LOG_PATH),
+        )
+        register_cleanup_handler(lambda: stop_agent(process, started_by_demo, log_handle))
 
         with httpx.Client(timeout=120.0) as client:
             phase(3, "Ingest governance-aware runbook context")

@@ -34,6 +34,8 @@ PYTHON="$VENV_DIR/bin/python"
 PYTEST="$VENV_DIR/bin/pytest"
 RUFF="$VENV_DIR/bin/ruff"
 MYPY="$VENV_DIR/bin/mypy"
+LOCALSTACK_HEALTH_URL="http://localhost:4566/_localstack/health"
+LOCALSTACK_REQUIRED_SERVICES="autoscaling,cloudwatch,ec2,ecs,events,iam,lambda,logs,s3,secretsmanager,sns,sts"
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'
@@ -64,6 +66,89 @@ check_venv() {
     if [ ! -f "$PYTHON" ]; then
         error "Python not found in venv. Run: python3 -m venv .venv"
     fi
+}
+
+check_docker() {
+    if ! command -v docker >/dev/null 2>&1; then
+        error "Docker is not installed. Integration tests require Docker and LocalStack Pro."
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        error "Docker daemon is not running. Start Docker first."
+    fi
+}
+
+resolve_localstack_auth_token() {
+    # Single source: LOCALSTACK_AUTH_TOKEN environment variable (loaded from .env).
+    if [ -n "${LOCALSTACK_AUTH_TOKEN:-}" ]; then
+        echo "$LOCALSTACK_AUTH_TOKEN"
+        return 0
+    fi
+    return 1
+}
+
+validate_localstack_pro_runtime() {
+    check_docker
+
+    if ! resolve_localstack_auth_token >/dev/null; then
+        error "LOCALSTACK_AUTH_TOKEN is missing. Set it in .env or export it in your shell."
+    fi
+
+    local image
+    image="$(docker ps --filter name='^localstack$' --format '{{.Image}}' | head -n 1)"
+    if [ -z "$image" ]; then
+        error "LocalStack container 'localstack' is not running. Start it with: bash scripts/dev/setup_deps.sh start"
+    fi
+    if ! echo "$image" | grep -q '^localstack/localstack-pro'; then
+        error "LocalStack container is not Pro image ($image). Expected localstack/localstack-pro:latest"
+    fi
+
+    local health_json
+    health_json="$(curl -sf "$LOCALSTACK_HEALTH_URL")" || {
+        error "LocalStack health endpoint is unreachable at $LOCALSTACK_HEALTH_URL"
+    }
+
+    local validation
+    validation="$(python3 -c '
+import json
+import sys
+
+required = [
+    "autoscaling",
+    "cloudwatch",
+    "ec2",
+    "ecs",
+    "events",
+    "iam",
+    "lambda",
+    "logs",
+    "s3",
+    "secretsmanager",
+    "sns",
+    "sts",
+]
+
+payload = json.load(sys.stdin)
+edition = str(payload.get("edition", "")).lower()
+if edition != "pro":
+    print("edition=" + (edition or "unknown"))
+    raise SystemExit(1)
+
+services = payload.get("services") or {}
+missing = [
+    name
+    for name in required
+    if str(services.get(name, "")).lower() not in {"available", "running"}
+]
+if missing:
+    print("missing-services=" + ",".join(missing))
+    raise SystemExit(2)
+
+print("ok")
+' <<<"$health_json")" || {
+        error "LocalStack Pro validation failed: $validation. Required services: $LOCALSTACK_REQUIRED_SERVICES"
+    }
+
+    info "LocalStack Pro validation passed"
 }
 
 # ── Commands ──────────────────────────────────────────────────────────────────
@@ -138,7 +223,8 @@ cmd_test_e2e() {
 cmd_test_integ() {
     check_venv
     header "Running Integration Tests"
-    warn "Integration tests require Docker and/or LocalStack Pro."
+    warn "Integration tests require Docker and LocalStack Pro."
+    validate_localstack_pro_runtime
     "$PYTEST" tests/integration/ -v --tb=short "$@"
 }
 
@@ -184,7 +270,7 @@ Commands:
   test               Run full test suite (501 tests)
   test:unit          Run unit tests only (~400 tests, fast)
   test:e2e           Run E2E tests only
-  test:integ         Run integration tests (Docker required)
+    test:integ         Run integration tests (Docker + LocalStack Pro required)
   lint               Run ruff + mypy
   format             Auto-format code with ruff
   coverage           Run tests with coverage report

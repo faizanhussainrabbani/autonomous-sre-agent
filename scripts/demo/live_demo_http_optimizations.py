@@ -15,31 +15,26 @@ Usage
 import asyncio
 import httpx
 import os
-import subprocess
-import sys
 import time
 from uuid import uuid4
 
-# ---------------------------------------------------------------------------
-# Colour helpers
-# ---------------------------------------------------------------------------
-class C:
-    RESET   = "\033[0m"
-    BOLD    = "\033[1m"
-    DIM     = "\033[2m"
-    RED     = "\033[91m"
-    GREEN   = "\033[92m"
-    YELLOW  = "\033[93m"
-    BLUE    = "\033[94m"
-    CYAN    = "\033[96m"
-    MAGENTA = "\033[95m"
-    WHITE   = "\033[97m"
+from _demo_utils import (
+    C,
+    banner,
+    env_bool,
+    fail,
+    field,
+    info,
+    ok,
+    phase as act_header_fn,
+    register_cleanup_handler,
+    start_or_reuse_agent,
+    step,
+    stop_agent,
+)
 
-def header(title: str) -> None:
-    width = 72
-    print(f"\n{C.BOLD}{C.BLUE}{'╔' + '═' * width + '╗'}{C.RESET}")
-    print(f"{C.BOLD}{C.BLUE}║{title.center(width)}║{C.RESET}")
-    print(f"{C.BOLD}{C.BLUE}{'╚' + '═' * width + '╝'}{C.RESET}\n")
+SKIP_PAUSES = env_bool("SKIP_PAUSES", False)
+
 
 def act_header(title: str) -> None:
     width = 72
@@ -47,21 +42,9 @@ def act_header(title: str) -> None:
     print(f"{C.BOLD}{C.MAGENTA}║{title.center(width)}║{C.RESET}")
     print(f"{C.BOLD}{C.MAGENTA}{'╚' + '═' * width + '╝'}{C.RESET}\n")
 
-def field(label: str, value: str, indent: int = 3) -> None:
-    pad = " " * indent
-    print(f"{pad}{C.DIM}{label}:{C.RESET} {C.WHITE}{value}{C.RESET}")
-
-def ok(msg: str, indent: int = 3) -> None:
-    print(f"{' ' * indent}{C.GREEN}✔{C.RESET}  {msg}")
-
-def fail(msg: str, indent: int = 3) -> None:
-    print(f"{' ' * indent}{C.RED}✖{C.RESET}  {msg}")
 
 def warn(msg: str, indent: int = 3) -> None:
-    print(f"{' ' * indent}{C.YELLOW}⚠{C.RESET}  {msg}")
-
-def step(msg: str) -> None:
-    print(f"\n{C.CYAN}▶{C.RESET}  {C.BOLD}{msg}{C.RESET}")
+    print(f"{' ' * indent}{C.YELLOW}!{C.RESET}  {msg}")
 
 # ---------------------------------------------------------------------------
 # Globals & Configuration
@@ -134,20 +117,6 @@ def make_order_oom_alert() -> dict:
             }
         }
     }
-
-async def wait_for_server():
-    """Wait until the FastAPI server is healthy."""
-    async with httpx.AsyncClient() as client:
-        for _ in range(30):
-            try:
-                resp = await client.get(f"{API_URL}/health", timeout=1.0)
-                if resp.status_code == 200:
-                    return True
-            except httpx.RequestError:
-                pass
-            await asyncio.sleep(1)
-    return False
-
 
 async def post_json_with_retry(
     client: httpx.AsyncClient,
@@ -280,7 +249,11 @@ async def act3_lightweight_validation(audit_trail: list):
             return stage or "structured_entry", action
 
         if isinstance(entry, str):
-            head = entry.split(":", 1)[0].strip() if ":" in entry else entry.strip()
+            if ":" in entry:
+                stage, action = entry.split(":", 1)
+                return stage.strip(), action.strip()
+
+            head = entry.strip()
             if "/" in head:
                 stage, action = head.split("/", 1)
                 return stage.strip(), action.strip()
@@ -350,26 +323,14 @@ async def act4_semantic_caching(client: httpx.AsyncClient):
 # Main Routine
 # ---------------------------------------------------------------------------
 
-async def run_demo():
-    header("Live Demo 6 — HTTP API Server Execution + Token Optimizations")
-    
+async def run_demo() -> None:
+    banner("Live Demo 6 — HTTP API Server Execution + Token Optimizations")
+
     step("Phase 0: Booting up the FastAPI application server (Background)")
-    env = os.environ.copy()
-    server_process = subprocess.Popen(
-        [".venv/bin/uvicorn", "sre_agent.api.main:app", "--port", "8181", "--host", "127.0.0.1"],
-        stdout=subprocess.DEVNULL, # Keep console clean
-        stderr=subprocess.DEVNULL,
-        env=env
+    proc, started_by_demo, log_handle = start_or_reuse_agent(
+        port=8181, log_path="/tmp/sre_agent_demo_http.log",
     )
-    
-    print(f"   {C.DIM}Waiting for server to become healthy...{C.RESET}")
-    is_healthy = await wait_for_server()
-    if not is_healthy:
-        fail("Server failed to start or did not become healthy in time.")
-        server_process.terminate()
-        sys.exit(1)
-        
-    ok("FastAPI server is up and responding to /health on port 8181")
+    register_cleanup_handler(lambda: stop_agent(proc, started_by_demo, log_handle))
 
     try:
         async with httpx.AsyncClient() as client:
@@ -379,11 +340,11 @@ async def run_demo():
             await act4_semantic_caching(client)
     finally:
         step("Phase 9: Shutting down the server")
-        server_process.terminate()
-        server_process.wait()
+        stop_agent(proc, started_by_demo, log_handle)
         ok("FastAPI server shut down successfully.")
-        
+
     print(f"\n{C.BOLD}{C.GREEN}Extended Demo successfully showcased all optimizations over HTTP!{C.RESET}\n")
+
 
 if __name__ == "__main__":
     asyncio.run(run_demo())

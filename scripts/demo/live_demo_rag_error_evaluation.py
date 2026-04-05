@@ -47,7 +47,12 @@ import boto3
 import httpx
 from dotenv import load_dotenv
 
-from _demo_utils import aws_region, env_bool
+from _demo_utils import (
+    aws_region,
+    ensure_localstack_running,
+    env_bool,
+    localstack_auth_token,
+)
 
 # Load .env from the project root for LocalStack credentials and API keys.
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
@@ -63,8 +68,6 @@ SNS_TOPIC_NAME = "sre-rag-error-eval-alerts"
 SNS_TOPIC_ARN = f"arn:aws:sns:{AWS_REGION}:{ACCOUNT_ID}:{SNS_TOPIC_NAME}"
 
 VENV_UVICORN = Path(__file__).parent.parent.parent / ".venv" / "bin" / "uvicorn"
-
-LOCALSTACK_AUTH_TOKEN = os.getenv("LOCALSTACK_AUTH_TOKEN") or os.getenv("LOCALSTACK_API_KEY")
 
 _boto_kwargs = {
     "endpoint_url": LOCALSTACK_ENDPOINT,
@@ -397,47 +400,6 @@ _actual_topic_arn: str = SNS_TOPIC_ARN
 _results: list[dict[str, Any]] = []
 
 
-def _localstack_healthy() -> bool:
-    import urllib.request
-
-    try:
-        with urllib.request.urlopen(f"{LOCALSTACK_ENDPOINT}/_localstack/health", timeout=3) as response:
-            data = json.loads(response.read())
-            return data.get("status") in {"running", "ok"} or bool(data.get("services"))
-    except Exception:
-        return False
-
-
-def _start_localstack() -> None:
-    step("LocalStack is not reachable, attempting auto-start")
-    env = os.environ.copy()
-    if LOCALSTACK_AUTH_TOKEN:
-        env["LOCALSTACK_AUTH_TOKEN"] = LOCALSTACK_AUTH_TOKEN
-
-    started = subprocess.run(
-        ["localstack", "start", "-d"],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    if started.returncode not in (0, 1):
-        abort(
-            "localstack start failed "
-            f"(exit={started.returncode}) stderr={started.stderr.strip()}"
-        )
-
-    info("Waiting for LocalStack health endpoint (up to 90s)")
-    deadline = time.time() + 90
-    while time.time() < deadline:
-        if _localstack_healthy():
-            ok(f"LocalStack running at {LOCALSTACK_ENDPOINT}")
-            return
-        time.sleep(3)
-        print(".", end="", flush=True)
-    print()
-    abort("LocalStack did not become healthy within 90 seconds")
-
-
 def _kill_port_if_busy(port: int) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         in_use = sock.connect_ex(("127.0.0.1", port)) == 0
@@ -459,11 +421,16 @@ def _kill_port_if_busy(port: int) -> None:
 def phase0_preflight() -> None:
     phase(0, "Pre-flight and environment validation")
 
-    step("Check LocalStack availability")
-    if _localstack_healthy():
-        ok(f"LocalStack reachable at {LOCALSTACK_ENDPOINT}")
-    else:
-        _start_localstack()
+    step("Check LocalStack Pro availability")
+    try:
+        ensure_localstack_running(
+            endpoint=LOCALSTACK_ENDPOINT,
+            auth_token=localstack_auth_token(),
+            timeout_seconds=90,
+            emit_logs=True,
+        )
+    except RuntimeError as exc:
+        abort(str(exc))
 
     step("Check required Python packages")
     missing = []

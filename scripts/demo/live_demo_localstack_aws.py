@@ -3,7 +3,7 @@ Live Demo 4 — AWS Remediation Operators via LocalStack
 =======================================================
 
 Demonstrates the Phase 1.5 cloud operator layer (ECS, Lambda, EC2 ASG)
-executing *real* AWS API calls against a LocalStack Community instance.
+executing *real* AWS API calls against a LocalStack Pro instance.
 No LLM API key is required — the diagnostic result is deterministic and
 hardcoded so the demo focuses on the remediation path, which is the new
 functionality not exercised by Demos 1–3.
@@ -11,8 +11,13 @@ functionality not exercised by Demos 1–3.
 Usage
 -----
     # Terminal 1 — start LocalStack Pro (docker required):
-    docker run --rm -d -p 4566:4566 --name localstack-pro \\
+        docker run --rm -d -p 4566:4566 --name localstack \\
       -e LOCALSTACK_AUTH_TOKEN=<your-token> \\
+            -e DEFAULT_REGION=us-east-1 \\
+            -e SERVICES=ecs,ec2,iam,lambda,s3,secretsmanager,sts,autoscaling \\
+            -e DOCKER_HOST=unix:///var/run/docker.sock \\
+            -v localstack_data:/var/lib/localstack \\
+            -v /var/run/docker.sock:/var/run/docker.sock \\
       localstack/localstack-pro:latest
 
     # Terminal 2 — run the demo:
@@ -20,8 +25,7 @@ Usage
     pip install boto3 -q
     python scripts/live_demo_localstack_aws.py
 
-Note: ECS and autoscaling require LocalStack Pro.
-Lambda is available in both Community and Pro editions.
+Note: this demo follows the LocalStack Pro standard used across dev and test workflows.
 
 What this demo proves
 ---------------------
@@ -509,8 +513,13 @@ async def run_demo() -> None:
   {C.RED}LocalStack is not reachable at {LOCALSTACK_ENDPOINT}{C.RESET}
 
   Start LocalStack Pro with:
-    {C.CYAN}docker run --rm -d -p 4566:4566 --name localstack-pro \\
+        {C.CYAN}docker run --rm -d -p 4566:4566 --name localstack \\
       -e LOCALSTACK_AUTH_TOKEN=<your-token> \\
+            -e DEFAULT_REGION=us-east-1 \\
+            -e SERVICES=ecs,ec2,iam,lambda,s3,secretsmanager,sts,autoscaling \\
+            -e DOCKER_HOST=unix:///var/run/docker.sock \\
+            -v localstack_data:/var/lib/localstack \\
+            -v /var/run/docker.sock:/var/run/docker.sock \\
       localstack/localstack-pro:latest{C.RESET}
 
   Then re-run this demo.

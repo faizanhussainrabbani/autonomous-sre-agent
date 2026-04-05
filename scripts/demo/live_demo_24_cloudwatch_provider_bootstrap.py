@@ -71,7 +71,10 @@ from _demo_utils import (
     ok,
     pause_if_interactive,
     phase,
+    register_cleanup_handler,
+    start_or_reuse_agent,
     step,
+    stop_agent,
 )
 
 # ---------------------------------------------------------------------------
@@ -111,51 +114,6 @@ def require_llm_key() -> None:
     )
 
 
-def is_agent_healthy() -> bool:
-    try:
-        with httpx.Client(timeout=2.0) as c:
-            return c.get(f"{AGENT_URL}/health").status_code == 200
-    except Exception:
-        return False
-
-
-def start_or_reuse_agent() -> tuple[subprocess.Popen | None, Any | None]:
-    if is_agent_healthy():
-        info("Reusing existing SRE Agent on port " + str(AGENT_PORT))
-        return None, None
-
-    if not VENV_UVICORN.exists():
-        raise DemoError(f"uvicorn not found at {VENV_UVICORN}")
-
-    log_handle = open(LOG_PATH, "w")  # noqa: SIM115
-    proc = subprocess.Popen(
-        [str(VENV_UVICORN), "sre_agent.api.main:app",
-         "--host", "127.0.0.1", "--port", str(AGENT_PORT)],
-        cwd=str(REPO_ROOT),
-        stdout=log_handle,
-        stderr=log_handle,
-    )
-    deadline = time.time() + 40
-    while time.time() < deadline:
-        if is_agent_healthy():
-            ok(f"SRE Agent started on {AGENT_URL}")
-            return proc, log_handle
-        time.sleep(1)
-    raise DemoError(f"Agent did not become healthy within 40 s.  See {LOG_PATH}")
-
-
-def stop_agent(proc: subprocess.Popen | None, log_handle: Any | None) -> None:
-    if proc is not None and proc.poll() is None:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-    if log_handle is not None:
-        try:
-            log_handle.close()
-        except Exception:
-            pass
 
 
 def localstack_clients() -> tuple[Any, Any, Any]:
@@ -523,6 +481,7 @@ async def phase4_live_enriched_diagnosis(logs_client: Any) -> None:
 
 async def main() -> None:
     proc: subprocess.Popen | None = None
+    started_by_demo: bool = False
     log_handle: Any | None = None
     try:
         require_llm_key()
@@ -549,7 +508,10 @@ async def main() -> None:
 
         # Gate 4: Live diagnosis with log context
         step("Starting SRE Agent API server for live diagnosis...")
-        proc, log_handle = start_or_reuse_agent()
+        proc, started_by_demo, log_handle = start_or_reuse_agent(
+            port=AGENT_PORT, log_path=str(LOG_PATH),
+        )
+        register_cleanup_handler(lambda: stop_agent(proc, started_by_demo, log_handle))
         await phase4_live_enriched_diagnosis(logs_client)
 
         # Summary
@@ -563,7 +525,7 @@ async def main() -> None:
         fail(str(exc))
         sys.exit(1)
     finally:
-        stop_agent(proc, log_handle)
+        stop_agent(proc, started_by_demo, log_handle)
 
 
 if __name__ == "__main__":

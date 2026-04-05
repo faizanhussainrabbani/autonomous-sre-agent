@@ -6,46 +6,21 @@ successfully bind arguments to boto3 and invoke AWS APIs.
 
 Requires:
 - Docker daemon to be running.
-- LOCALSTACK_AUTH_TOKEN env var set (or ~/.localstack/auth.json configured).
+- LOCALSTACK_AUTH_TOKEN env var set (via .env or exported in shell).
 - localstack/localstack-pro:latest image available.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import shutil
-import subprocess
 import pytest
 
-# ---------------------------------------------------------------------------
-# Environment helpers
-# ---------------------------------------------------------------------------
-
-def _is_docker_daemon_running() -> bool:
-    if not shutil.which("docker"):
-        return False
-    try:
-        subprocess.run(["docker", "info"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-def _get_localstack_auth_token() -> str:
-    """Resolve LOCALSTACK_AUTH_TOKEN from env var or ~/.localstack/auth.json."""
-    token = os.environ.get("LOCALSTACK_AUTH_TOKEN", "")
-    if not token:
-        auth_file = os.path.expanduser("~/.localstack/auth.json")
-        if os.path.exists(auth_file):
-            with open(auth_file) as f:
-                data = json.load(f)
-                token = data.get("LOCALSTACK_AUTH_TOKEN", "")
-    return token
-
-_AUTH_TOKEN = _get_localstack_auth_token()
+from tests.localstack_pro_standard import (
+    build_localstack_pro_container,
+    is_docker_daemon_running,
+)
 
 pytestmark = pytest.mark.skipif(
-    not _is_docker_daemon_running(),
+    not is_docker_daemon_running(),
     reason="Docker daemon is not running. Integration tests require Testcontainers.",
 )
 
@@ -65,13 +40,8 @@ from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator
 
 @pytest.fixture(scope="module")
 def localstack():
-    """Start a LocalStack Pro container with autoscaling, ecs, and lambda services."""
-    container = (
-        LocalStackContainer(image="localstack/localstack-pro:latest")
-        .with_env("SERVICES", "autoscaling,ecs,lambda")
-        .with_env("LOCALSTACK_AUTH_TOKEN", _AUTH_TOKEN)
-        .with_env("AWS_DEFAULT_REGION", "us-east-1")
-    )
+    """Start LocalStack Pro using the shared canonical fixture settings."""
+    container = build_localstack_pro_container(LocalStackContainer)
     with container as c:
         yield c
 

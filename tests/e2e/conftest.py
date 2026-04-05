@@ -2,7 +2,6 @@
 E2E specific shared fixtures for testing against LocalStack Pro pipelines.
 """
 
-import json
 import os
 import shutil
 import subprocess
@@ -21,18 +20,7 @@ def _is_docker_daemon_running() -> bool:
     except subprocess.CalledProcessError:
         return False
 
-def _get_localstack_auth_token() -> str:
-    """Resolve LOCALSTACK_AUTH_TOKEN from env var or ~/.localstack/auth.json."""
-    token = os.environ.get("LOCALSTACK_AUTH_TOKEN", "")
-    if not token:
-        auth_file = os.path.expanduser("~/.localstack/auth.json")
-        if os.path.exists(auth_file):
-            with open(auth_file) as f:
-                data = json.load(f)
-                token = data.get("LOCALSTACK_AUTH_TOKEN", "")
-    return token
-
-_AUTH_TOKEN = _get_localstack_auth_token()
+_AUTH_TOKEN = (os.environ.get("LOCALSTACK_AUTH_TOKEN") or "").strip()
 
 # Skip E2E tests if docker is not running.
 pytestmark = pytest.mark.skipif(

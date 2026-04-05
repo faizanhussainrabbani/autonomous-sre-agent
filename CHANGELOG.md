@@ -1,7 +1,7 @@
 ---
 title: Changelog
 description: Historical record of notable project changes with references to plans, criteria, and verification artifacts.
-ms.date: 2026-03-31
+ms.date: 2026-04-05
 ms.topic: reference
 author: SRE Agent Engineering Team
 ---
@@ -11,6 +11,85 @@ author: SRE Agent Engineering Team
 All notable changes to the Autonomous SRE Agent project are documented here.
 
 Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by Phase.
+
+---
+
+## [2026-04-05] LocalStack Pro Standardization & Auth Simplification
+
+Resolved three concrete failures observed during live demo verification: `live_demo_ecs_multi_service.py` crashing with "Service 'sns' is not enabled", `live_demo_localstack_incident.py` timing out on Lambda cold starts, and inconsistent authentication across 5 separate token resolution implementations.
+
+### What changed and why
+
+* **Expanded canonical service list (8 → 12):** Added `cloudwatch`, `events`, `logs`, `sns` across all 6 configuration locations (`docker-compose.deps.yml`, `setup_deps.sh`, `run.sh`, `_demo_utils.py`, `localstack_pro_standard.py`, `.env.example`). These services were required by ECS multi-service, CloudWatch enrichment, and incident bridge demos but were missing from the standard list.
+
+* **Lambda runtime tuning:** Added `LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=120` and `EAGER_SERVICE_LOADING=1` to all LocalStack startup paths. The default 20-second Lambda environment timeout was insufficient for cold starts; eager loading eliminates lazy-load race conditions at the cost of ~30s longer startup.
+
+* **Single auth method — env var only:** Removed the `~/.localstack/auth.json` file fallback from all 5 token resolution functions (`setup_deps.sh`, `run.sh`, `_demo_utils.py`, `localstack_pro_standard.py`, `tests/e2e/conftest.py`). The `.env` file (loaded as environment variable) is now the only supported authentication path. This eliminates a class of debugging confusion where stale tokens in `auth.json` could silently override or conflict with `.env` values.
+
+* **Standalone readiness script:** Created `scripts/dev/localstack_check.sh` that validates container image, Pro edition, and all 12 required services. Optional `--deep` flag smoke-tests Lambda invocation end-to-end.
+
+* **CI integration test pipeline:** Added `integration-localstack` job to `.github/workflows/ci.yml` using `LocalStack/setup-localstack@v0.2.3` with Pro auth, readiness gate, and `pytest tests/integration/`. Requires `LOCALSTACK_AUTH_TOKEN` repository secret.
+
+* **Unified live demo guide:** Created `docs/testing/running_live_demos.md` with a single 3-step process (configure `.env`, start LocalStack, run demo), a 4-tier catalog of all 25 demos organized by dependency requirements, and troubleshooting for every common failure mode.
+
+* **Documentation rewrite:** Rewrote `docs/testing/localstack_pro_usage_standard.md` to reflect the 12-service list, Lambda tuning rationale, env-var-only auth, CI pipeline setup, and expanded troubleshooting. Updated `docs/testing/localstack_pro_guide.md`, `docs/getting-started.md`, and integration test docstrings to remove all `auth.json` references.
+
+### Key files affected
+
+* `docker-compose.deps.yml` — Expanded SERVICES, added Lambda tuning vars
+* `scripts/dev/setup_deps.sh` — Simplified auth resolution to env-var-only, expanded service list
+* `scripts/dev/run.sh` — Simplified auth resolution to env-var-only, expanded service list
+* `scripts/dev/localstack_check.sh` [NEW] — Standalone Pro readiness validation
+* `scripts/demo/_demo_utils.py` — Simplified auth, expanded services, added tuning vars to ensure_localstack_running
+* `tests/localstack_pro_standard.py` — Simplified auth, expanded services, added tuning vars to build_localstack_pro_container
+* `tests/e2e/conftest.py` — Simplified auth to single env var read
+* `tests/integration/test_aws_operators_integration.py` — Updated docstring
+* `tests/integration/test_cloudwatch_live_integration.py` — Updated docstring
+* `tests/integration/test_chaos_specs.py` — Updated docstring
+* `.github/workflows/ci.yml` — Added integration-localstack job
+* `.env.example` — Documented Lambda tuning variables
+* `docs/testing/localstack_pro_usage_standard.md` — Comprehensive rewrite
+* `docs/testing/localstack_pro_guide.md` — Replaced dual-auth with env-var-only
+* `docs/testing/running_live_demos.md` [NEW] — Unified demo runner guide
+* `docs/getting-started.md` — Updated prerequisites and demo guide link
+
+### Validation outcomes
+
+* `bash scripts/dev/localstack_check.sh`: **pass** (12/12 services, Pro edition confirmed)
+* `live_demo_localstack_aws.py`: **pass** (all 4 acts — ECS, Lambda, ASG, circuit breaker)
+* `live_demo_ecs_multi_service.py`: **pass** (all 14 phases — previously crashed on SNS)
+* `live_demo_cloudwatch_enrichment.py`: **pass** (metric + log enrichment)
+* `live_demo_http_optimizations.py`: **pass** (token optimizations over HTTP)
+
+---
+
+## [2026-04-03] Demo Hardening & Phase 3 Remediation Demo
+
+Addresses P0 and P1 findings from the live demo critical review (`docs/reports/analysis/live_demo_critical_review.md`). Three work items executed sequentially using the seven-step framework.
+
+Execution artifacts:
+
+* Plan: `docs/plans/demo_hardening_phase3_plan.md`
+* Acceptance Criteria: `docs/plans/demo_hardening_acceptance_criteria.md`
+
+### What changed and why
+
+* **SIGINT handler infrastructure (WI-1):** Added `register_cleanup_handler()` to `_demo_utils.py` that registers both SIGINT and SIGTERM handlers with a user-supplied cleanup callback. Six demos that manage uvicorn subprocesses now register cleanup handlers, eliminating orphan-process risk on Ctrl+C.
+
+* **Shared agent lifecycle (WI-2):** Extracted `start_or_reuse_agent()` and `stop_agent()` into `_demo_utils.py` with a unified 3-tuple return signature. Removed ~300 lines of duplicated agent lifecycle code across six demos. Demos 24 and 26 migrated from 2-tuple to 3-tuple pattern.
+
+* **Phase 3 end-to-end remediation demo (WI-3):** Created `live_demo_phase3_remediation_e2e.py` demonstrating the complete autonomous remediation workflow across 6 acts: safe remediation, blast radius rejection, cooldown enforcement, kill switch activation, priority preemption, and full autonomous loop with audit trail. Zero external dependencies — uses real domain objects in-process.
+
+### Key files affected
+
+* `scripts/demo/_demo_utils.py` — Added `register_cleanup_handler()`, `start_or_reuse_agent()`, `stop_agent()`
+* `scripts/demo/live_demo_20_unknown_incident_safety_net.py` — Migrated to shared lifecycle + SIGINT
+* `scripts/demo/live_demo_21_human_governance_lifecycle.py` — Migrated to shared lifecycle + SIGINT
+* `scripts/demo/live_demo_22_change_event_causality.py` — Migrated to shared lifecycle + SIGINT
+* `scripts/demo/live_demo_24_cloudwatch_provider_bootstrap.py` — Migrated from 2-tuple to 3-tuple + SIGINT
+* `scripts/demo/live_demo_26_log_fetching_before_after.py` — Migrated from 2-tuple to 3-tuple + SIGINT
+* `scripts/demo/live_demo_http_optimizations.py` — Replaced inline subprocess with shared lifecycle + SIGINT
+* `scripts/demo/live_demo_phase3_remediation_e2e.py` [NEW] — Phase 3 end-to-end remediation demo
 
 ---
 

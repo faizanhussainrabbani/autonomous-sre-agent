@@ -38,48 +38,17 @@ Spec: docs/testing/localstack_e2e_live_specs.md §3 IAM-001 and IAM-002
 from __future__ import annotations
 
 import json
-import os
-import shutil
-import subprocess
 import time
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Environment helpers (same pattern as test_chaos_specs.py)
-# ---------------------------------------------------------------------------
-
-
-def _is_docker_daemon_running() -> bool:
-    if not shutil.which("docker"):
-        return False
-    try:
-        subprocess.run(
-            ["docker", "info"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-
-def _get_localstack_auth_token() -> str:
-    token = os.environ.get("LOCALSTACK_AUTH_TOKEN", "")
-    if not token:
-        auth_file = os.path.expanduser("~/.localstack/auth.json")
-        if os.path.exists(auth_file):
-            with open(auth_file) as f:
-                data = json.load(f)
-                token = data.get("LOCALSTACK_AUTH_TOKEN", "")
-    return token
-
-
-_AUTH_TOKEN = _get_localstack_auth_token()
+from tests.localstack_pro_standard import (
+    build_localstack_pro_container,
+    is_docker_daemon_running,
+)
 
 pytestmark = pytest.mark.skipif(
-    not _is_docker_daemon_running(),
+    not is_docker_daemon_running(),
     reason="Docker daemon is not running — IAM enforcement specs require Testcontainers.",
 )
 
@@ -112,13 +81,12 @@ def localstack_iam():
       ENFORCE_IAM=1    — evaluate IAM policies on all API calls.
       IAM_SOFT_MODE=0  — hard-fail on policy violations (not just log).
     """
-    container = (
-        LocalStackContainer(image="localstack/localstack-pro:latest")
-        .with_env("SERVICES", "ecs,iam")
-        .with_env("LOCALSTACK_AUTH_TOKEN", _AUTH_TOKEN)
-        .with_env("ENFORCE_IAM", "1")
-        .with_env("IAM_SOFT_MODE", "0")
-        .with_env("AWS_DEFAULT_REGION", "us-east-1")
+    container = build_localstack_pro_container(
+        LocalStackContainer,
+        extra_env={
+            "ENFORCE_IAM": "1",
+            "IAM_SOFT_MODE": "0",
+        },
     )
     with container as c:
         yield c

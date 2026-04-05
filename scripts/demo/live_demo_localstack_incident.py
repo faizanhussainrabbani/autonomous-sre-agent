@@ -55,7 +55,12 @@ from typing import Any
 import boto3
 import httpx
 from dotenv import load_dotenv
-from _demo_utils import aws_region, env_bool
+from _demo_utils import (
+    aws_region,
+    ensure_localstack_running,
+    env_bool,
+    localstack_auth_token,
+)
 
 # Load .env from the project root so LOCALSTACK_AUTH_TOKEN and other secrets
 # are available without needing them exported in the shell.
@@ -167,62 +172,6 @@ def sns_client():     return boto3.client("sns",        **_boto_kwargs)
 # ---------------------------------------------------------------------------
 # Phase 0 — Pre-flight checks (with auto-start)
 # ---------------------------------------------------------------------------
-LOCALSTACK_AUTH_TOKEN = os.getenv("LOCALSTACK_AUTH_TOKEN") or os.getenv("LOCALSTACK_API_KEY")
-
-
-def _localstack_healthy() -> bool:
-    """Return True if LocalStack is reachable and reports healthy status."""
-    import urllib.request
-    try:
-        with urllib.request.urlopen(LOCALSTACK_ENDPOINT + "/_localstack/health", timeout=3) as r:
-            data = json.loads(r.read())
-            # LocalStack health returns {"status": "running"} or {"services": {...}}
-            return data.get("status") in ("running", "ok") or bool(data.get("services"))
-    except Exception:
-        return False
-
-
-def _start_localstack() -> None:
-    """Auto-start LocalStack Pro in the background and wait up to 90 s for it."""
-    step("LocalStack not running — attempting auto-start")
-
-    # Set auth token so LocalStack Pro activates correctly
-    env = os.environ.copy()
-    if LOCALSTACK_AUTH_TOKEN:
-        env["LOCALSTACK_AUTH_TOKEN"] = LOCALSTACK_AUTH_TOKEN
-    # Keep Lambda in synchronous create mode so our waiter works correctly
-    env["LAMBDA_SYNCHRONOUS_CREATE"] = "1"
-
-    token_hint = (LOCALSTACK_AUTH_TOKEN or "")[:12] or "<not set>"
-    info(f"Running: localstack start -d  (token: {token_hint}...)")
-    result = subprocess.run(
-        ["localstack", "start", "-d"],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode not in (0, 1):  # returncode 1 is ok (already starting)
-        abort(
-            f"localstack start failed (exit {result.returncode}).\n"
-            f"stdout: {result.stdout.strip()}\n"
-            f"stderr: {result.stderr.strip()}\n"
-            f"Install LocalStack CLI:  pip install localstack"
-        )
-
-    info("Waiting for LocalStack to become healthy (up to 90 s)...")
-    deadline = time.time() + 90
-    while time.time() < deadline:
-        if _localstack_healthy():
-            ok(f"LocalStack is UP at {LOCALSTACK_ENDPOINT}")
-            return
-        time.sleep(3)
-        print(".", end="", flush=True)
-    print()
-    abort(
-        "LocalStack did not become healthy within 90 s.\n"
-        "Check logs:  localstack logs\n"
-        "Or start manually:  LAMBDA_SYNCHRONOUS_CREATE=1 LOCALSTACK_AUTH_TOKEN=<token> localstack start -d"
-    )
 
 
 def _kill_stale_port(port: int) -> None:
@@ -246,11 +195,16 @@ def phase0_preflight() -> None:
     phase(0, "Pre-flight Checks")
 
     # ── LocalStack ──────────────────────────────────────────────────────────
-    step("Verify LocalStack is reachable")
-    if _localstack_healthy():
-        ok(f"LocalStack reachable at {LOCALSTACK_ENDPOINT}")
-    else:
-        _start_localstack()
+    step("Verify LocalStack Pro is reachable")
+    try:
+        ensure_localstack_running(
+            endpoint=LOCALSTACK_ENDPOINT,
+            auth_token=localstack_auth_token(),
+            timeout_seconds=90,
+            emit_logs=True,
+        )
+    except RuntimeError as exc:
+        abort(str(exc))
 
     # ── Python packages ─────────────────────────────────────────────────────
     step("Verify required Python packages")

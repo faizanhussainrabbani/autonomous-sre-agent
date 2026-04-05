@@ -8,12 +8,12 @@
 #   - Jaeger (traces)
 #
 # Usage:
-#   ./scripts/setup_deps.sh start       Start all services
-#   ./scripts/setup_deps.sh stop        Stop all services
-#   ./scripts/setup_deps.sh status      Show service status
-#   ./scripts/setup_deps.sh logs        Tail service logs
-#   ./scripts/setup_deps.sh clean       Stop + remove volumes
-#   ./scripts/setup_deps.sh health      Check health of all services
+#   ./scripts/dev/setup_deps.sh start       Start all services
+#   ./scripts/dev/setup_deps.sh stop        Stop all services
+#   ./scripts/dev/setup_deps.sh status      Show service status
+#   ./scripts/dev/setup_deps.sh logs        Tail service logs
+#   ./scripts/dev/setup_deps.sh clean       Stop + remove volumes
+#   ./scripts/dev/setup_deps.sh health      Check health of all services
 #
 # Prerequisites: Docker, Docker Compose v2+
 # ===========================================================================
@@ -23,6 +23,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.deps.yml"
+LOCALSTACK_HEALTH_URL="http://localhost:4566/_localstack/health"
+LOCALSTACK_REQUIRED_SERVICES="autoscaling,cloudwatch,ec2,ecs,events,iam,lambda,logs,s3,secretsmanager,sns,sts"
 
 # Colors
 GREEN='\033[0;32m'
@@ -35,6 +37,66 @@ info()  { echo -e "${GREEN}[✓]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[⚠]${NC} $1"; }
 error() { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 header(){ echo -e "\n${CYAN}━━━ $1 ━━━${NC}\n"; }
+
+resolve_localstack_auth_token() {
+    # Single source: LOCALSTACK_AUTH_TOKEN environment variable (loaded from .env).
+    if [ -n "${LOCALSTACK_AUTH_TOKEN:-}" ]; then
+        echo "$LOCALSTACK_AUTH_TOKEN"
+        return 0
+    fi
+    return 1
+}
+
+localstack_pro_health_status() {
+    local health_json
+    health_json="$(curl -sf "$LOCALSTACK_HEALTH_URL")" || {
+        echo "unreachable"
+        return 1
+    }
+
+    python3 -c '
+import json
+import sys
+
+required = [
+    "autoscaling",
+    "cloudwatch",
+    "ec2",
+    "ecs",
+    "events",
+    "iam",
+    "lambda",
+    "logs",
+    "s3",
+    "secretsmanager",
+    "sns",
+    "sts",
+]
+
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    print("invalid-health-payload")
+    raise SystemExit(2)
+
+edition = str(payload.get("edition", "")).lower()
+if edition != "pro":
+    print("edition=" + (edition or "unknown"))
+    raise SystemExit(3)
+
+services = payload.get("services") or {}
+missing = [
+    name
+    for name in required
+    if str(services.get(name, "")).lower() not in {"available", "running"}
+]
+if missing:
+    print("missing-services=" + ",".join(missing))
+    raise SystemExit(4)
+
+print("ok")
+' <<<"$health_json"
+}
 
 # Load .env for LOCALSTACK_AUTH_TOKEN
 if [ -f "$PROJECT_ROOT/.env" ]; then
@@ -58,10 +120,13 @@ cmd_start() {
     check_docker
     header "Starting Development Dependencies"
 
-    if [ -z "${LOCALSTACK_AUTH_TOKEN:-}" ]; then
-        warn "LOCALSTACK_AUTH_TOKEN not set. LocalStack Pro features disabled."
-        warn "Set it in .env or export it: export LOCALSTACK_AUTH_TOKEN=your-token"
+    local resolved_token
+    if ! resolved_token="$(resolve_localstack_auth_token)"; then
+        error "LOCALSTACK_AUTH_TOKEN is required. Set it in .env or export it in your shell."
     fi
+
+    export LOCALSTACK_AUTH_TOKEN="$resolved_token"
+    info "Resolved LOCALSTACK_AUTH_TOKEN for LocalStack Pro startup"
 
     docker compose -f "$COMPOSE_FILE" up -d
 
@@ -72,8 +137,8 @@ cmd_start() {
     echo "  Prometheus:  http://localhost:9090"
     echo "  Jaeger UI:   http://localhost:16686"
     echo ""
-    echo "  Check status:  ./scripts/setup_deps.sh status"
-    echo "  View logs:     ./scripts/setup_deps.sh logs"
+    echo "  Check status:  ./scripts/dev/setup_deps.sh status"
+    echo "  View logs:     ./scripts/dev/setup_deps.sh logs"
 }
 
 cmd_stop() {
@@ -107,11 +172,13 @@ cmd_health() {
 
     local all_healthy=true
 
-    # LocalStack
-    if curl -sf http://localhost:4566/_localstack/health >/dev/null 2>&1; then
-        info "LocalStack:   healthy"
+    # LocalStack Pro
+    local localstack_status
+    if localstack_status="$(localstack_pro_health_status)"; then
+        info "LocalStack:   healthy (Pro, required services ready)"
     else
-        warn "LocalStack:   not reachable"
+        warn "LocalStack:   $localstack_status"
+        warn "Expected Pro with services: $LOCALSTACK_REQUIRED_SERVICES"
         all_healthy=false
     fi
 
@@ -135,7 +202,7 @@ cmd_health() {
     if [ "$all_healthy" = true ]; then
         info "All services healthy!"
     else
-        warn "Some services are not reachable. Run: ./scripts/setup_deps.sh start"
+        warn "Some services are not reachable. Run: ./scripts/dev/setup_deps.sh start"
     fi
 }
 
@@ -143,7 +210,7 @@ cmd_help() {
     cat <<'EOF'
 🐳 SRE Agent — External Dependencies Manager
 
-Usage:  ./scripts/setup_deps.sh <command>
+Usage:  ./scripts/dev/setup_deps.sh <command>
 
 Commands:
   start    Start all dependency services (LocalStack, Prometheus, Jaeger)
@@ -156,7 +223,8 @@ Commands:
 
 Prerequisites:
   - Docker Engine + Docker Compose v2
-  - LOCALSTACK_AUTH_TOKEN in .env (for LocalStack Pro features)
+    - LOCALSTACK_AUTH_TOKEN in .env (or exported in shell)
+    - docs/testing/localstack_pro_usage_standard.md
 EOF
 }
 

@@ -27,7 +27,7 @@ Resolution notes (Phase 1.5.1):
 
 Requires:
   - Docker daemon running.
-  - LOCALSTACK_AUTH_TOKEN in env or ~/.localstack/auth.json.
+  - LOCALSTACK_AUTH_TOKEN in env (via .env or exported in shell).
   - localstack/localstack-pro:latest image pulled locally.
 """
 
@@ -36,9 +36,6 @@ from __future__ import annotations
 import io
 import json
 import math
-import os
-import shutil
-import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -48,41 +45,13 @@ from random import uniform
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Environment helpers (mirrors tests/integration/test_aws_operators_integration.py)
-# ---------------------------------------------------------------------------
-
-
-def _is_docker_daemon_running() -> bool:
-    if not shutil.which("docker"):
-        return False
-    try:
-        subprocess.run(
-            ["docker", "info"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-
-def _get_localstack_auth_token() -> str:
-    token = os.environ.get("LOCALSTACK_AUTH_TOKEN", "")
-    if not token:
-        auth_file = os.path.expanduser("~/.localstack/auth.json")
-        if os.path.exists(auth_file):
-            with open(auth_file) as f:
-                data = json.load(f)
-                token = data.get("LOCALSTACK_AUTH_TOKEN", "")
-    return token
-
-
-_AUTH_TOKEN = _get_localstack_auth_token()
+from tests.localstack_pro_standard import (
+    build_localstack_pro_container,
+    is_docker_daemon_running,
+)
 
 pytestmark = pytest.mark.skipif(
-    not _is_docker_daemon_running(),
+    not is_docker_daemon_running(),
     reason="Docker daemon is not running — LocalStack chaos specs require Testcontainers.",
 )
 
@@ -169,12 +138,7 @@ def _clear_chaos_rules(localstack_url: str) -> None:
 @pytest.fixture(scope="module")
 def localstack():
     """LocalStack Pro container with ECS, Lambda, and AutoScaling active."""
-    container = (
-        LocalStackContainer(image="localstack/localstack-pro:latest")
-        .with_env("SERVICES", "autoscaling,ecs,lambda")
-        .with_env("LOCALSTACK_AUTH_TOKEN", _AUTH_TOKEN)
-        .with_env("AWS_DEFAULT_REGION", "us-east-1")
-    )
+    container = build_localstack_pro_container(LocalStackContainer)
     with container as c:
         yield c
 

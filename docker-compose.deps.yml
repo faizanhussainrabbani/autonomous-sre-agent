@@ -16,19 +16,20 @@ services:
 
   # ── LocalStack Pro ────────────────────────────────────────────────────────
   # Emulates AWS APIs locally (ECS, EC2, Lambda, IAM, S3, SecretsManager).
-  # Required for: integration tests, chaos specs, IAM specs.
-  # Set LOCALSTACK_AUTH_TOKEN in your .env for Pro features.
+  # Required for integration tests, demos, and AWS workflow validation.
+  # Standardized usage is documented in docs/testing/localstack_pro_usage_standard.md.
   localstack:
     image: localstack/localstack-pro:latest
-    container_name: sre-localstack
+    container_name: localstack
     ports:
-      - "4566:4566"       # Gateway (all AWS services)
-      - "4510-4559:4510-4559"  # Service port range
+      - "4566:4566"
     environment:
-      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:?LOCALSTACK_AUTH_TOKEN is required for LocalStack Pro}
       - DEBUG=0
-      - SERVICES=ecs,ec2,iam,lambda,s3,secretsmanager,sts,autoscaling
+      - SERVICES=autoscaling,cloudwatch,ec2,ecs,events,iam,lambda,logs,s3,secretsmanager,sns,sts
       - DEFAULT_REGION=us-east-1
+      - LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=120
+      - EAGER_SERVICE_LOADING=1
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - localstack_data:/var/lib/localstack

@@ -6,33 +6,27 @@ can successfully query actually-published metrics.
 
 Requires:
 - Docker daemon to be running.
-- localstack/localstack:latest image available.
+- LOCALSTACK_AUTH_TOKEN in env (via .env or exported in shell).
+- localstack/localstack-pro:latest image available.
 """
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 import pytest
+
+from tests.localstack_pro_standard import (
+    build_localstack_pro_container,
+    is_docker_daemon_running,
+)
 
 # ---------------------------------------------------------------------------
 # Environment helpers
 # ---------------------------------------------------------------------------
 
-def _is_docker_daemon_running() -> bool:
-    if not shutil.which("docker"):
-        return False
-    try:
-        subprocess.run(["docker", "info"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
 pytestmark = pytest.mark.skipif(
-    not _is_docker_daemon_running(),
+    not is_docker_daemon_running(),
     reason="Docker daemon is not running. Integration tests require Testcontainers.",
 )
 
@@ -49,12 +43,8 @@ from sre_agent.adapters.telemetry.cloudwatch.metrics_adapter import CloudWatchMe
 
 @pytest.fixture(scope="module")
 def localstack():
-    """Start a LocalStack container with cloudwatch service."""
-    container = (
-        LocalStackContainer(image="localstack/localstack:latest")
-        .with_env("SERVICES", "cloudwatch")
-        .with_env("AWS_DEFAULT_REGION", "us-east-1")
-    )
+    """Start LocalStack Pro with canonical services and auth settings."""
+    container = build_localstack_pro_container(LocalStackContainer)
     with container as c:
         yield c
 

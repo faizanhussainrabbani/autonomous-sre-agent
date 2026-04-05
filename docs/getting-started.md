@@ -16,6 +16,9 @@ Use this guide as the default first-run path. It covers prerequisites, setup, en
 * Python 3.11 or newer
 * Git
 * Docker Desktop or Docker Engine
+* LocalStack Pro setup aligned with [LocalStack Pro usage standard](testing/localstack_pro_usage_standard.md)
+* Lambda tuning: `LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=120` and `EAGER_SERVICE_LOADING=1` are set automatically by `setup_deps.sh` and Docker Compose
+* Readiness validation: run `bash scripts/dev/localstack_check.sh` before tests or demos
 * Optional for cloud demos: AWS and Azure test credentials with least privilege
 
 ## Local setup
@@ -68,7 +71,7 @@ Use one live demo script with pause-skipping enabled:
 SKIP_PAUSES=1 .venv/bin/python scripts/demo/live_demo_06_http_optimizations.py
 ```
 
-For the complete demo matrix, see [Live demo guide](operations/live_demo_guide.md).
+For the complete demo catalog and step-by-step instructions, see [Running live demos](testing/running_live_demos.md).
 
 ## Expected outputs
 

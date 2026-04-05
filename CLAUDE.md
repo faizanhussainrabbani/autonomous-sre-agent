@@ -145,6 +145,8 @@ bash scripts/dev/run.sh coverage        # tests with coverage report
 bash scripts/dev/run.sh server --reload
 ```
 
+For LocalStack Pro authentication and container management rules, use docs/testing/localstack_pro_usage_standard.md.
+
 Use docs/getting-started.md for full setup, environment variables, and troubleshooting.
 
 ## Environment Variables

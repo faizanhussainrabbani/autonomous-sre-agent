@@ -5,6 +5,8 @@
 
 This guide provides precise, actionable instructions on leveraging **LocalStack Pro** to test the Autonomous SRE Agent's interactions with AWS services (EC2 ASG, ECS, Lambda) locally, without requiring actual AWS cloud resources or incurring costs.
 
+Use [LocalStack Pro usage standard](localstack_pro_usage_standard.md) as the canonical source for container startup, authentication resolution, and health validation.
+
 ---
 
 ## 1. Why LocalStack Pro?
@@ -26,24 +28,20 @@ To run the integration tests locally, you must first authenticate your environme
 You must acquire a `LOCALSTACK_AUTH_TOKEN`. Contact the team lead if you do not have one.
 
 ### Step 2.2: Configure the Token
-The test suite automatically resolves the token using one of two methods (checked in order):
+Set your token in `.env` at the project root (auto-loaded by all scripts):
 
-**Method A: Environment Variable (Recommended for CI/CD)**
 ```bash
-export LOCALSTACK_AUTH_TOKEN="ls-string-here"
+# .env
+LOCALSTACK_AUTH_TOKEN=ls-string-here
 ```
 
-**Method B: Local JSON File (Recommended for Local Dev)**
-Save your token in `~/.localstack/auth.json`:
-```json
-{
-  "LOCALSTACK_AUTH_TOKEN": "ls-string-here"
-}
-```
+This is the only supported authentication method. See [LocalStack Pro usage standard](localstack_pro_usage_standard.md) for details.
 
 ---
 
 ## 3. Test Environment Setup
+
+Container startup must follow [LocalStack Pro usage standard](localstack_pro_usage_standard.md). Do not use `localstack start`.
 
 The integration tests rely on `testcontainers-localstack` to spin up ephemeral, isolated LocalStack containers per test module.
 

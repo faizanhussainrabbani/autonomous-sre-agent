@@ -74,7 +74,17 @@ def phase0_preflight():
         print(f"[{C_GREEN}OK{C_RESET}] CloudWatch endpoint reachable.")
     except Exception as e:
         print(f"[{C_RED}FAIL{C_RESET}] LocalStack unavailable: {e}")
-        print("Please start LocalStack: docker run --rm -d -p 4566:4566 localstack/localstack:latest")
+        print(
+            "Please start LocalStack Pro: "
+            "docker run --rm -d -p 4566:4566 --name localstack "
+            "-e LOCALSTACK_AUTH_TOKEN=<your-token> "
+            "-e DEFAULT_REGION=us-east-1 "
+            "-e SERVICES=ecs,ec2,iam,lambda,s3,secretsmanager,sts,autoscaling "
+            "-e DOCKER_HOST=unix:///var/run/docker.sock "
+            "-v localstack_data:/var/lib/localstack "
+            "-v /var/run/docker.sock:/var/run/docker.sock "
+            "localstack/localstack-pro:latest"
+        )
         sys.exit(1)
         
     wait_for_enter("Press ENTER to publish Synthetic Metrics")
@@ -178,7 +188,15 @@ async def phase3_trigger_enricher():
         
     print("\n   [Logs Found]")
     for log in enriched_signals["logs"]:
-        print(f"      - {log['timestamp']} [{log.get('severity', 'UNK')}] {log['message']}")
+        if isinstance(log, dict):
+            timestamp = log.get("timestamp", "")
+            severity = log.get("severity", "UNK")
+            message = log.get("message", "")
+        else:
+            timestamp = getattr(log, "timestamp", "")
+            severity = getattr(log, "severity", "UNK")
+            message = getattr(log, "message", str(log))
+        print(f"      - {timestamp} [{severity}] {message}")
             
     print(f"\n[{C_GREEN}SUCCESS{C_RESET}] The bridge now has context to inject into diagnosis requests.")
     

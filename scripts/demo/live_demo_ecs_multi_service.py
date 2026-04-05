@@ -63,7 +63,12 @@ from typing import Any
 import boto3
 import httpx
 from dotenv import load_dotenv
-from _demo_utils import aws_region, env_bool
+from _demo_utils import (
+    aws_region,
+    ensure_localstack_running,
+    env_bool,
+    localstack_auth_token,
+)
 
 # Load .env from the project root so LOCALSTACK_AUTH_TOKEN and other secrets
 # are available without needing them exported in the shell.
@@ -105,8 +110,6 @@ EXEC_ROLE_ARN       = f"arn:aws:iam::{ACCOUNT_ID}:role/ecs-exec-role"
 BRIDGE_SCRIPT_PATH  = Path(__file__).parent / "localstack_bridge.py"
 VENV_PYTHON         = Path(__file__).parent.parent.parent / ".venv" / "bin" / "python"
 VENV_UVICORN        = Path(__file__).parent.parent.parent / ".venv" / "bin" / "uvicorn"
-
-LOCALSTACK_AUTH_TOKEN = os.getenv("LOCALSTACK_AUTH_TOKEN") or os.getenv("LOCALSTACK_API_KEY")
 
 # ---------------------------------------------------------------------------
 # Colour + formatting helpers (identical to Demo 7)
@@ -204,47 +207,6 @@ def _discover_network_ids() -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 # Phase 0 — Pre-flight
 # ---------------------------------------------------------------------------
-def _localstack_healthy() -> bool:
-    import urllib.request
-    try:
-        with urllib.request.urlopen(LOCALSTACK_ENDPOINT + "/_localstack/health", timeout=3) as r:
-            data = json.loads(r.read())
-            return data.get("status") in ("running", "ok") or bool(data.get("services"))
-    except Exception:
-        return False
-
-
-def _start_localstack() -> None:
-    step("LocalStack not running — attempting auto-start")
-    env = os.environ.copy()
-    if LOCALSTACK_AUTH_TOKEN:
-        env["LOCALSTACK_AUTH_TOKEN"] = LOCALSTACK_AUTH_TOKEN
-
-    result = subprocess.run(
-        ["localstack", "start", "-d"],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode not in (0, 1):
-        abort(
-            f"localstack start failed (exit {result.returncode}).\n"
-            f"stdout: {result.stdout.strip()}\n"
-            f"stderr: {result.stderr.strip()}"
-        )
-
-    info("Waiting for LocalStack to become healthy (up to 90 s)...")
-    deadline = time.time() + 90
-    while time.time() < deadline:
-        if _localstack_healthy():
-            ok(f"LocalStack is UP at {LOCALSTACK_ENDPOINT}")
-            return
-        time.sleep(3)
-        print(".", end="", flush=True)
-    print()
-    abort("LocalStack did not become healthy within 90 s.")
-
-
 def _kill_stale_port(port: int) -> None:
     import subprocess
     result = subprocess.run(["lsof", "-ti", f":{port}"], capture_output=True, text=True)
@@ -258,11 +220,16 @@ def _kill_stale_port(port: int) -> None:
 def phase0_preflight() -> None:
     phase(0, "Pre-flight Checks")
 
-    step("Verify LocalStack is reachable")
-    if _localstack_healthy():
-        ok(f"LocalStack reachable at {LOCALSTACK_ENDPOINT}")
-    else:
-        _start_localstack()
+    step("Verify LocalStack Pro is reachable")
+    try:
+        ensure_localstack_running(
+            endpoint=LOCALSTACK_ENDPOINT,
+            auth_token=localstack_auth_token(),
+            timeout_seconds=90,
+            emit_logs=True,
+        )
+    except RuntimeError as exc:
+        abort(str(exc))
 
     step("Verify required Python packages")
     missing = []
