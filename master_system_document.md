@@ -442,8 +442,8 @@ environment: development
 
 ```dotenv
 # LLM API Keys (at least one required)
-ANTHROPIC_API_KEY=sk-ant-api03-...
-OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=<ANTHROPIC_API_KEY>
+OPENAI_API_KEY=<OPENAI_API_KEY>
 
 # SRE Agent API Authentication
 SRE_AGENT_API_TOKEN=

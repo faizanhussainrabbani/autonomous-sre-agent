@@ -67,7 +67,7 @@ LocalStack emulates AWS APIs locally so integration tests can exercise real ECS,
 1. Get a Pro token at [app.localstack.cloud](https://app.localstack.cloud)
 2. Add to `.env`:
    ```
-   LOCALSTACK_AUTH_TOKEN=your-token
+   LOCALSTACK_AUTH_TOKEN=<LOCALSTACK_AUTH_TOKEN>
    ```
 3. Start via Docker Compose:
    ```bash
@@ -117,9 +117,9 @@ The Intelligence Layer uses LLM APIs for:
 **Setup:**
 ```bash
 # In .env:
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=<OPENAI_API_KEY>
 # OR
-ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_API_KEY=<ANTHROPIC_API_KEY>
 ```
 
 **Auto-detection:** The `intelligence_bootstrap.py` module detects which API key is set:

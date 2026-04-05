@@ -30,8 +30,8 @@ However, **six significant security gaps** were identified, ranging from complet
 
 | Check | Result | Evidence |
 |---|---|---|
-| `sk-ant-...` / `sk-...` literals in `src/` | None found | `grep` returned only docstring placeholders |
-| `sk-ant-...` / `sk-...` literals in `scripts/` | None found | Usage comments only (`export OPENAI_API_KEY='sk-...'`) |
+| `<ANTHROPIC_API_KEY>` / `<OPENAI_API_KEY>` literals in `src/` | None found | `grep` returned only docstring placeholders |
+| `<ANTHROPIC_API_KEY>` / `<OPENAI_API_KEY>` literals in `scripts/` | None found | Usage comments only (`export OPENAI_API_KEY='<OPENAI_API_KEY>'`) |
 | Secrets in `config/agent.yaml` | None found | Only secret *names* referencing AWS Secrets Manager prefix |
 | Secrets in `pyproject.toml` | None found | — |
 | `.env` files committed to repo | None found | `.gitignore` covers `*.env` and `.env.*` |
@@ -151,7 +151,7 @@ app.add_middleware(
 
 ### Description
 
-The FastAPI application listens on plain HTTP with no TLS termination configured at the application layer. In the Kubernetes deployment (`infra/k8s/`), no Ingress TLS configuration is present. LLM API keys transmitted in HTTP headers (e.g., `Authorization: Bearer sk-ant-...`) are sent in cleartext over the internal network.
+The FastAPI application listens on plain HTTP with no TLS termination configured at the application layer. In the Kubernetes deployment (`infra/k8s/`), no Ingress TLS configuration is present. LLM API keys transmitted in HTTP headers (e.g., `Authorization: Bearer <ANTHROPIC_API_KEY>`) are sent in cleartext over the internal network.
 
 While API keys are correctly sourced from environment variables (not hardcoded), they travel over the network for every LLM call. If the cluster network is compromised or packet-captured, keys can be harvested.
 
@@ -400,8 +400,8 @@ The `.env.example` file should be committed to the repository root:
 # NEVER commit .env to version control.
 
 # --- LLM API Keys (at least one required) ---
-ANTHROPIC_API_KEY=sk-ant-api03-...
-OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=<ANTHROPIC_API_KEY>
+OPENAI_API_KEY=<OPENAI_API_KEY>
 
 # --- SRE Agent API Authentication ---
 # Bearer token for the FastAPI control-plane endpoints.

@@ -31,12 +31,12 @@ Edit `.env` and set these values:
 
 ```bash
 # Required for all LocalStack demos
-LOCALSTACK_AUTH_TOKEN=ls-your-token-here
+LOCALSTACK_AUTH_TOKEN=<LOCALSTACK_AUTH_TOKEN>
 
 # Required for demos that use LLM diagnosis (marked with * below)
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+ANTHROPIC_API_KEY=<ANTHROPIC_API_KEY>
 # OR
-OPENAI_API_KEY=sk-your-key-here
+OPENAI_API_KEY=<OPENAI_API_KEY>
 ```
 
 Get your LocalStack token at [app.localstack.cloud](https://app.localstack.cloud/workspace/auth-tokens).

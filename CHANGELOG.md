@@ -14,6 +14,35 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [2026-04-05] Secret Detection Hardening and Placeholder Normalization
+
+Applied follow-up hardening to reduce secret leakage risk in both repository
+history scanning and contributor-facing documentation examples.
+
+### What changed and why
+
+* **GitHub secret protections verified and enforced:** Confirmed repository
+  settings for Secret Scanning and Push Protection are both enabled through the
+  GitHub API.
+
+* **Automated secret scanning workflow added:** Introduced a new
+  `.github/workflows/gitleaks.yml` pipeline that scans pull request commit
+  ranges and performs scheduled full-history scans.
+
+* **Placeholder normalization across security-sensitive docs:** Replaced
+  key-like examples (for example `sk-...`, `sk-ant-...`, and token-like sample
+  strings) with angle-bracket placeholders such as `<OPENAI_API_KEY>` and
+  `<LOCALSTACK_AUTH_TOKEN>`.
+
+### Key files affected
+
+* `.github/workflows/gitleaks.yml` [NEW]
+* `docs/testing/running_live_demos.md`
+* `docs/operations/external_dependencies.md`
+* `docs/security/security_review.md`
+* `master_system_document.md`
+* `CHANGELOG.md`
+
 ## [2026-04-05] GitHub Governance, Security Scanning, and Workflow Hardening
 
 Established a complete GitHub community-health and security governance baseline,
