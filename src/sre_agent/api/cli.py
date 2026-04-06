@@ -10,9 +10,9 @@ Usage:
     python -m sre_agent.api.cli validate --config config.yaml
     python -m sre_agent.api.cli status
 """
+
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -26,9 +26,13 @@ logger = structlog.get_logger(__name__)
 
 
 @click.group()
-@click.option("--log-level", default="info", show_default=True,
-              type=click.Choice(["debug", "info", "warning", "error"], case_sensitive=False),
-              help="Logging level.")
+@click.option(
+    "--log-level",
+    default="info",
+    show_default=True,
+    type=click.Choice(["debug", "info", "warning", "error"], case_sensitive=False),
+    help="Logging level.",
+)
 @click.pass_context
 def cli(ctx: click.Context, log_level: str) -> None:
     """Autonomous SRE Agent — CLI entrypoint."""
@@ -37,8 +41,13 @@ def cli(ctx: click.Context, log_level: str) -> None:
 
 
 @cli.command()
-@click.option("--config", "-c", required=True, type=click.Path(exists=True, path_type=Path),
-              help="Path to agent YAML configuration file.")
+@click.option(
+    "--config",
+    "-c",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to agent YAML configuration file.",
+)
 def validate(config: Path) -> None:
     """Validate configuration file and check provider connectivity."""
     click.echo(f"🔍 Validating configuration: {config}")
@@ -73,13 +82,18 @@ def status() -> None:
 
 
 @cli.command()
-@click.option("--config", "-c", required=True, type=click.Path(exists=True, path_type=Path),
-              help="Path to agent YAML configuration file.")
+@click.option(
+    "--config",
+    "-c",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to agent YAML configuration file.",
+)
 @click.option("--dry-run", is_flag=True, help="Validate config but do not start agent.")
 def run(config: Path, dry_run: bool) -> None:
     """Start the SRE Agent. (Phase 2: full pipeline not yet implemented.)"""
     if dry_run:
-        click.invoke(validate, args=[str(config)])
+        click.get_current_context().invoke(validate, config=config)
         return
 
     click.secho(

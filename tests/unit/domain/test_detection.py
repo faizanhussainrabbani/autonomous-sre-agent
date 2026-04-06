@@ -6,13 +6,14 @@ Validates: AC-3.1.1 through AC-3.5.2
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from sre_agent.domain.detection.baseline import BaselineService, BaselineWindow
+from sre_agent.config.settings import DetectionConfig
+from sre_agent.domain.detection.alert_correlation import AlertCorrelationEngine
 from sre_agent.domain.detection.anomaly_detector import AnomalyDetector
-from sre_agent.domain.detection.alert_correlation import AlertCorrelationEngine, CorrelatedIncident
+from sre_agent.domain.detection.baseline import BaselineService
 from sre_agent.domain.models.canonical import (
     AnomalyAlert,
     AnomalyType,
@@ -22,20 +23,18 @@ from sre_agent.domain.models.canonical import (
     ServiceLabels,
     ServiceNode,
 )
-from sre_agent.config.settings import DetectionConfig
 from sre_agent.events.in_memory import InMemoryEventBus
-
 
 # ---------------------------------------------------------------------------
 # Baseline Service Tests (Task 2.1, AC-3.1.1)
 # ---------------------------------------------------------------------------
 
-class TestBaselineService:
 
+class TestBaselineService:
     @pytest.mark.asyncio
     async def test_ingest_creates_baseline(self):
         svc = BaselineService()
-        now = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)  # Monday 10:00
+        now = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)  # Monday 10:00
 
         for i in range(30):
             await svc.ingest("api-gw", "latency", 0.1 + (i * 0.001), now)
@@ -49,8 +48,8 @@ class TestBaselineService:
     @pytest.mark.asyncio
     async def test_baseline_segments_by_hour_and_day(self):
         svc = BaselineService()
-        mon_10am = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
-        mon_3pm = datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)
+        mon_10am = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
+        mon_3pm = datetime(2024, 1, 15, 15, 0, tzinfo=UTC)
 
         await svc.ingest("api-gw", "latency", 0.1, mon_10am)
         await svc.ingest("api-gw", "latency", 0.5, mon_3pm)
@@ -60,7 +59,7 @@ class TestBaselineService:
     @pytest.mark.asyncio
     async def test_sigma_deviation(self):
         svc = BaselineService()
-        now = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        now = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
 
         # Build baseline: 30 values around 100 with std_dev ~5
         for i in range(30):
@@ -72,10 +71,10 @@ class TestBaselineService:
     @pytest.mark.asyncio
     async def test_no_deviation_without_established_baseline(self):
         svc = BaselineService()
-        now = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        now = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
 
         # Only 5 points — not enough for established baseline
-        for i in range(5):
+        for _i in range(5):
             await svc.ingest("api-gw", "latency", 0.1, now)
 
         sigma, baseline = svc.compute_deviation("api-gw", "latency", 999.0, now)
@@ -85,9 +84,9 @@ class TestBaselineService:
     async def test_baseline_emits_established_event(self):
         bus = InMemoryEventBus()
         svc = BaselineService(event_bus=bus)
-        now = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        now = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
 
-        for i in range(30):
+        for _i in range(30):
             await svc.ingest("api-gw", "latency", 0.1, now)
 
         assert len(bus.published_events) == 1
@@ -98,20 +97,20 @@ class TestBaselineService:
 # Anomaly Detector Tests (Tasks 2.2+2.4)
 # ---------------------------------------------------------------------------
 
-class TestAnomalyDetector:
 
+class TestAnomalyDetector:
     def _make_metric(self, name: str, value: float, ts: datetime | None = None) -> CanonicalMetric:
         return CanonicalMetric(
             name=name,
             value=value,
-            timestamp=ts or datetime.now(timezone.utc),
+            timestamp=ts or datetime.now(UTC),
             labels=ServiceLabels(service="api-gw", namespace="prod"),
         )
 
     async def _build_baseline(self, detector: AnomalyDetector, metric_name: str, value: float):
         """Helper: build an established baseline."""
-        ts = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
-        for i in range(35):
+        ts = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
+        for _i in range(35):
             await detector._baselines.ingest("api-gw", metric_name, value, ts)
 
     @pytest.mark.asyncio
@@ -126,15 +125,14 @@ class TestAnomalyDetector:
         detector = AnomalyDetector(baseline_svc, config, event_bus=bus)
 
         # Build baseline with variation (values around 0.1 ± 0.01)
-        ts = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        ts = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
         for i in range(35):
             await detector._baselines.ingest(
-                "api-gw", "http_request_duration_seconds_p99",
-                0.1 + (i % 5) * 0.005, ts
+                "api-gw", "http_request_duration_seconds_p99", 0.1 + (i % 5) * 0.005, ts
             )
 
         # First detection within duration window — starts timer
-        ts1 = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        ts1 = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
         metrics = [self._make_metric("http_request_duration_seconds_p99", 100.0, ts1)]
         result = await detector.detect("api-gw", metrics, namespace="prod")
 
@@ -157,11 +155,9 @@ class TestAnomalyDetector:
         detector = AnomalyDetector(baseline_svc, config)
 
         # Build baseline with small variation around 1.0
-        ts = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        ts = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
         for i in range(35):
-            await detector._baselines.ingest(
-                "api-gw", "error_rate", 1.0 + (i % 3) * 0.1, ts
-            )
+            await detector._baselines.ingest("api-gw", "error_rate", 1.0 + (i % 3) * 0.1, ts)
 
         metrics = [self._make_metric("error_rate", 4.0, ts)]  # 300% increase
         result = await detector.detect("api-gw", metrics)
@@ -179,7 +175,7 @@ class TestAnomalyDetector:
         )
         detector = AnomalyDetector(baseline_svc, config)
 
-        ts1 = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        ts1 = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
         ts2 = ts1 + timedelta(seconds=1)
 
         r1 = await detector.detect("api-gw", [self._make_metric("memory_usage", 0.90, ts1)])
@@ -225,7 +221,7 @@ class TestAnomalyDetector:
         )
         detector = AnomalyDetector(baseline_svc, config)
 
-        deploy_time = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        deploy_time = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
         detector.register_deployment("api-gw", deploy_time)
 
         # Alert within suppression window should be suppressed
@@ -247,7 +243,7 @@ class TestAnomalyDetector:
         )
         detector = AnomalyDetector(baseline_svc, config)
 
-        deploy_time = datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc)
+        deploy_time = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
         detector.register_deployment("api-gw", deploy_time, commit_sha="abc123")
 
         alert_time = deploy_time + timedelta(minutes=30)
@@ -268,8 +264,8 @@ class TestAnomalyDetector:
 # Alert Correlation Engine Tests (Task 2.3)
 # ---------------------------------------------------------------------------
 
-class TestAlertCorrelationEngine:
 
+class TestAlertCorrelationEngine:
     def _make_alert(self, service: str, ts: datetime | None = None) -> AnomalyAlert:
         return AnomalyAlert(
             anomaly_type=AnomalyType.LATENCY_SPIKE,
@@ -277,7 +273,7 @@ class TestAlertCorrelationEngine:
             metric_name="latency",
             current_value=1.0,
             baseline_value=0.1,
-            timestamp=ts or datetime.now(timezone.utc),
+            timestamp=ts or datetime.now(UTC),
         )
 
     def _make_graph(self) -> ServiceGraph:
@@ -322,7 +318,7 @@ class TestAlertCorrelationEngine:
         graph = self._make_graph()
         engine = AlertCorrelationEngine(service_graph=graph)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         a1 = self._make_alert("A", now)
         a2 = self._make_alert("B", now + timedelta(seconds=30))
 
@@ -338,7 +334,7 @@ class TestAlertCorrelationEngine:
         graph = self._make_graph()
         engine = AlertCorrelationEngine(service_graph=graph)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         a1 = self._make_alert("A", now)
         a2 = self._make_alert("unrelated-service", now + timedelta(seconds=10))
 
@@ -351,13 +347,11 @@ class TestAlertCorrelationEngine:
     async def test_prevents_alert_storm(self):
         """AC-3.2.2: One incident, not 50 alerts."""
         engine = AlertCorrelationEngine()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # 50 alerts from same service — should all go to one incident
         for i in range(50):
-            await engine.process_alert(
-                self._make_alert("api-gw", now + timedelta(seconds=i))
-            )
+            await engine.process_alert(self._make_alert("api-gw", now + timedelta(seconds=i)))
 
         assert len(engine.active_incidents) == 1
         assert engine.active_incidents[0].alert_count == 50
@@ -367,11 +361,12 @@ class TestAlertCorrelationEngine:
 # Pipeline Monitor Tests (Task 1.6)
 # ---------------------------------------------------------------------------
 
-class TestPipelineMonitor:
 
+class TestPipelineMonitor:
     @pytest.mark.asyncio
     async def test_heartbeat_tracking(self):
         from sre_agent.domain.detection.pipeline_monitor import PipelineHealthMonitor
+
         monitor = PipelineHealthMonitor()
         monitor.register_component("otel-collector-node1")
 
@@ -382,7 +377,10 @@ class TestPipelineMonitor:
     @pytest.mark.asyncio
     async def test_ebpf_failure_triggers_fallback(self):
         """AC-2.5.3: eBPF failure, graceful fallback."""
-        from sre_agent.domain.detection.pipeline_monitor import PipelineHealthMonitor, PipelineComponentStatus
+        from sre_agent.domain.detection.pipeline_monitor import (
+            PipelineHealthMonitor,
+        )
+
         bus = InMemoryEventBus()
         monitor = PipelineHealthMonitor(event_bus=bus)
 
@@ -400,6 +398,7 @@ class TestPipelineMonitor:
     async def test_degraded_service_flag(self):
         """AC-2.5.2: Affected services flagged."""
         from sre_agent.domain.detection.pipeline_monitor import PipelineHealthMonitor
+
         monitor = PipelineHealthMonitor()
 
         await monitor.flag_degraded_observability("payment-svc", "OTel collector down")
@@ -408,19 +407,23 @@ class TestPipelineMonitor:
 
     @pytest.mark.asyncio
     async def test_check_heartbeats_degradatation_and_down(self):
-        from sre_agent.domain.detection.pipeline_monitor import PipelineHealthMonitor, PipelineComponentStatus
+        from sre_agent.domain.detection.pipeline_monitor import (
+            PipelineComponentStatus,
+            PipelineHealthMonitor,
+        )
+
         bus = InMemoryEventBus()
         # Set short timeout for testing
         monitor = PipelineHealthMonitor(event_bus=bus, heartbeat_timeout_seconds=0)
         monitor.register_component("otel-collector-node1")
-        
+
         # Fast forward time inherently because elapsed is > 0s threshold
         failed = await monitor.check_heartbeats()
         assert "otel-collector-node1" in failed
         comp = monitor.components["otel-collector-node1"]
         assert comp.status == PipelineComponentStatus.DEGRADED
         assert comp.consecutive_misses == 1
-        
+
         # Check event was emitted
         assert len(bus.published_events) == 1
         assert bus.published_events[0].event_type == "observability.degraded"
@@ -428,31 +431,35 @@ class TestPipelineMonitor:
         # Check twice more to transition to DOWN
         await monitor.check_heartbeats()
         await monitor.check_heartbeats()
-        
+
         comp = monitor.components["otel-collector-node1"]
         assert comp.status == PipelineComponentStatus.DOWN
         assert comp.consecutive_misses == 3
 
     @pytest.mark.asyncio
     async def test_heartbeat_recovers_degraded_services(self):
-        from sre_agent.domain.detection.pipeline_monitor import PipelineHealthMonitor, PipelineComponentStatus
+        from sre_agent.domain.detection.pipeline_monitor import (
+            PipelineComponentStatus,
+            PipelineHealthMonitor,
+        )
+
         monitor = PipelineHealthMonitor(heartbeat_timeout_seconds=0)
-        
+
         # Manually set to degraded
         monitor.register_component("otel-col-1")
         await monitor.check_heartbeats()
         assert monitor.components["otel-col-1"].status == PipelineComponentStatus.DEGRADED
-        
+
         # Flag a service as degraded due to this component
         await monitor.flag_degraded_observability("order-svc", "otel-col-1 is down")
         assert monitor.is_service_degraded("order-svc")
-        
+
         # Record heartbeat
         await monitor.record_heartbeat("otel-col-1")
-        
+
         # Comp is healthy
         assert monitor.components["otel-col-1"].status == PipelineComponentStatus.HEALTHY
-        
+
         # Service degradation is cleared
         assert not monitor.is_service_degraded("order-svc")
 
@@ -461,12 +468,12 @@ class TestPipelineMonitor:
 # Dependency Graph Service Tests (Task 13.6)
 # ---------------------------------------------------------------------------
 
-class TestDependencyGraphService:
 
+class TestDependencyGraphService:
     @pytest.mark.asyncio
     async def test_refresh_updates_graph(self):
-        from sre_agent.domain.detection.dependency_graph import DependencyGraphService
         from sre_agent.adapters.telemetry.otel.provider import OTelDependencyGraphAdapter
+        from sre_agent.domain.detection.dependency_graph import DependencyGraphService
 
         adapter = OTelDependencyGraphAdapter()
         service = DependencyGraphService(dep_graph_query=adapter)
@@ -477,8 +484,8 @@ class TestDependencyGraphService:
 
     @pytest.mark.asyncio
     async def test_blast_radius(self):
-        from sre_agent.domain.detection.dependency_graph import DependencyGraphService
         from sre_agent.adapters.telemetry.otel.provider import OTelDependencyGraphAdapter
+        from sre_agent.domain.detection.dependency_graph import DependencyGraphService
 
         adapter = OTelDependencyGraphAdapter()
         service = DependencyGraphService(dep_graph_query=adapter)
@@ -495,7 +502,7 @@ class TestDependencyGraphService:
                 ServiceEdge(source="B", target="C"),
             ],
         )
-        service._last_refresh = datetime.now(timezone.utc)
+        service._last_refresh = datetime.now(UTC)
 
         # Blast radius of C: A→B both depend on it transitively
         radius = await service.get_blast_radius("C")
@@ -506,11 +513,12 @@ class TestDependencyGraphService:
 # Health Monitor Tests (Task 13.7)
 # ---------------------------------------------------------------------------
 
-class TestHealthMonitor:
 
+class TestHealthMonitor:
     @pytest.mark.asyncio
     async def test_circuit_breaker_opens_after_threshold(self):
-        from sre_agent.config.health_monitor import ProviderHealthMonitor, CircuitState
+        from sre_agent.config.health_monitor import CircuitState, ProviderHealthMonitor
+
         bus = InMemoryEventBus()
         monitor = ProviderHealthMonitor(event_bus=bus, failure_threshold=3)
         monitor.register_component("prometheus")
@@ -525,11 +533,12 @@ class TestHealthMonitor:
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_closes_on_success(self):
-        from sre_agent.config.health_monitor import ProviderHealthMonitor, CircuitState
+        from sre_agent.config.health_monitor import CircuitState, ProviderHealthMonitor
+
         monitor = ProviderHealthMonitor(failure_threshold=3)
         monitor.register_component("prometheus")
 
-        for i in range(3):
+        for _i in range(3):
             await monitor.record_failure("prometheus")
         assert monitor.get_circuit_state("prometheus") == CircuitState.OPEN
 
@@ -542,8 +551,8 @@ class TestHealthMonitor:
 # Plugin Interface Tests (Task 13.8)
 # ---------------------------------------------------------------------------
 
-class TestPluginInterface:
 
+class TestPluginInterface:
     def test_register_and_create_provider(self):
         from sre_agent.config.plugin import ProviderPlugin
         from sre_agent.config.settings import AgentConfig
@@ -553,6 +562,7 @@ class TestPluginInterface:
         def dummy_factory(config: AgentConfig):
             class DummyProvider:
                 name = "dummy"
+
             return DummyProvider()
 
         ProviderPlugin.register("dummy", dummy_factory)

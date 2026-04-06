@@ -9,8 +9,9 @@ Requires: chromadb (installed via [intelligence] extra)
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timedelta, timezone
 
 from sre_agent.adapters.vectordb.chroma.adapter import ChromaVectorStoreAdapter
 from sre_agent.ports.vector_store import SearchQuery, VectorDocument
@@ -32,7 +33,7 @@ def _make_doc(doc_id: str, content: str, embedding: list[float] | None = None) -
         embedding=embedding or [0.1, 0.2, 0.3, 0.4, 0.5],
         metadata={"type": "runbook"},
         source="test/runbook.md",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -44,10 +45,12 @@ class TestChromaIntegration:
         doc = _make_doc("doc-1", "OOM kill recovery steps")
         await chroma_store.store(doc)
 
-        results = await chroma_store.search(SearchQuery(
-            embedding=doc.embedding,
-            top_k=1,
-        ))
+        results = await chroma_store.search(
+            SearchQuery(
+                embedding=doc.embedding,
+                top_k=1,
+            )
+        )
         assert len(results) == 1
         assert results[0].doc_id == "doc-1"
         assert "OOM" in results[0].content
@@ -65,11 +68,13 @@ class TestChromaIntegration:
         await chroma_store.store(doc)
 
         # Search with an orthogonal vector should have low score
-        results = await chroma_store.search(SearchQuery(
-            embedding=[0.0, 0.0, 0.0, 0.0, 1.0],
-            top_k=5,
-            min_score=0.99,  # Very high threshold
-        ))
+        results = await chroma_store.search(
+            SearchQuery(
+                embedding=[0.0, 0.0, 0.0, 0.0, 1.0],
+                top_k=5,
+                min_score=0.99,  # Very high threshold
+            )
+        )
         assert len(results) == 0
 
     async def test_delete(self, chroma_store: ChromaVectorStoreAdapter):
@@ -87,7 +92,7 @@ class TestChromaIntegration:
             content="Stale document",
             embedding=[0.1, 0.2, 0.3, 0.4, 0.5],
             source="old.md",
-            created_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2020, 1, 1, tzinfo=UTC),
         )
         new_doc = _make_doc("new-doc", "Fresh document")
 
@@ -95,7 +100,7 @@ class TestChromaIntegration:
         await chroma_store.store(new_doc)
         assert await chroma_store.count() == 2
 
-        cutoff = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        cutoff = datetime(2023, 1, 1, tzinfo=UTC)
         deleted = await chroma_store.delete_stale(cutoff)
         assert deleted == 1
         assert await chroma_store.count() == 1
@@ -111,14 +116,18 @@ class TestChromaIntegration:
         await chroma_store.store(doc_v2)
 
         assert await chroma_store.count() == 1
-        results = await chroma_store.search(SearchQuery(
-            embedding=doc_v2.embedding,
-            top_k=1,
-        ))
+        results = await chroma_store.search(
+            SearchQuery(
+                embedding=doc_v2.embedding,
+                top_k=1,
+            )
+        )
         assert "Version 2" in results[0].content
 
-    async def test_search_preserves_created_at_metadata(self, chroma_store: ChromaVectorStoreAdapter):
-        created_at = datetime(2024, 1, 2, tzinfo=timezone.utc)
+    async def test_search_preserves_created_at_metadata(
+        self, chroma_store: ChromaVectorStoreAdapter
+    ):
+        created_at = datetime(2024, 1, 2, tzinfo=UTC)
         doc = VectorDocument(
             doc_id="doc-ts",
             content="Timestamped runbook",
@@ -129,10 +138,12 @@ class TestChromaIntegration:
         )
 
         await chroma_store.store(doc)
-        results = await chroma_store.search(SearchQuery(
-            embedding=doc.embedding,
-            top_k=1,
-        ))
+        results = await chroma_store.search(
+            SearchQuery(
+                embedding=doc.embedding,
+                top_k=1,
+            )
+        )
 
         assert len(results) == 1
         assert results[0].metadata.get("created_at") == created_at.isoformat()

@@ -15,18 +15,19 @@ Validates: AC-1.1.1 through AC-1.1.5
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
-
 
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class SignalType(Enum):
     """Type of telemetry signal."""
+
     METRIC = "metric"
     TRACE = "trace"
     LOG = "log"
@@ -35,14 +36,16 @@ class SignalType(Enum):
 
 class DataQuality(Enum):
     """Quality classification for telemetry data."""
+
     HIGH = "high"
-    LOW = "low"           # Missing labels, enrichment failed
+    LOW = "low"  # Missing labels, enrichment failed
     INCOMPLETE = "incomplete"  # Partial trace, missing spans
-    LATE = "late"         # Arrived >60s after emission
+    LATE = "late"  # Arrived >60s after emission
 
 
 class Severity(Enum):
     """Incident severity levels (Sev 1 = most critical)."""
+
     SEV1 = 1
     SEV2 = 2
     SEV3 = 3
@@ -51,6 +54,7 @@ class Severity(Enum):
 
 class AnomalyType(Enum):
     """Types of anomalies the detection engine can identify."""
+
     LATENCY_SPIKE = "latency_spike"
     ERROR_RATE_SURGE = "error_rate_surge"
     MEMORY_PRESSURE = "memory_pressure"
@@ -64,6 +68,7 @@ class AnomalyType(Enum):
 
 class IncidentPhase(Enum):
     """Current phase in the incident saga pipeline."""
+
     DETECTED = "detected"
     CLASSIFIED = "classified"
     DIAGNOSING = "diagnosing"
@@ -79,6 +84,7 @@ class IncidentPhase(Enum):
 
 class OperationalPhase(Enum):
     """Agent operational phase (phased rollout)."""
+
     OBSERVE = "observe"
     ASSIST = "assist"
     AUTONOMOUS = "autonomous"
@@ -91,8 +97,9 @@ class ComputeMechanism(Enum):
     Used to adapt detection heuristics and select the correct
     remediation operator (CloudOperatorPort).
     """
+
     KUBERNETES = "kubernetes"
-    SERVERLESS = "serverless"           # AWS Lambda, Azure Functions
+    SERVERLESS = "serverless"  # AWS Lambda, Azure Functions
     VIRTUAL_MACHINE = "virtual_machine"  # EC2, Azure VM
     CONTAINER_INSTANCE = "container_instance"  # ECS Fargate, Azure Container Instances
 
@@ -100,6 +107,7 @@ class ComputeMechanism(Enum):
 # ---------------------------------------------------------------------------
 # Labels — aligned with OTel Semantic Conventions
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class ServiceLabels:
@@ -115,6 +123,7 @@ class ServiceLabels:
     provide compute-agnostic identification for Serverless, VM, and
     Container Instance targets.
     """
+
     service: str
     namespace: str = ""
     compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
@@ -129,6 +138,7 @@ class ServiceLabels:
 # Canonical Metric (AC-1.1.1)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CanonicalMetric:
     """Provider-independent metric data point.
@@ -136,6 +146,7 @@ class CanonicalMetric:
     Downstream consumers (anomaly detection, diagnostics, dashboard) use ONLY
     this type — never Prometheus QueryResult, New Relic MetricTimeslice, etc.
     """
+
     name: str
     value: float
     timestamp: datetime
@@ -156,9 +167,11 @@ class CanonicalMetric:
 # Canonical Trace (AC-1.1.2)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TraceSpan:
     """A single span within a distributed trace."""
+
     span_id: str
     parent_span_id: str | None
     service: str
@@ -178,10 +191,13 @@ class CanonicalTrace:
     Assembled from spans across multiple services. Completeness flag indicates
     whether expected spans are missing (informing diagnostic confidence).
     """
+
     trace_id: str
     spans: list[TraceSpan] = field(default_factory=list)
     is_complete: bool = True
-    missing_services: list[str] = field(default_factory=list)  # Services with expected but absent spans
+    missing_services: list[str] = field(
+        default_factory=list
+    )  # Services with expected but absent spans
     quality: DataQuality = DataQuality.HIGH
 
     # Metadata
@@ -212,9 +228,11 @@ class CanonicalTrace:
 # Canonical Log Entry (AC-1.1.3)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CanonicalLogEntry:
     """Provider-independent log entry with trace correlation."""
+
     timestamp: datetime
     message: str
     severity: str  # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -233,11 +251,13 @@ class CanonicalLogEntry:
 # Canonical Event (AC-1.1.4)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CanonicalEvent:
     """Provider-independent system event (eBPF, K8s, deployment, etc.)."""
+
     event_type: str  # "oom_kill", "network_flow", "syscall", "deployment", etc.
-    source: str      # "ebpf", "kubernetes", "argocd", etc.
+    source: str  # "ebpf", "kubernetes", "argocd", etc.
     timestamp: datetime
     metadata: dict[str, Any] = field(default_factory=dict)
     labels: ServiceLabels | None = None
@@ -252,9 +272,11 @@ class CanonicalEvent:
 # Service Dependency Graph
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class ServiceNode:
     """A node in the service dependency graph."""
+
     service: str
     version: str = ""
     namespace: str = ""
@@ -266,6 +288,7 @@ class ServiceNode:
 @dataclass(frozen=True)
 class ServiceEdge:
     """A directed edge in the service dependency graph (caller → callee)."""
+
     source: str  # Caller service name
     target: str  # Callee service name
     protocol: str = "http"  # http, grpc, kafka, etc.
@@ -276,6 +299,7 @@ class ServiceEdge:
 @dataclass
 class ServiceGraph:
     """Complete service dependency graph with health information."""
+
     nodes: dict[str, ServiceNode] = field(default_factory=dict)
     edges: list[ServiceEdge] = field(default_factory=list)
     last_updated: datetime | None = None
@@ -303,6 +327,7 @@ class ServiceGraph:
 # Correlated Signal View
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CorrelatedSignals:
     """Unified view of all signals for a service within a time window.
@@ -310,10 +335,11 @@ class CorrelatedSignals:
     Produced by the signal correlator (Task 1.4). Used by anomaly detection
     and diagnostics — provides the complete picture for a service.
     """
+
     service: str
     namespace: str = ""
-    time_window_start: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    time_window_end: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    time_window_start: datetime = field(default_factory=lambda: datetime.now(UTC))
+    time_window_end: datetime = field(default_factory=lambda: datetime.now(UTC))
     compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
     metrics: list[CanonicalMetric] = field(default_factory=list)
     traces: list[CanonicalTrace] = field(default_factory=list)
@@ -327,6 +353,7 @@ class CorrelatedSignals:
 # Anomaly Alert
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AnomalyAlert:
     """An anomaly detected by the detection engine.
@@ -334,6 +361,7 @@ class AnomalyAlert:
     This is the primary output of Phase 1 — a structured alert that downstream
     phases (diagnosis, remediation) consume.
     """
+
     alert_id: UUID = field(default_factory=uuid4)
     anomaly_type: AnomalyType = AnomalyType.LATENCY_SPIKE
     service: str = ""
@@ -341,7 +369,7 @@ class AnomalyAlert:
     resource_id: str = ""  # Phase 1.5: Universal compute unit identifier
     compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
     severity: Severity | None = None  # Assigned in Phase 2 by severity classifier
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     # Detection details
     metric_name: str = ""
@@ -369,11 +397,13 @@ class AnomalyAlert:
 # Domain Events — Event Sourcing (Engineering Standards §1.5)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DomainEvent:
     """Base class for all domain events in the event store."""
+
     event_id: UUID = field(default_factory=uuid4)
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     event_type: str = ""
     aggregate_id: UUID | None = None  # Incident ID this event belongs to
     payload: dict[str, Any] = field(default_factory=dict)
@@ -386,6 +416,7 @@ class DomainEvent:
 # Pre-defined event types for Phase 1
 class EventTypes:
     """Constants for domain event types."""
+
     # Phase 1 — Detection layer
     ANOMALY_DETECTED = "anomaly.detected"
     ANOMALY_CORRELATED = "anomaly.correlated"

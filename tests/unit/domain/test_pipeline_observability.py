@@ -14,27 +14,22 @@ Acceptance criteria verified:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
-
-import pytest
 
 from sre_agent.adapters.telemetry.metrics import _current_alert_id
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
 from sre_agent.domain.models.canonical import AnomalyAlert, AnomalyType, Severity  # noqa: F401
-from sre_agent.domain.models.diagnosis import DiagnosticState
 from sre_agent.ports.diagnostics import DiagnosisRequest
 from sre_agent.ports.llm import (
-    EvidenceContext,
     Hypothesis,
     ValidationResult,
 )
 from sre_agent.ports.vector_store import SearchResult
 
-
 # ---------------------------------------------------------------------------
 # Helpers / shared fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_alert(alert_id: str = "alert-test-001") -> AnomalyAlert:
     return AnomalyAlert(
@@ -53,14 +48,16 @@ def _make_pipeline() -> tuple[RAGDiagnosticPipeline, dict]:
     mocks: dict = {}
 
     mocks["vector_store"] = MagicMock()
-    mocks["vector_store"].search = AsyncMock(return_value=[
-        SearchResult(
-            doc_id="doc-1",
-            content="Runbook: scale the deployment when P99 > 1s",
-            source="runbooks/checkout.md",
-            score=0.85,
-        )
-    ])
+    mocks["vector_store"].search = AsyncMock(
+        return_value=[
+            SearchResult(
+                doc_id="doc-1",
+                content="Runbook: scale the deployment when P99 > 1s",
+                source="runbooks/checkout.md",
+                score=0.85,
+            )
+        ]
+    )
     mocks["vector_store"].health_check = AsyncMock(return_value=True)
 
     mocks["embedding"] = MagicMock()
@@ -69,22 +66,27 @@ def _make_pipeline() -> tuple[RAGDiagnosticPipeline, dict]:
     mocks["embedding"].count_tokens = MagicMock(return_value=10)
 
     mocks["llm"] = MagicMock()
-    mocks["llm"].generate_hypothesis = AsyncMock(return_value=Hypothesis(
-        root_cause="Connection pool exhaustion",
-        confidence=0.85,
-        reasoning="Memory pressure correlates with P99 spike.",
-        evidence_citations=["runbooks/checkout.md"],
-        suggested_remediation="Scale deployment to 4 replicas.",
-    ))
-    mocks["llm"].validate_hypothesis = AsyncMock(return_value=ValidationResult(
-        agrees=True,
-        confidence=0.9,
-        reasoning="Consistent with evidence.",
-    ))
+    mocks["llm"].generate_hypothesis = AsyncMock(
+        return_value=Hypothesis(
+            root_cause="Connection pool exhaustion",
+            confidence=0.85,
+            reasoning="Memory pressure correlates with P99 spike.",
+            evidence_citations=["runbooks/checkout.md"],
+            suggested_remediation="Scale deployment to 4 replicas.",
+        )
+    )
+    mocks["llm"].validate_hypothesis = AsyncMock(
+        return_value=ValidationResult(
+            agrees=True,
+            confidence=0.9,
+            reasoning="Consistent with evidence.",
+        )
+    )
     mocks["llm"].count_tokens = MagicMock(return_value=100)
     mocks["llm"].health_check = AsyncMock(return_value=True)
 
     from sre_agent.domain.diagnostics.severity import SeverityClassifier
+
     mocks["severity_classifier"] = SeverityClassifier()
 
     pipeline = RAGDiagnosticPipeline(
@@ -115,6 +117,7 @@ EXPECTED_LOG_EVENTS = [
 async def test_all_8_log_events_present(capsys, caplog):
     """All 8 structured log events must appear during a successful diagnose() call."""
     import logging
+
     pipeline, _ = _make_pipeline()
     request = DiagnosisRequest(alert=_make_alert(), max_evidence_items=5)
 
@@ -123,9 +126,7 @@ async def test_all_8_log_events_present(capsys, caplog):
 
     # caplog captures stdlib logging; structlog also emits to stdout in JSON mode.
     captured = capsys.readouterr()
-    all_text = captured.out + captured.err + " ".join(
-        str(r.__dict__) for r in caplog.records
-    )
+    all_text = captured.out + captured.err + " ".join(str(r.__dict__) for r in caplog.records)
     for event in EXPECTED_LOG_EVENTS:
         assert event in all_text, f"Expected log event '{event}' not found in any log output"
 
@@ -133,6 +134,7 @@ async def test_all_8_log_events_present(capsys, caplog):
 # ---------------------------------------------------------------------------
 # AC-4.1 — alert_id in every log record during diagnose()
 # ---------------------------------------------------------------------------
+
 
 async def test_alert_id_in_every_log_record_during_diagnose(caplog):
     """Every log record emitted inside diagnose() must contain alert_id."""
@@ -143,16 +145,19 @@ async def test_alert_id_in_every_log_record_during_diagnose(caplog):
     with caplog.at_level(logging.DEBUG):
         await pipeline.diagnose(request)
 
-    pipeline_records = [r for r in caplog.records if "diagnosis" in r.message or "embed" in r.message]
+    pipeline_records = [
+        r for r in caplog.records if "diagnosis" in r.message or "embed" in r.message
+    ]
     for record in pipeline_records:
-        assert "alert-corr-001" in record.getMessage() or "alert-corr-001" in str(record.__dict__), (
-            f"Record missing alert_id: {record.getMessage()}"
-        )
+        assert "alert-corr-001" in record.getMessage() or "alert-corr-001" in str(
+            record.__dict__
+        ), f"Record missing alert_id: {record.getMessage()}"
 
 
 # ---------------------------------------------------------------------------
 # AC-4.2 — alert_id cleared after diagnose() returns
 # ---------------------------------------------------------------------------
+
 
 async def test_alert_id_cleared_after_diagnose():
     """_current_alert_id must be empty string after diagnose() returns normally."""
@@ -169,6 +174,7 @@ async def test_alert_id_cleared_after_diagnose():
 # ---------------------------------------------------------------------------
 # AC-4.3 — alert_id cleared even when diagnose() raises
 # ---------------------------------------------------------------------------
+
 
 async def test_alert_id_cleared_on_exception():
     """_current_alert_id must be empty string even after diagnose() raises."""
@@ -190,10 +196,11 @@ async def test_alert_id_cleared_on_exception():
 # AC-1.2 — DIAGNOSIS_DURATION observed on each call
 # ---------------------------------------------------------------------------
 
+
 async def test_diagnosis_duration_observed():
     """DIAGNOSIS_DURATION histogram must be observed exactly once per diagnose() call."""
+
     from sre_agent.adapters.telemetry.metrics import DIAGNOSIS_DURATION
-    from prometheus_client import REGISTRY
 
     pipeline, _ = _make_pipeline()
     request = DiagnosisRequest(alert=_make_alert(), max_evidence_items=5)
@@ -217,6 +224,7 @@ async def test_diagnosis_duration_observed():
 # AC-1.5 — EVIDENCE_RELEVANCE observed with top-1 score
 # ---------------------------------------------------------------------------
 
+
 async def test_evidence_relevance_observed():
     """EVIDENCE_RELEVANCE histogram must be observed with the score of the top result."""
     from sre_agent.adapters.telemetry.metrics import EVIDENCE_RELEVANCE
@@ -237,6 +245,7 @@ async def test_evidence_relevance_observed():
 # ---------------------------------------------------------------------------
 # AC-1.4 — SEVERITY_ASSIGNED increments after classification
 # ---------------------------------------------------------------------------
+
 
 async def test_severity_assigned_incremented():
     """SEVERITY_ASSIGNED counter must increment once per successful diagnose()."""

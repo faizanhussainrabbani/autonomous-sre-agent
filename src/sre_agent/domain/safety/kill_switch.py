@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sre_agent.domain.models.canonical import DomainEvent, EventTypes
 from sre_agent.ports.events import EventBus, EventStore
@@ -11,7 +11,9 @@ from sre_agent.ports.events import EventBus, EventStore
 class KillSwitch:
     """In-memory kill switch state for autonomous action gating."""
 
-    def __init__(self, event_bus: EventBus | None = None, event_store: EventStore | None = None) -> None:
+    def __init__(
+        self, event_bus: EventBus | None = None, event_store: EventStore | None = None
+    ) -> None:
         self._active = False
         self._event_bus = event_bus
         self._event_store = event_store
@@ -27,7 +29,7 @@ class KillSwitch:
         self._active = True
         self._activated_by = operator_id
         self._reason = reason
-        self._activated_at = datetime.now(timezone.utc)
+        self._activated_at = datetime.now(UTC)
         await self._emit(
             DomainEvent(
                 event_type=EventTypes.KILL_SWITCH_ACTIVATED,

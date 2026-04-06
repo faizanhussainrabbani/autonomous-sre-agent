@@ -9,8 +9,8 @@ Validates: AC-LF-4.1 (fallback chain behavior)
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -20,13 +20,12 @@ from sre_agent.domain.models.canonical import (
     DataQuality,
     ServiceLabels,
 )
-from sre_agent.ports.telemetry import LogQuery
 
 
 def _make_entry(message: str = "test", source: str = "primary") -> CanonicalLogEntry:
     """Create a test CanonicalLogEntry."""
     return CanonicalLogEntry(
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         message=message,
         severity="ERROR",
         labels=ServiceLabels(service="test-svc"),
@@ -78,7 +77,7 @@ class TestFallbackQueryLogs:
             fallback_name="kubernetes",
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = await adapter.query_logs(
             service="svc",
             start_time=now - timedelta(hours=1),
@@ -103,7 +102,7 @@ class TestFallbackQueryLogs:
             fallback_name="kubernetes",
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = await adapter.query_logs(
             service="svc",
             start_time=now - timedelta(hours=1),
@@ -128,7 +127,7 @@ class TestFallbackQueryLogs:
             fallback_name="kubernetes",
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = await adapter.query_logs(
             service="svc",
             start_time=now - timedelta(hours=1),
@@ -261,4 +260,3 @@ class TestFallbackClose:
         await adapter.close()  # Should not raise
 
         fallback.close.assert_called_once()
-

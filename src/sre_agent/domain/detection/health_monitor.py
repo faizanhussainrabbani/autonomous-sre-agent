@@ -11,7 +11,8 @@ Validates: AC-CW-9.1 through AC-CW-9.4
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+import contextlib
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -78,10 +79,8 @@ class AWSHealthMonitor:
         if self._task is None:
             return
         self._task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._task
-        except asyncio.CancelledError:
-            pass
         self._task = None
         logger.info("health_monitor_stopped", polls_completed=self._poll_count)
 
@@ -91,11 +90,7 @@ class AWSHealthMonitor:
         """Return active Health events, optionally filtered by service."""
         if service is None:
             return list(self._active_events)
-        return [
-            e
-            for e in self._active_events
-            if e.labels and e.labels.service == service
-        ]
+        return [e for e in self._active_events if e.labels and e.labels.service == service]
 
     @property
     def is_running(self) -> bool:
@@ -130,9 +125,7 @@ class AWSHealthMonitor:
 
         try:
             events = await asyncio.to_thread(self._fetch_events)
-            self._active_events = [
-                self._to_canonical(e) for e in events
-            ]
+            self._active_events = [self._to_canonical(e) for e in events]
             self._poll_count += 1
             logger.info(
                 "health_poll_completed",
@@ -143,8 +136,7 @@ class AWSHealthMonitor:
             exc_type = type(exc).__name__
             if "SubscriptionRequiredException" in exc_type or (
                 hasattr(exc, "response")
-                and exc.response.get("Error", {}).get("Code")
-                == "SubscriptionRequiredException"
+                and exc.response.get("Error", {}).get("Code") == "SubscriptionRequiredException"
             ):
                 self._subscription_available = False
                 logger.warning(
@@ -157,7 +149,7 @@ class AWSHealthMonitor:
 
     def _fetch_events(self) -> list[dict[str, Any]]:
         """Synchronous boto3 call to DescribeEvents (run via to_thread)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         lookback = now - timedelta(hours=24)
 
         kwargs: dict[str, Any] = {
@@ -186,13 +178,9 @@ class AWSHealthMonitor:
         status = event.get("statusCode", "unknown")
 
         start_time = event.get("startTime")
-        timestamp = (
-            start_time
-            if isinstance(start_time, datetime)
-            else datetime.now(timezone.utc)
-        )
+        timestamp = start_time if isinstance(start_time, datetime) else datetime.now(UTC)
         if timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=timezone.utc)
+            timestamp = timestamp.replace(tzinfo=UTC)
 
         return CanonicalEvent(
             event_type=f"aws_health_{event_type_code}",

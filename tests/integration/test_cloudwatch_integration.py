@@ -4,20 +4,21 @@ Integration tests for CloudWatch telemetry stack.
 Tests the full provider composition: CloudWatchProvider wiring
 metrics + logs + xray adapters together with mock boto3 clients.
 """
+
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
-from sre_agent.adapters.telemetry.cloudwatch.provider import CloudWatchProvider
 from sre_agent.adapters.telemetry.cloudwatch.metrics_adapter import METRIC_MAP
+from sre_agent.adapters.telemetry.cloudwatch.provider import CloudWatchProvider
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _ts_ms(dt: datetime) -> int:
@@ -30,9 +31,11 @@ def _make_full_provider():
 
     # CloudWatch metrics client
     cw = MagicMock()
-    cw.list_metrics.return_value = {"Metrics": [
-        {"MetricName": "Errors", "Namespace": "AWS/Lambda"},
-    ]}
+    cw.list_metrics.return_value = {
+        "Metrics": [
+            {"MetricName": "Errors", "Namespace": "AWS/Lambda"},
+        ]
+    }
     cw.get_metric_data.return_value = {
         "MetricDataResults": [
             {
@@ -52,11 +55,13 @@ def _make_full_provider():
         "events": [
             {
                 "timestamp": _ts_ms(now),
-                "message": json.dumps({
-                    "level": "ERROR",
-                    "message": "Runtime.HandlerTimeout",
-                    "requestId": "req-001",
-                }),
+                "message": json.dumps(
+                    {
+                        "level": "ERROR",
+                        "message": "Runtime.HandlerTimeout",
+                        "requestId": "req-001",
+                    }
+                ),
                 "logStreamName": "2024/01/01/[$LATEST]abc",
             },
             {
@@ -80,23 +85,25 @@ def _make_full_provider():
                 "Segments": [
                     {
                         "Id": "seg-1",
-                        "Document": json.dumps({
-                            "name": "payment-handler",
-                            "id": "seg-1",
-                            "trace_id": "1-abc-def",
-                            "start_time": now.timestamp(),
-                            "end_time": (now + timedelta(seconds=5)).timestamp(),
-                            "fault": True,
-                            "cause": {"message": "Task timed out after 30.00 seconds"},
-                            "subsegments": [
-                                {
-                                    "name": "DynamoDB",
-                                    "id": "sub-1",
-                                    "start_time": now.timestamp(),
-                                    "end_time": (now + timedelta(seconds=4)).timestamp(),
-                                },
-                            ],
-                        }),
+                        "Document": json.dumps(
+                            {
+                                "name": "payment-handler",
+                                "id": "seg-1",
+                                "trace_id": "1-abc-def",
+                                "start_time": now.timestamp(),
+                                "end_time": (now + timedelta(seconds=5)).timestamp(),
+                                "fault": True,
+                                "cause": {"message": "Task timed out after 30.00 seconds"},
+                                "subsegments": [
+                                    {
+                                        "name": "DynamoDB",
+                                        "id": "sub-1",
+                                        "start_time": now.timestamp(),
+                                        "end_time": (now + timedelta(seconds=4)).timestamp(),
+                                    },
+                                ],
+                            }
+                        ),
                     },
                 ],
             },
@@ -112,6 +119,7 @@ def _make_full_provider():
 
 # ── Provider composition ─────────────────────────────────────────────────────
 
+
 def test_provider_name():
     provider = _make_full_provider()
     assert provider.name == "cloudwatch"
@@ -124,6 +132,7 @@ async def test_provider_health_all_ok():
 
 
 # ── Metrics through provider ─────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_metrics_query_through_provider():
@@ -152,6 +161,7 @@ async def test_metrics_query_instant():
 
 # ── Logs through provider ────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_logs_query_through_provider():
     provider = _make_full_provider()
@@ -167,6 +177,7 @@ async def test_logs_query_through_provider():
 
 
 # ── Traces through provider ──────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_traces_query_through_provider():
@@ -197,6 +208,7 @@ async def test_trace_get_by_id():
 
 # ── METRIC_MAP completeness ─────────────────────────────────────────────────
 
+
 def test_metric_map_covers_lambda():
     lambda_metrics = [k for k in METRIC_MAP if k.startswith("lambda_")]
     assert len(lambda_metrics) >= 5
@@ -213,6 +225,7 @@ def test_metric_map_covers_alb():
 
 
 # ── Cross-adapter data flow ─────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_metrics_and_logs_correlate_by_service():

@@ -6,6 +6,8 @@ Covers: adapters/bootstrap.py — raising coverage from 0% to ~85%.
 
 from __future__ import annotations
 
+import sys
+import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,10 +16,10 @@ from sre_agent.config.plugin import ProviderPlugin
 from sre_agent.config.settings import AgentConfig
 from sre_agent.domain.models.canonical import ComputeMechanism
 
-
 # ---------------------------------------------------------------------------
 # Tests: register_builtin_providers
 # ---------------------------------------------------------------------------
+
 
 def test_register_builtin_providers():
     """Verify OTel and NewRelic factories are registered."""
@@ -33,6 +35,7 @@ def test_register_builtin_providers():
 # ---------------------------------------------------------------------------
 # Tests: bootstrap_cloud_operators
 # ---------------------------------------------------------------------------
+
 
 def test_bootstrap_cloud_operators_returns_registry():
     """bootstrap_cloud_operators returns a CloudOperatorRegistry."""
@@ -98,7 +101,9 @@ def test_bootstrap_lock_manager_redis_selected(monkeypatch):
         RedisDistributedLockManager=_FakeRedisLockManager,
         RedisLockConfig=_FakeRedisLockConfig,
     )
-    monkeypatch.setitem(__import__("sys").modules, "sre_agent.adapters.coordination.redis_lock_manager", module)
+    monkeypatch.setitem(
+        __import__("sys").modules, "sre_agent.adapters.coordination.redis_lock_manager", module
+    )
 
     config = AgentConfig.from_dict({"lock": {"backend": LockBackendType.REDIS.value}})
     lock_manager = bootstrap_lock_manager(config)
@@ -108,7 +113,9 @@ def test_bootstrap_lock_manager_redis_selected(monkeypatch):
 
 def test_bootstrap_lock_manager_falls_back_to_in_memory(monkeypatch):
     from sre_agent.adapters.bootstrap import bootstrap_lock_manager
-    from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
+    from sre_agent.adapters.coordination.in_memory_lock_manager import (
+        InMemoryDistributedLockManager,
+    )
     from sre_agent.config.settings import LockBackendType
 
     monkeypatch.setitem(
@@ -126,6 +133,7 @@ def test_bootstrap_lock_manager_falls_back_to_in_memory(monkeypatch):
 # ---------------------------------------------------------------------------
 # Tests: bootstrap_provider
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_bootstrap_provider():
@@ -229,9 +237,8 @@ async def test_bootstrap_provider_logs_and_raises_on_create_failure():
     with patch(
         "sre_agent.config.plugin.ProviderPlugin.create_provider",
         side_effect=RuntimeError("factory exploded"),
-    ):
-        with pytest.raises(RuntimeError, match="factory exploded"):
-            await bootstrap_provider(config, registry)
+    ), pytest.raises(RuntimeError, match="factory exploded"):
+        await bootstrap_provider(config, registry)
 
 
 def test_otel_factory_injects_built_log_adapter():
@@ -261,6 +268,7 @@ def test_otel_factory_injects_built_log_adapter():
 # ---------------------------------------------------------------------------
 # Tests: CloudWatch provider registration — AC-LF-1.2, AC-LF-1.3
 # ---------------------------------------------------------------------------
+
 
 def test_register_builtin_providers_includes_cloudwatch():
     """CloudWatch factory must be registered alongside OTel and NewRelic."""
@@ -306,3 +314,169 @@ def test_cloudwatch_factory_uses_endpoint_url():
     for call in mock_boto3.call_args_list:
         assert call.kwargs.get("endpoint_url") == "http://localhost:4566"
 
+
+def test_maybe_build_kubernetes_log_adapter_returns_none_when_client_missing(monkeypatch):
+    from sre_agent.adapters.bootstrap import _maybe_build_kubernetes_log_adapter
+
+    real_import = __import__("builtins").__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "kubernetes":
+            raise ImportError("kubernetes not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(__import__("builtins"), "__import__", fake_import)
+
+    assert _maybe_build_kubernetes_log_adapter() is None
+
+
+def test_maybe_build_kubernetes_log_adapter_returns_none_when_kube_config_missing(monkeypatch):
+    from sre_agent.adapters.bootstrap import _maybe_build_kubernetes_log_adapter
+
+    k8s_module = types.ModuleType("kubernetes")
+
+    class _Config:
+        @staticmethod
+        def load_incluster_config():
+            raise RuntimeError("not in cluster")
+
+        @staticmethod
+        def load_kube_config():
+            raise RuntimeError("no kube config")
+
+    class _Client:
+        class CoreV1Api:
+            pass
+
+    k8s_module.config = _Config
+    k8s_module.client = _Client
+
+    monkeypatch.setitem(sys.modules, "kubernetes", k8s_module)
+
+    assert _maybe_build_kubernetes_log_adapter() is None
+
+
+def test_maybe_build_kubernetes_log_adapter_uses_namespace_from_env(monkeypatch):
+    from sre_agent.adapters.bootstrap import _maybe_build_kubernetes_log_adapter
+
+    k8s_module = types.ModuleType("kubernetes")
+
+    class _Config:
+        @staticmethod
+        def load_incluster_config():
+            return None
+
+        @staticmethod
+        def load_kube_config():
+            return None
+
+    class _Client:
+        class CoreV1Api:
+            pass
+
+    class _FakeKubernetesLogAdapter:
+        def __init__(self, core_v1_api, namespace: str):
+            self.core_v1_api = core_v1_api
+            self.namespace = namespace
+
+    pod_log_module = types.ModuleType("sre_agent.adapters.telemetry.kubernetes.pod_log_adapter")
+    pod_log_module.KubernetesLogAdapter = _FakeKubernetesLogAdapter
+
+    k8s_module.config = _Config
+    k8s_module.client = _Client
+
+    monkeypatch.setitem(sys.modules, "kubernetes", k8s_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "sre_agent.adapters.telemetry.kubernetes.pod_log_adapter",
+        pod_log_module,
+    )
+    monkeypatch.setenv("KUBERNETES_NAMESPACE", "prod")
+
+    adapter = _maybe_build_kubernetes_log_adapter()
+
+    assert adapter is not None
+    assert adapter.namespace == "prod"
+
+
+def test_newrelic_factory_uses_placeholder_api_key():
+    from sre_agent.adapters.bootstrap import _newrelic_factory
+
+    config = AgentConfig()
+    mock_provider = MagicMock()
+
+    with patch(
+        "sre_agent.adapters.telemetry.newrelic.provider.NewRelicProvider",
+        return_value=mock_provider,
+    ) as provider_cls:
+        created = _newrelic_factory(config)
+
+    assert created is mock_provider
+    provider_cls.assert_called_once_with(config.newrelic, api_key="")
+
+
+def test_create_pixie_adapter_uses_config_values(monkeypatch):
+    from sre_agent.adapters.bootstrap import _create_pixie_adapter
+
+    class _FakePixieAdapter:
+        def __init__(self, api_url: str, cluster_id: str, api_key: str):
+            self.api_url = api_url
+            self.cluster_id = cluster_id
+            self.api_key = api_key
+
+    module = types.ModuleType("sre_agent.adapters.telemetry.ebpf.pixie_adapter")
+    module.PixieAdapter = _FakePixieAdapter
+    monkeypatch.setitem(sys.modules, "sre_agent.adapters.telemetry.ebpf.pixie_adapter", module)
+
+    config = MagicMock()
+    config.pixie_api_url = "https://pixie.example"
+    config.pixie_cluster_id = "cluster-123"
+    config.pixie_api_key = "token-abc"
+
+    adapter = _create_pixie_adapter(config)
+
+    assert isinstance(adapter, _FakePixieAdapter)
+    assert adapter.api_url == "https://pixie.example"
+    assert adapter.cluster_id == "cluster-123"
+    assert adapter.api_key == "token-abc"
+
+
+def test_bootstrap_lock_manager_etcd_selected(monkeypatch):
+    from sre_agent.adapters.bootstrap import bootstrap_lock_manager
+    from sre_agent.config.settings import LockBackendType
+
+    class _FakeEtcdLockManager:
+        def __init__(self, config=None):
+            self.config = config
+
+    class _FakeEtcdLockConfig:
+        def __init__(self, host: str = "", port: int = 0, key_prefix: str = ""):
+            self.host = host
+            self.port = port
+            self.key_prefix = key_prefix
+
+    module = MagicMock(
+        EtcdDistributedLockManager=_FakeEtcdLockManager,
+        EtcdLockConfig=_FakeEtcdLockConfig,
+    )
+    monkeypatch.setitem(sys.modules, "sre_agent.adapters.coordination.etcd_lock_manager", module)
+
+    config = AgentConfig.from_dict({"lock": {"backend": LockBackendType.ETCD.value}})
+    lock_manager = bootstrap_lock_manager(config)
+
+    assert lock_manager.__class__.__name__ == "_FakeEtcdLockManager"
+
+
+def test_bootstrap_lock_manager_etcd_falls_back_to_in_memory(monkeypatch):
+    from sre_agent.adapters.bootstrap import bootstrap_lock_manager
+    from sre_agent.adapters.coordination.in_memory_lock_manager import (
+        InMemoryDistributedLockManager,
+    )
+    from sre_agent.config.settings import LockBackendType
+
+    monkeypatch.setitem(sys.modules, "sre_agent.adapters.coordination.etcd_lock_manager", None)
+
+    config = AgentConfig.from_dict({"lock": {"backend": LockBackendType.ETCD.value}})
+    lock_manager = bootstrap_lock_manager(config)
+
+    assert isinstance(lock_manager, InMemoryDistributedLockManager)

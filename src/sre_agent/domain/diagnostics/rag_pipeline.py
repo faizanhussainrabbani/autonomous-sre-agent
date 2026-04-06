@@ -24,43 +24,44 @@ Phase 2.2: Token Optimization
 from __future__ import annotations
 
 import time
-from contextvars import ContextVar
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import structlog
 
-from sre_agent.adapters.telemetry.metrics import (
-    DIAGNOSIS_DURATION,
-    DIAGNOSIS_ERRORS,
-    EVIDENCE_RELEVANCE,
-    SEVERITY_ASSIGNED,
-    _current_alert_id,
-)
+from sre_agent.domain.diagnostics.cache import DiagnosticCache
 from sre_agent.domain.diagnostics.confidence import ConfidenceScorer
 from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.diagnostics.timeline import TimelineConstructor
 from sre_agent.domain.diagnostics.validator import SecondOpinionValidator
-from sre_agent.domain.models.canonical import CorrelatedSignals, DomainEvent, EventTypes, Severity
-from sre_agent.domain.models.diagnosis import ServiceTier
+from sre_agent.domain.models.canonical import DomainEvent, EventTypes, Severity
 from sre_agent.domain.models.diagnosis import (
     AuditEntry,
     ConfidenceLevel,
     Diagnosis,
     DiagnosticState,
     EvidenceCitation,
+    ServiceTier,
 )
-from sre_agent.domain.diagnostics.cache import DiagnosticCache
+from sre_agent.observability.metrics import (
+    DIAGNOSIS_DURATION,
+    DIAGNOSIS_ERRORS,
+    EVIDENCE_RELEVANCE,
+    SEVERITY_ASSIGNED,
+    _current_alert_id,
+)
 from sre_agent.ports.compressor import CompressorPort
 from sre_agent.ports.diagnostics import DiagnosisRequest, DiagnosisResult, DiagnosticPort
 from sre_agent.ports.embedding import EmbeddingPort
 from sre_agent.ports.events import EventBus, EventStore
 from sre_agent.ports.llm import (
     EvidenceContext,
+    Hypothesis,
     HypothesisRequest,
     LLMReasoningPort,
+    ValidationResult,
 )
 from sre_agent.ports.reranker import RerankerPort
-from sre_agent.ports.vector_store import SearchQuery, VectorStorePort
+from sre_agent.ports.vector_store import SearchQuery, SearchResult, VectorStorePort
 
 logger = structlog.get_logger(__name__)
 
@@ -123,7 +124,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
 
         # OBS-007: bind alert_id to the current async context so every log line
         # emitted within this call carries the correlation field automatically.
-        _token = _current_alert_id.set(request.alert.alert_id)
+        _token = _current_alert_id.set(str(request.alert.alert_id))
         _start = time.monotonic()
 
         try:
@@ -150,15 +151,17 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                     return cached
 
             # Stage 0: Emit IncidentDetected event (Engineering Standards §1.4)
-            await self._emit(DomainEvent(
-                event_type=EventTypes.INCIDENT_DETECTED,
-                aggregate_id=request.alert.alert_id,
-                payload={
-                    "service": request.alert.service,
-                    "anomaly_type": request.alert.anomaly_type.value,
-                    "description": request.alert.description,
-                },
-            ))
+            await self._emit(
+                DomainEvent(
+                    event_type=EventTypes.INCIDENT_DETECTED,
+                    aggregate_id=request.alert.alert_id,
+                    payload={
+                        "service": request.alert.service,
+                        "anomaly_type": request.alert.anomaly_type.value,
+                        "description": request.alert.description,
+                    },
+                )
+            )
 
             # Stage 1: Embed alert description
             diagnosis.state = DiagnosticState.RETRIEVING
@@ -193,11 +196,13 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 results_count=len(search_results),
                 top_score=round(search_results[0].score, 4) if search_results else None,
             )
-            audit.append(AuditEntry(
-                stage="retrieval",
-                action="vector_search_complete",
-                details={"results_count": len(search_results)},
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="retrieval",
+                    action="vector_search_complete",
+                    details={"results_count": len(search_results)},
+                )
+            )
 
             # OBS-001: Observe top-1 evidence relevance score
             if search_results:
@@ -207,11 +212,13 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             if not search_results:
                 diagnosis.state = DiagnosticState.RETRIEVAL_MISS
                 DIAGNOSIS_ERRORS.labels(error_type="novel_incident").inc()
-                audit.append(AuditEntry(
-                    stage="retrieval",
-                    action="retrieval_miss",
-                    details={"service": request.alert.service},
-                ))
+                audit.append(
+                    AuditEntry(
+                        stage="retrieval",
+                        action="retrieval_miss",
+                        details={"service": request.alert.service},
+                    )
+                )
 
                 diagnosis.state = DiagnosticState.FALLBACK_REASONING
                 fallback_result = await self._attempt_general_inference_fallback(
@@ -239,27 +246,30 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                     ],
                     top_k=request.max_evidence_items,
                 )
-                # Convert back to search result-like objects for downstream
-                from types import SimpleNamespace
+                # Convert reranked documents back into port SearchResult objects.
                 search_results = [
-                    SimpleNamespace(
+                    SearchResult(
+                        doc_id=rd.doc_id,
                         content=rd.content,
                         source=rd.source,
                         score=rd.rerank_score,
-                        doc_id=rd.doc_id,
-                        metadata=getattr(rd, "metadata", {}),
+                        metadata={},
                     )
                     for rd in reranked
                 ]
                 search_results = self._apply_freshness_penalty(search_results)
-                audit.append(AuditEntry(
-                    stage="retrieval",
-                    action="evidence_reranked",
-                    details={
-                        "reranked_count": len(search_results),
-                        "top_rerank_score": round(reranked[0].rerank_score, 4) if reranked else None,
-                    },
-                ))
+                audit.append(
+                    AuditEntry(
+                        stage="retrieval",
+                        action="evidence_reranked",
+                        details={
+                            "reranked_count": len(search_results),
+                            "top_rerank_score": round(reranked[0].rerank_score, 4)
+                            if reranked
+                            else None,
+                        },
+                    )
+                )
                 logger.debug(
                     "evidence_reranked",
                     alert_id=request.alert.alert_id,
@@ -291,15 +301,17 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 after_trim=len(trimmed_evidence),
                 budget_tokens=self._context_budget,
             )
-            audit.append(AuditEntry(
-                stage="reasoning",
-                action="evidence_prepared",
-                details={
-                    "total_evidence": len(evidence_contexts),
-                    "after_budget_trim": len(trimmed_evidence),
-                    "compressed": self._compressor is not None,
-                },
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="reasoning",
+                    action="evidence_prepared",
+                    details={
+                        "total_evidence": len(evidence_contexts),
+                        "after_budget_trim": len(trimmed_evidence),
+                        "compressed": self._compressor is not None,
+                    },
+                )
+            )
 
             # Stage 5: Generate hypothesis via LLM
             logger.info(
@@ -315,25 +327,29 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             )
             hypothesis = await self._llm.generate_hypothesis(hypothesis_request)
 
-            audit.append(AuditEntry(
-                stage="reasoning",
-                action="hypothesis_generated",
-                details={
-                    "root_cause": hypothesis.root_cause[:100],
-                    "confidence": hypothesis.confidence,
-                },
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="reasoning",
+                    action="hypothesis_generated",
+                    details={
+                        "root_cause": hypothesis.root_cause[:100],
+                        "confidence": hypothesis.confidence,
+                    },
+                )
+            )
 
             # Emit DiagnosisGenerated event
-            await self._emit(DomainEvent(
-                event_type=EventTypes.DIAGNOSIS_GENERATED,
-                aggregate_id=request.alert.alert_id,
-                payload={
-                    "root_cause": hypothesis.root_cause,
-                    "llm_confidence": hypothesis.confidence,
-                    "evidence_count": len(trimmed_evidence),
-                },
-            ))
+            await self._emit(
+                DomainEvent(
+                    event_type=EventTypes.DIAGNOSIS_GENERATED,
+                    aggregate_id=request.alert.alert_id,
+                    payload={
+                        "root_cause": hypothesis.root_cause,
+                        "llm_confidence": hypothesis.confidence,
+                        "evidence_count": len(trimmed_evidence),
+                    },
+                )
+            )
 
             # Stage 6: Validate hypothesis
             # Pass trimmed_evidence so the LLM cross-check has the full
@@ -352,35 +368,41 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 evidence=trimmed_evidence,
             )
 
-            audit.append(AuditEntry(
-                stage="validation",
-                action="hypothesis_validated",
-                details={
-                    "agrees": validation_result.agrees,
-                    "reasoning": validation_result.reasoning[:100],
-                },
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="validation",
+                    action="hypothesis_validated",
+                    details={
+                        "agrees": validation_result.agrees,
+                        "reasoning": validation_result.reasoning[:100],
+                    },
+                )
+            )
 
             # Emit SecondOpinionCompleted event
-            await self._emit(DomainEvent(
-                event_type=EventTypes.SECOND_OPINION_COMPLETED,
-                aggregate_id=request.alert.alert_id,
-                payload={
-                    "agrees": validation_result.agrees,
-                    "validation_confidence": validation_result.confidence,
-                },
-            ))
+            await self._emit(
+                DomainEvent(
+                    event_type=EventTypes.SECOND_OPINION_COMPLETED,
+                    aggregate_id=request.alert.alert_id,
+                    payload={
+                        "agrees": validation_result.agrees,
+                        "validation_confidence": validation_result.confidence,
+                    },
+                )
+            )
 
             if not validation_result.agrees and not validation_result.corrected_root_cause:
                 diagnosis.state = DiagnosticState.ROOT_CAUSE_UNRESOLVED
                 DIAGNOSIS_ERRORS.labels(error_type="root_cause_unresolved").inc()
-                audit.append(AuditEntry(
-                    stage="validation",
-                    action="root_cause_unresolved",
-                    details={
-                        "reasoning": validation_result.reasoning[:100],
-                    },
-                ))
+                audit.append(
+                    AuditEntry(
+                        stage="validation",
+                        action="root_cause_unresolved",
+                        details={
+                            "reasoning": validation_result.reasoning[:100],
+                        },
+                    )
+                )
                 return self._handle_unresolved_root_cause(
                     request=request,
                     hypothesis=hypothesis,
@@ -446,32 +468,36 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             )
 
             diagnosis.state = DiagnosticState.COMPLETE
-            audit.append(AuditEntry(
-                stage="classification",
-                action="diagnosis_complete",
-                details={
-                    "severity": severity.name,
-                    "confidence": confidence,
-                    "requires_approval": requires_approval,
-                },
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="classification",
+                    action="diagnosis_complete",
+                    details={
+                        "severity": severity.name,
+                        "confidence": confidence,
+                        "requires_approval": requires_approval,
+                    },
+                )
+            )
 
             # Emit SeverityAssigned event
-            await self._emit(DomainEvent(
-                event_type=EventTypes.SEVERITY_ASSIGNED,
-                aggregate_id=request.alert.alert_id,
-                payload={
-                    "severity": severity.name,
-                    "confidence": confidence,
-                    "requires_human_approval": requires_approval,
-                },
-            ))
+            await self._emit(
+                DomainEvent(
+                    event_type=EventTypes.SEVERITY_ASSIGNED,
+                    aggregate_id=request.alert.alert_id,
+                    payload={
+                        "severity": severity.name,
+                        "confidence": confidence,
+                        "requires_human_approval": requires_approval,
+                    },
+                )
+            )
 
             # Phase 2.2: Store result in cache for future hits
             # Apply corrections from validation if disagreement and corrections are provided
             final_root_cause = hypothesis.root_cause
             final_remediation = hypothesis.suggested_remediation
-            
+
             if not validation_result.agrees:
                 if validation_result.corrected_root_cause:
                     final_root_cause = validation_result.corrected_root_cause
@@ -486,7 +512,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 suggested_remediation=final_remediation,
                 is_novel=False,
                 requires_human_approval=requires_approval,
-                diagnosed_at=datetime.now(timezone.utc),
+                diagnosed_at=datetime.now(UTC),
                 evidence_citations=citations,
                 audit_trail=self._render_audit_trail(audit),
             )
@@ -514,18 +540,18 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 requires_approval=requires_approval,
             )
 
-
             return result
-
 
         except ConnectionError as exc:
             DIAGNOSIS_ERRORS.labels(error_type="connection_error").inc()
             logger.error("diagnostic_pipeline_connection_error", error=str(exc))
-            audit.append(AuditEntry(
-                stage="error",
-                action="connection_failure",
-                details={"error": str(exc)},
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="error",
+                    action="connection_failure",
+                    details={"error": str(exc)},
+                )
+            )
             return DiagnosisResult(
                 root_cause="Diagnosis unavailable due to connection failure.",
                 confidence=0.0,
@@ -533,18 +559,20 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 reasoning=f"Pipeline connection error: {exc}",
                 is_novel=False,
                 requires_human_approval=True,
-                diagnosed_at=datetime.now(timezone.utc),
+                diagnosed_at=datetime.now(UTC),
                 audit_trail=self._render_audit_trail(audit),
             )
 
         except TimeoutError as exc:
             DIAGNOSIS_ERRORS.labels(error_type="timeout").inc()
             logger.error("diagnostic_pipeline_timeout", error=str(exc))
-            audit.append(AuditEntry(
-                stage="error",
-                action="timeout",
-                details={"error": str(exc)},
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="error",
+                    action="timeout",
+                    details={"error": str(exc)},
+                )
+            )
             return DiagnosisResult(
                 root_cause="Diagnosis unavailable due to timeout.",
                 confidence=0.0,
@@ -552,7 +580,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 reasoning=f"Pipeline timeout: {exc}",
                 is_novel=False,
                 requires_human_approval=True,
-                diagnosed_at=datetime.now(timezone.utc),
+                diagnosed_at=datetime.now(UTC),
                 audit_trail=self._render_audit_trail(audit),
             )
 
@@ -602,11 +630,13 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 anomaly_type=request.alert.anomaly_type.value,
             )
 
-        audit.append(AuditEntry(
-            stage="fallback",
-            action="general_inference_started",
-            details={"service": request.alert.service},
-        ))
+        audit.append(
+            AuditEntry(
+                stage="fallback",
+                action="general_inference_started",
+                details={"service": request.alert.service},
+            )
+        )
 
         fallback_request = HypothesisRequest(
             alert_description=alert_text,
@@ -628,18 +658,22 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 alert_id=request.alert.alert_id,
                 error=str(exc),
             )
-            audit.append(AuditEntry(
-                stage="fallback",
-                action="general_inference_failed",
-                details={"error": str(exc)},
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="fallback",
+                    action="general_inference_failed",
+                    details={"error": str(exc)},
+                )
+            )
             return None
 
         if not hypothesis.root_cause.strip():
-            audit.append(AuditEntry(
-                stage="fallback",
-                action="general_inference_empty",
-            ))
+            audit.append(
+                AuditEntry(
+                    stage="fallback",
+                    action="general_inference_empty",
+                )
+            )
             return None
 
         fallback_confidence = min(
@@ -647,14 +681,16 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             _FALLBACK_MAX_CONFIDENCE,
         )
 
-        audit.append(AuditEntry(
-            stage="fallback",
-            action="general_inference_completed",
-            details={
-                "confidence": fallback_confidence,
-                "root_cause": hypothesis.root_cause[:100],
-            },
-        ))
+        audit.append(
+            AuditEntry(
+                stage="fallback",
+                action="general_inference_completed",
+                details={
+                    "confidence": fallback_confidence,
+                    "root_cause": hypothesis.root_cause[:100],
+                },
+            )
+        )
 
         return DiagnosisResult(
             root_cause=f"Novel incident inferred candidate: {hypothesis.root_cause}",
@@ -667,24 +703,26 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             suggested_remediation=hypothesis.suggested_remediation,
             is_novel=True,
             requires_human_approval=True,
-            diagnosed_at=datetime.now(timezone.utc),
+            diagnosed_at=datetime.now(UTC),
             audit_trail=self._render_audit_trail(audit),
         )
 
     def _handle_unresolved_root_cause(
         self,
         request: DiagnosisRequest,
-        hypothesis,
-        validation_result,
-        search_results: list,
+        hypothesis: Hypothesis,
+        validation_result: ValidationResult,
+        search_results: list[SearchResult],
         audit: list[AuditEntry],
     ) -> DiagnosisResult:
         """Return a deterministic escalation result for unresolved root cause paths."""
-        audit.append(AuditEntry(
-            stage="validation",
-            action="unresolved_escalated",
-            details={"service": request.alert.service},
-        ))
+        audit.append(
+            AuditEntry(
+                stage="validation",
+                action="unresolved_escalated",
+                details={"service": request.alert.service},
+            )
+        )
 
         citations = [
             EvidenceCitation(
@@ -713,7 +751,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             ),
             is_novel=False,
             requires_human_approval=True,
-            diagnosed_at=datetime.now(timezone.utc),
+            diagnosed_at=datetime.now(UTC),
             evidence_citations=citations,
             audit_trail=self._render_audit_trail(audit),
         )
@@ -727,11 +765,13 @@ class RAGDiagnosticPipeline(DiagnosticPort):
 
         Novel incidents are escalated to Sev 1 with human approval required.
         """
-        audit.append(AuditEntry(
-            stage="retrieval",
-            action="novel_incident_detected",
-            details={"service": request.alert.service},
-        ))
+        audit.append(
+            AuditEntry(
+                stage="retrieval",
+                action="novel_incident_detected",
+                details={"service": request.alert.service},
+            )
+        )
 
         return DiagnosisResult(
             root_cause="Novel incident: no matching evidence in knowledge base.",
@@ -741,13 +781,13 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             "Escalating as novel incident requiring immediate human investigation.",
             is_novel=True,
             requires_human_approval=True,
-            diagnosed_at=datetime.now(timezone.utc),
+            diagnosed_at=datetime.now(UTC),
             audit_trail=self._render_audit_trail(audit),
         )
 
     def _build_evidence_contexts(
         self,
-        search_results: list,
+        search_results: list[SearchResult],
     ) -> list[EvidenceContext]:
         """Convert search results to EvidenceContext objects."""
         return [
@@ -764,14 +804,19 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         evidence: list[EvidenceContext],
     ) -> list[EvidenceContext]:
         """Compress evidence chunks using the compressor port (Phase 2.2)."""
+        if self._compressor is None:
+            return evidence
+
         compressed: list[EvidenceContext] = []
         for ctx in evidence:
             result = self._compressor.compress(ctx.content, target_ratio=0.5)
-            compressed.append(EvidenceContext(
-                content=result.compressed_text,
-                source=ctx.source,
-                relevance_score=ctx.relevance_score,
-            ))
+            compressed.append(
+                EvidenceContext(
+                    content=result.compressed_text,
+                    source=ctx.source,
+                    relevance_score=ctx.relevance_score,
+                )
+            )
         return compressed
 
     def _apply_token_budget(
@@ -785,7 +830,9 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         """
         # Sort by relevance (highest first) so we keep the best evidence
         sorted_evidence = sorted(
-            evidence, key=lambda e: e.relevance_score, reverse=True,
+            evidence,
+            key=lambda e: e.relevance_score,
+            reverse=True,
         )
 
         result: list[EvidenceContext] = []
@@ -807,26 +854,33 @@ class RAGDiagnosticPipeline(DiagnosticPort):
 
         return result
 
-    def _apply_freshness_penalty(self, search_results: list) -> list:
-        from types import SimpleNamespace
-
-        cutoff = datetime.now(timezone.utc) - timedelta(days=_DOCUMENT_TTL_DAYS)
-        adjusted = []
+    def _apply_freshness_penalty(
+        self,
+        search_results: list[SearchResult],
+    ) -> list[SearchResult]:
+        cutoff = datetime.now(UTC) - timedelta(days=_DOCUMENT_TTL_DAYS)
+        adjusted: list[SearchResult] = []
 
         for result in search_results:
-            metadata = getattr(result, "metadata", {}) or {}
+            raw_metadata = getattr(result, "metadata", {})
+            metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+            metadata = {
+                str(key): str(value)
+                for key, value in metadata.items()
+                if value is not None
+            }
             score = float(getattr(result, "score", 0.0))
             timestamp = _extract_timestamp(metadata)
             if timestamp is not None and timestamp < cutoff:
                 score = max(0.0, score * _STALE_DOC_PENALTY_FACTOR)
 
             adjusted.append(
-                SimpleNamespace(
-                    doc_id=getattr(result, "doc_id", ""),
-                    content=getattr(result, "content", ""),
+                SearchResult(
+                    doc_id=str(getattr(result, "doc_id", "")),
+                    content=str(getattr(result, "content", "")),
                     score=score,
                     metadata=metadata,
-                    source=getattr(result, "source", ""),
+                    source=str(getattr(result, "source", "")),
                 ),
             )
 
@@ -849,8 +903,8 @@ def _extract_timestamp(metadata: dict[str, str]) -> datetime | None:
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
             if parsed.tzinfo is None:
-                return parsed.replace(tzinfo=timezone.utc)
-            return parsed.astimezone(timezone.utc)
+                return parsed.replace(tzinfo=UTC)
+            return parsed.astimezone(UTC)
         except ValueError:
             continue
     return None

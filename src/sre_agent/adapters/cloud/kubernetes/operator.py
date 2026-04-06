@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import structlog
 
@@ -12,9 +12,9 @@ try:
     from kubernetes.client import ApiClient
     from kubernetes.client.exceptions import ApiException
 except ImportError:
-    kube_client = None  # type: ignore[assignment]
-    ApiClient = object  # type: ignore[assignment,misc]
-    ApiException = Exception  # type: ignore[assignment,misc]
+    kube_client = None
+    ApiClient = object
+    ApiException = Exception
 
 from sre_agent.adapters.cloud.resilience import CircuitBreaker, RetryConfig, retry_with_backoff
 from sre_agent.domain.models.canonical import ComputeMechanism
@@ -63,6 +63,8 @@ class KubernetesOperator(CloudOperatorPort):
         meta = metadata or {}
         namespace = meta.get("namespace", "default")
         resource_type, resource_name = _split_resource(resource_id)
+        apps_api = self._apps
+        core_api = self._core
 
         async def _do_restart() -> dict[str, Any]:
             logger.info(
@@ -72,45 +74,51 @@ class KubernetesOperator(CloudOperatorPort):
                 namespace=namespace,
             )
             if resource_type == "deployment":
+                if apps_api is None:
+                    raise RuntimeError("kubernetes_apps_api_not_configured")
                 body = {
                     "spec": {
                         "template": {
                             "metadata": {
                                 "annotations": {
                                     "kubectl.kubernetes.io/restartedAt": datetime.now(
-                                        timezone.utc,
+                                        UTC,
                                     ).isoformat(),
                                 },
                             },
                         },
                     },
                 }
-                self._apps.patch_namespaced_deployment(
+                apps_api.patch_namespaced_deployment(
                     name=resource_name,
                     namespace=namespace,
                     body=body,
                 )
             elif resource_type == "statefulset":
+                if apps_api is None:
+                    raise RuntimeError("kubernetes_apps_api_not_configured")
                 body = {
                     "spec": {
                         "template": {
                             "metadata": {
                                 "annotations": {
                                     "kubectl.kubernetes.io/restartedAt": datetime.now(
-                                        timezone.utc,
+                                        UTC,
                                     ).isoformat(),
                                 },
                             },
                         },
                     },
                 }
-                self._apps.patch_namespaced_stateful_set(
+                apps_api.patch_namespaced_stateful_set(
                     name=resource_name,
                     namespace=namespace,
                     body=body,
                 )
             elif resource_type == "pod":
-                self._core.delete_namespaced_pod(
+                if core_api is None:
+                    raise RuntimeError("kubernetes_core_api_not_configured")
+                core_api.delete_namespaced_pod(
                     name=resource_name,
                     namespace=namespace,
                 )
@@ -124,10 +132,13 @@ class KubernetesOperator(CloudOperatorPort):
                 "namespace": namespace,
             }
 
-        return await retry_with_backoff(
-            _do_restart,
-            config=self._retry_config,
-            circuit_breaker=self._circuit_breaker,
+        return cast(
+            dict[str, Any],
+            await retry_with_backoff(
+                _do_restart,
+                config=self._retry_config,
+                circuit_breaker=self._circuit_breaker,
+            ),
         )
 
     async def scale_capacity(
@@ -139,6 +150,7 @@ class KubernetesOperator(CloudOperatorPort):
         meta = metadata or {}
         namespace = meta.get("namespace", "default")
         resource_type, resource_name = _split_resource(resource_id)
+        apps_api = self._apps
         body = {"spec": {"replicas": desired_count}}
 
         async def _do_scale() -> dict[str, Any]:
@@ -150,13 +162,17 @@ class KubernetesOperator(CloudOperatorPort):
                 desired_count=desired_count,
             )
             if resource_type == "deployment":
-                self._apps.patch_namespaced_deployment_scale(
+                if apps_api is None:
+                    raise RuntimeError("kubernetes_apps_api_not_configured")
+                apps_api.patch_namespaced_deployment_scale(
                     name=resource_name,
                     namespace=namespace,
                     body=body,
                 )
             elif resource_type == "statefulset":
-                self._apps.patch_namespaced_stateful_set_scale(
+                if apps_api is None:
+                    raise RuntimeError("kubernetes_apps_api_not_configured")
+                apps_api.patch_namespaced_stateful_set_scale(
                     name=resource_name,
                     namespace=namespace,
                     body=body,
@@ -172,10 +188,13 @@ class KubernetesOperator(CloudOperatorPort):
                 "desired_count": desired_count,
             }
 
-        return await retry_with_backoff(
-            _do_scale,
-            config=self._retry_config,
-            circuit_breaker=self._circuit_breaker,
+        return cast(
+            dict[str, Any],
+            await retry_with_backoff(
+                _do_scale,
+                config=self._retry_config,
+                circuit_breaker=self._circuit_breaker,
+            ),
         )
 
     async def health_check(self) -> bool:
@@ -187,11 +206,12 @@ class KubernetesOperator(CloudOperatorPort):
                 self._core.list_namespace(limit=1)
                 return True
             return False
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
 
 def _split_resource(resource_id: str) -> tuple[str, str]:
     if "/" in resource_id:
-        return resource_id.split("/", 1)
+        resource_type, resource_name = resource_id.split("/", 1)
+        return resource_type, resource_name
     return "deployment", resource_id

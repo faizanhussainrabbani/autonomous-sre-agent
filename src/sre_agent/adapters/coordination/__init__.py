@@ -5,7 +5,7 @@ from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistr
 from sre_agent.adapters.coordination.redis_lock_manager import RedisDistributedLockManager
 
 __all__ = [
-	"EtcdDistributedLockManager",
-	"InMemoryDistributedLockManager",
-	"RedisDistributedLockManager",
+    "EtcdDistributedLockManager",
+    "InMemoryDistributedLockManager",
+    "RedisDistributedLockManager",
 ]

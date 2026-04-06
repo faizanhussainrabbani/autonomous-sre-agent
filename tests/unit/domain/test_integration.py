@@ -9,13 +9,13 @@ AC-5.9: All integration tests passing.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 
-from sre_agent.domain.detection.anomaly_detector import AnomalyDetector, DetectionResult
 from sre_agent.domain.detection.alert_correlation import AlertCorrelationEngine
+from sre_agent.domain.detection.anomaly_detector import AnomalyDetector
 from sre_agent.domain.detection.baseline import BaselineService
 from sre_agent.domain.detection.late_data_handler import LateDataHandler
 from sre_agent.domain.models.canonical import (
@@ -30,12 +30,12 @@ from sre_agent.domain.models.canonical import (
     TraceSpan,
 )
 from sre_agent.domain.models.detection_config import DetectionConfig
-from sre_agent.events.in_memory import InMemoryEventBus, InMemoryEventStore
-
+from sre_agent.events.in_memory import InMemoryEventBus
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def make_metric(
     name: str,
@@ -47,7 +47,7 @@ def make_metric(
     return CanonicalMetric(
         name=name,
         value=value,
-        timestamp=datetime.now(timezone.utc) - timedelta(minutes=ts_offset_min),
+        timestamp=datetime.now(UTC) - timedelta(minutes=ts_offset_min),
         labels=ServiceLabels(service=service, namespace="default"),
     )
 
@@ -58,7 +58,7 @@ def build_baseline(baseline_svc: BaselineService, service: str, metric: str, mea
 
     async def _feed():
         for i in range(35):
-            ts = datetime.now(timezone.utc) - timedelta(hours=1, minutes=i)
+            ts = datetime.now(UTC) - timedelta(hours=1, minutes=i)
             await baseline_svc.ingest(service, metric, mean + (i % 3) - 1, ts)
 
     asyncio.get_event_loop().run_until_complete(_feed())
@@ -67,6 +67,7 @@ def build_baseline(baseline_svc: BaselineService, service: str, metric: str, mea
 # ===========================================================================
 # AC-3.2.3: Multi-dimensional correlation
 # ===========================================================================
+
 
 class TestMultiDimensionalCorrelation:
     """AC-3.2.3: Combined latency +50% AND error rate +80% should alert."""
@@ -86,22 +87,25 @@ class TestMultiDimensionalCorrelation:
     @pytest.fixture
     async def detector_with_baselines(self, detector: AnomalyDetector) -> AnomalyDetector:
         """Feed baselines in the SAME hour segment so they're found at detection time."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Anchor to avoid crossing hour boundaries during 350-second subtraction
         now = now.replace(minute=30, second=0, microsecond=0)
         for i in range(35):
             # Stay in the same hour by using seconds offset, not hours
             ts = now - timedelta(seconds=i * 10)
-            await detector._baselines.ingest("svc-A", "http_request_duration_seconds", 100 + (i % 5), ts)
+            await detector._baselines.ingest(
+                "svc-A", "http_request_duration_seconds", 100 + (i % 5), ts
+            )
             await detector._baselines.ingest("svc-A", "http_errors_total", 5 + (i % 3), ts)
         return detector
 
     async def test_combined_sub_threshold_fires_multi_dim_alert(
-        self, detector_with_baselines: AnomalyDetector,
+        self,
+        detector_with_baselines: AnomalyDetector,
     ):
         """Both latency +50% and error rate +80% simultaneously → MULTI_DIMENSIONAL alert."""
         detector = detector_with_baselines
-        now = datetime.now(timezone.utc).replace(minute=30, second=0, microsecond=0)
+        now = datetime.now(UTC).replace(minute=30, second=0, microsecond=0)
 
         # Inject latency metric that IS detected by _detect_latency_spike but returns None
         # (first detection starts timer, doesn't fire alert yet). This puts it through
@@ -124,19 +128,19 @@ class TestMultiDimensionalCorrelation:
 
         # Should have a multi-dimensional alert
         multi_dim_alerts = [
-            a for a in result.alerts
-            if a.anomaly_type == AnomalyType.MULTI_DIMENSIONAL
+            a for a in result.alerts if a.anomaly_type == AnomalyType.MULTI_DIMENSIONAL
         ]
         assert len(multi_dim_alerts) == 1
         assert "latency" in multi_dim_alerts[0].description.lower()
         assert "error" in multi_dim_alerts[0].description.lower()
 
     async def test_single_dimension_no_multi_dim_alert(
-        self, detector_with_baselines: AnomalyDetector,
+        self,
+        detector_with_baselines: AnomalyDetector,
     ):
         """Only latency elevated (no error rate shift) → no MULTI_DIMENSIONAL alert."""
         detector = detector_with_baselines
-        now = datetime.now(timezone.utc).replace(minute=30, second=0, microsecond=0)
+        now = datetime.now(UTC).replace(minute=30, second=0, microsecond=0)
 
         latency_metric = CanonicalMetric(
             name="http_request_duration_seconds",
@@ -148,8 +152,7 @@ class TestMultiDimensionalCorrelation:
         result = await detector.detect("svc-A", [latency_metric])
 
         multi_dim_alerts = [
-            a for a in result.alerts
-            if a.anomaly_type == AnomalyType.MULTI_DIMENSIONAL
+            a for a in result.alerts if a.anomaly_type == AnomalyType.MULTI_DIMENSIONAL
         ]
         assert len(multi_dim_alerts) == 0
 
@@ -157,6 +160,7 @@ class TestMultiDimensionalCorrelation:
 # ===========================================================================
 # AC-3.5.1, AC-3.5.2: Per-service and per-metric sensitivity
 # ===========================================================================
+
 
 class TestSensitivityConfiguration:
     """AC-3.5.1/3.5.2: Operators configure per-service and per-metric thresholds."""
@@ -204,6 +208,7 @@ class TestSensitivityConfiguration:
 # AC-2.5.4, AC-2.5.5: Late-arriving data
 # ===========================================================================
 
+
 class TestLateDataHandling:
     """AC-2.5.4/2.5.5: Late data ingested and retroactively updates incidents."""
 
@@ -218,7 +223,7 @@ class TestLateDataHandling:
         metric = CanonicalMetric(
             name="http_request_duration_seconds",
             value=150.0,
-            timestamp=datetime.now(timezone.utc) - timedelta(seconds=90),
+            timestamp=datetime.now(UTC) - timedelta(seconds=90),
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
 
@@ -236,7 +241,7 @@ class TestLateDataHandling:
         metric = CanonicalMetric(
             name="http_request_duration_seconds",
             value=150.0,
-            timestamp=datetime.now(timezone.utc) - timedelta(seconds=10),
+            timestamp=datetime.now(UTC) - timedelta(seconds=10),
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
 
@@ -244,7 +249,7 @@ class TestLateDataHandling:
 
     async def test_retroactive_update_on_nearby_incident(self, handler: LateDataHandler):
         """Late data near an existing incident triggers retroactive update."""
-        incident_time = datetime.now(timezone.utc) - timedelta(seconds=90)
+        incident_time = datetime.now(UTC) - timedelta(seconds=90)
         incident_id = uuid4()
         handler.register_incident("svc-A", incident_id, incident_time, "latency_spike")
 
@@ -262,13 +267,13 @@ class TestLateDataHandling:
 
     async def test_no_retroactive_update_for_unrelated_incident(self, handler: LateDataHandler):
         """Late data far from any incident does NOT trigger retroactive update."""
-        old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        old_time = datetime.now(UTC) - timedelta(hours=2)
         handler.register_incident("svc-A", uuid4(), old_time, "latency_spike")
 
         metric = CanonicalMetric(
             name="http_request_duration_seconds",
             value=150.0,
-            timestamp=datetime.now(timezone.utc) - timedelta(seconds=90),
+            timestamp=datetime.now(UTC) - timedelta(seconds=90),
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
 
@@ -282,7 +287,7 @@ class TestLateDataHandling:
         metric = CanonicalMetric(
             name="cpu",
             value=80.0,
-            timestamp=datetime.now(timezone.utc) - timedelta(seconds=120),
+            timestamp=datetime.now(UTC) - timedelta(seconds=120),
             labels=ServiceLabels(service="svc-B", namespace="default"),
         )
         await handler.process_late_metric(metric)
@@ -296,6 +301,7 @@ class TestLateDataHandling:
 # AC-2.6.3: Incomplete trace detection
 # ===========================================================================
 
+
 class TestIncompleteTraceDetection:
     """AC-2.6.3: Incomplete traces marked with missing span services logged."""
 
@@ -304,9 +310,27 @@ class TestIncompleteTraceDetection:
         trace = CanonicalTrace(
             trace_id="abc",
             spans=[
-                TraceSpan(span_id="s1", parent_span_id=None, service="svc-A", operation="GET", duration_ms=100),
-                TraceSpan(span_id="s2", parent_span_id="s1", service="svc-B", operation="GET", duration_ms=50),
-                TraceSpan(span_id="s3", parent_span_id="s2", service="svc-C", operation="GET", duration_ms=20),
+                TraceSpan(
+                    span_id="s1",
+                    parent_span_id=None,
+                    service="svc-A",
+                    operation="GET",
+                    duration_ms=100,
+                ),
+                TraceSpan(
+                    span_id="s2",
+                    parent_span_id="s1",
+                    service="svc-B",
+                    operation="GET",
+                    duration_ms=50,
+                ),
+                TraceSpan(
+                    span_id="s3",
+                    parent_span_id="s2",
+                    service="svc-C",
+                    operation="GET",
+                    duration_ms=20,
+                ),
             ],
             is_complete=True,
         )
@@ -319,8 +343,12 @@ class TestIncompleteTraceDetection:
     def test_incomplete_trace_missing_parent(self):
         """A span referencing a non-existent parent → incomplete trace."""
         spans = [
-            TraceSpan(span_id="s1", parent_span_id=None, service="svc-A", operation="GET", duration_ms=100),
-            TraceSpan(span_id="s3", parent_span_id="s2", service="svc-C", operation="GET", duration_ms=20),
+            TraceSpan(
+                span_id="s1", parent_span_id=None, service="svc-A", operation="GET", duration_ms=100
+            ),
+            TraceSpan(
+                span_id="s3", parent_span_id="s2", service="svc-C", operation="GET", duration_ms=20
+            ),
             # s2 is MISSING — s3 references it but it's not in the trace
         ]
 
@@ -339,8 +367,12 @@ class TestIncompleteTraceDetection:
     def test_trace_with_no_root_span_is_incomplete(self):
         """A trace where all spans have parents but no root → incomplete."""
         spans = [
-            TraceSpan(span_id="s2", parent_span_id="s1", service="svc-B", operation="GET", duration_ms=50),
-            TraceSpan(span_id="s3", parent_span_id="s2", service="svc-C", operation="GET", duration_ms=20),
+            TraceSpan(
+                span_id="s2", parent_span_id="s1", service="svc-B", operation="GET", duration_ms=50
+            ),
+            TraceSpan(
+                span_id="s3", parent_span_id="s2", service="svc-C", operation="GET", duration_ms=20
+            ),
         ]
 
         root_spans = [s for s in spans if s.parent_span_id is None]
@@ -350,6 +382,7 @@ class TestIncompleteTraceDetection:
 # ===========================================================================
 # AC-3.2.1 + AC-3.2.2: End-to-end correlation pipeline
 # ===========================================================================
+
 
 class TestCorrelationPipeline:
     """End-to-end: detect → correlate → verify incident grouping."""
@@ -396,6 +429,7 @@ class TestCorrelationPipeline:
 # AC-4.4: Per-stage latency instrumentation
 # ===========================================================================
 
+
 class TestPerStageLatency:
     """AC-4.4: Detection and alert generation timestamps are set."""
 
@@ -409,7 +443,7 @@ class TestPerStageLatency:
         detector = AnomalyDetector(baseline, config)
 
         # Build baseline in SAME hour segment as detection
-        now = datetime.now(timezone.utc).replace(minute=30, second=0, microsecond=0)
+        now = datetime.now(UTC).replace(minute=30, second=0, microsecond=0)
         for i in range(35):
             ts = now - timedelta(seconds=i * 10)
             await baseline.ingest("svc-A", "http_request_duration_seconds", 100 + (i % 5), ts)
@@ -421,7 +455,7 @@ class TestPerStageLatency:
             timestamp=now,
             labels=ServiceLabels(service="svc-A", namespace="default"),
         )
-        result1 = await detector.detect("svc-A", [spike1])
+        await detector.detect("svc-A", [spike1])
 
         # Second spike: same metric, slightly later → meets duration=0 requirement
         spike2 = CanonicalMetric(

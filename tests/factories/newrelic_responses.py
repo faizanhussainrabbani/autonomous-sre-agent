@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -33,7 +33,7 @@ def build_newrelic_log_result(
 ) -> dict[str, Any]:
     """Create a New Relic log result payload row for NRQL responses."""
     if timestamp_ms is None:
-        timestamp_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
 
     result: dict[str, Any] = {
         "message": message,

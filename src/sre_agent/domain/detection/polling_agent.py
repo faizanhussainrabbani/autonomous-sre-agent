@@ -12,7 +12,8 @@ Validates: AC-CW-7.1 through AC-CW-7.5
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -91,10 +92,8 @@ class MetricPollingAgent:
         self._running = False
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
         logger.info("polling_agent_stopped", total_polls=self._poll_count)
 
@@ -105,7 +104,7 @@ class MetricPollingAgent:
                 await self._poll_once()
             except asyncio.CancelledError:
                 break
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.error("polling_agent_cycle_error", error=str(exc))
 
             try:
@@ -115,7 +114,7 @@ class MetricPollingAgent:
 
     async def _poll_once(self) -> None:
         """Execute a single poll cycle across all watched metrics."""
-        now = datetime.now(timezone.utc)
+        datetime.now(UTC)
 
         for entry in self._watchlist:
             service = entry["service"]
@@ -150,7 +149,7 @@ class MetricPollingAgent:
                             alert_count=len(result.alerts),
                         )
 
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "polling_agent_metric_error",
                     service=service,

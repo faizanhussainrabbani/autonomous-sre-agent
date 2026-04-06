@@ -32,9 +32,10 @@ async def test_resolve_service_uses_pattern_discovery_order():
     client = MagicMock()
     attempted_prefixes: list[str] = []
 
-    def _describe(*, logGroupNamePrefix: str, limit: int):
-        attempted_prefixes.append(logGroupNamePrefix)
-        if logGroupNamePrefix == "/ecs/orders":
+    def _describe(*, limit: int, **kwargs):
+        log_group_name_prefix = kwargs["logGroupNamePrefix"]
+        attempted_prefixes.append(log_group_name_prefix)
+        if log_group_name_prefix == "/ecs/orders":
             return {"logGroups": [{"logGroupName": "/ecs/orders"}]}
         return {"logGroups": []}
 

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -181,6 +180,7 @@ class TestApplyOverrideEndpoint:
         assert "applied_at" in data
         # Should be parseable as ISO 8601
         from datetime import datetime
+
         datetime.fromisoformat(data["applied_at"])
 
 
@@ -194,6 +194,7 @@ class TestGetOverrideEndpoint:
         alert_id = uuid4()
 
         from sre_agent.domain.models.canonical import Severity
+
         service.apply_override(
             alert_id=alert_id,
             original_severity=Severity.SEV3,
@@ -230,6 +231,7 @@ class TestRevokeOverrideEndpoint:
         alert_id = uuid4()
 
         from sre_agent.domain.models.canonical import Severity
+
         service.apply_override(
             alert_id=alert_id,
             original_severity=Severity.SEV4,

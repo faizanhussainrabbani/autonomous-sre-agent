@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -31,7 +32,7 @@ class RerankerPort(ABC):
     def rerank(
         self,
         query: str,
-        documents: list[dict],
+        documents: list[dict[str, Any]],
         top_k: int = 5,
     ) -> list[RankedDocument]:
         """Rerank documents by specific relevance to query.

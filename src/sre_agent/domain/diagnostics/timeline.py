@@ -12,12 +12,10 @@ Phase 2.2: Token Optimization — Smart Timeline Filtering
 
 from __future__ import annotations
 
-from datetime import datetime
 import re
+from datetime import datetime
 
 from sre_agent.domain.models.canonical import (
-    CanonicalLogEntry,
-    CanonicalMetric,
     CorrelatedSignals,
 )
 
@@ -26,24 +24,70 @@ from sre_agent.domain.models.canonical import (
 # are kept; all others are filtered out.
 SIGNAL_RELEVANCE: dict[str, set[str]] = {
     "OOM_KILL": {
-        "memory", "oom", "pod_restart", "container", "cgroup", "heap",
-        "gc", "kill", "restart", "mem_", "rss", "swap",
+        "memory",
+        "oom",
+        "pod_restart",
+        "container",
+        "cgroup",
+        "heap",
+        "gc",
+        "kill",
+        "restart",
+        "mem_",
+        "rss",
+        "swap",
     },
     "HIGH_LATENCY": {
-        "latency", "p99", "p50", "p95", "connection", "queue", "timeout",
-        "upstream", "downstream", "duration", "slow", "response_time",
+        "latency",
+        "p99",
+        "p50",
+        "p95",
+        "connection",
+        "queue",
+        "timeout",
+        "upstream",
+        "downstream",
+        "duration",
+        "slow",
+        "response_time",
     },
     "ERROR_RATE_SPIKE": {
-        "error", "5xx", "4xx", "exception", "panic", "crash", "http",
-        "status", "failure", "fault", "500", "503",
+        "error",
+        "5xx",
+        "4xx",
+        "exception",
+        "panic",
+        "crash",
+        "http",
+        "status",
+        "failure",
+        "fault",
+        "500",
+        "503",
     },
     "DISK_EXHAUSTION": {
-        "disk", "volume", "inode", "storage", "pvc", "io", "write",
-        "read", "capacity", "full", "space",
+        "disk",
+        "volume",
+        "inode",
+        "storage",
+        "pvc",
+        "io",
+        "write",
+        "read",
+        "capacity",
+        "full",
+        "space",
     },
     "CERT_EXPIRY": {
-        "certificate", "tls", "ssl", "expir", "renew", "x509",
-        "cert", "https", "pem",
+        "certificate",
+        "tls",
+        "ssl",
+        "expir",
+        "renew",
+        "x509",
+        "cert",
+        "https",
+        "pem",
     },
 }
 
@@ -87,37 +131,45 @@ class TimelineConstructor:
 
         # Metrics
         for m in signals.metrics:
-            entries.append((
-                m.timestamp,
-                f"[METRIC] {m.name}={m.value:.4f} (service={m.labels.service})",
-            ))
+            entries.append(
+                (
+                    m.timestamp,
+                    f"[METRIC] {m.name}={m.value:.4f} (service={m.labels.service})",
+                )
+            )
 
         # Logs
         for log in signals.logs:
             safe_message = sanitize_prompt_text(log.message)
-            entries.append((
-                log.timestamp,
-                f"[LOG:{log.severity}] {safe_message} (service={log.labels.service})",
-            ))
+            entries.append(
+                (
+                    log.timestamp,
+                    f"[LOG:{log.severity}] {safe_message} (service={log.labels.service})",
+                )
+            )
 
         # Events
         for evt in signals.events:
             safe_metadata = sanitize_prompt_text(str(evt.metadata))
-            entries.append((
-                evt.timestamp,
-                f"[EVENT:{evt.event_type}] source={evt.source} {safe_metadata}",
-            ))
+            entries.append(
+                (
+                    evt.timestamp,
+                    f"[EVENT:{evt.event_type}] source={evt.source} {safe_metadata}",
+                )
+            )
 
         # Traces (use root span if available)
         for trace in signals.traces:
             root = trace.root_span
             if root and root.start_time:
-                entries.append((
-                    root.start_time,
-                    f"[TRACE] {root.service}/{root.operation} "
-                    f"duration={root.duration_ms:.1f}ms "
-                    f"status={root.status_code}",
-                ))
+                entries.append(
+                    (
+                        root.start_time,
+                        f"[TRACE] {root.service}/{root.operation} "
+                        f"duration={root.duration_ms:.1f}ms "
+                        f"status={root.status_code}",
+                    )
+                )
 
         if not entries:
             return "No signals available for timeline construction."
@@ -138,10 +190,7 @@ class TimelineConstructor:
         entries.sort(key=lambda e: e[0])
         entries = entries[: self._max_events]
 
-        lines = [
-            f"{ts.isoformat()} | {desc}"
-            for ts, desc in entries
-        ]
+        lines = [f"{ts.isoformat()} | {desc}" for ts, desc in entries]
 
         footer = (
             f"\n--- Timeline: {len(entries)} events, "
@@ -152,34 +201,43 @@ class TimelineConstructor:
         return "\n".join(lines) + footer
 
     def _collect_all(
-        self, signals: CorrelatedSignals,
+        self,
+        signals: CorrelatedSignals,
     ) -> list[tuple[datetime, str]]:
         """Collect all signals without filtering (fallback)."""
         entries: list[tuple[datetime, str]] = []
         for m in signals.metrics:
-            entries.append((
-                m.timestamp,
-                f"[METRIC] {m.name}={m.value:.4f} (service={m.labels.service})",
-            ))
+            entries.append(
+                (
+                    m.timestamp,
+                    f"[METRIC] {m.name}={m.value:.4f} (service={m.labels.service})",
+                )
+            )
         for log in signals.logs:
             safe_message = sanitize_prompt_text(log.message)
-            entries.append((
-                log.timestamp,
-                f"[LOG:{log.severity}] {safe_message} (service={log.labels.service})",
-            ))
+            entries.append(
+                (
+                    log.timestamp,
+                    f"[LOG:{log.severity}] {safe_message} (service={log.labels.service})",
+                )
+            )
         for evt in signals.events:
             safe_metadata = sanitize_prompt_text(str(evt.metadata))
-            entries.append((
-                evt.timestamp,
-                f"[EVENT:{evt.event_type}] source={evt.source} {safe_metadata}",
-            ))
+            entries.append(
+                (
+                    evt.timestamp,
+                    f"[EVENT:{evt.event_type}] source={evt.source} {safe_metadata}",
+                )
+            )
         for trace in signals.traces:
             root = trace.root_span
             if root and root.start_time:
-                entries.append((
-                    root.start_time,
-                    f"[TRACE] {root.service}/{root.operation} "
-                    f"duration={root.duration_ms:.1f}ms "
-                    f"status={root.status_code}",
-                ))
+                entries.append(
+                    (
+                        root.start_time,
+                        f"[TRACE] {root.service}/{root.operation} "
+                        f"duration={root.duration_ms:.1f}ms "
+                        f"status={root.status_code}",
+                    )
+                )
         return entries

@@ -7,7 +7,6 @@ audit logging, health check, and token budget trimming.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
@@ -35,7 +34,8 @@ def _make_pipeline(
 
     mock_llm = MagicMock()
     mock_llm.generate_hypothesis = AsyncMock(
-        return_value=hypothesis or Hypothesis(
+        return_value=hypothesis
+        or Hypothesis(
             root_cause="Memory leak in checkout-service",
             confidence=0.88,
             reasoning="RSS growth over 6 hours indicates a leak.",
@@ -44,7 +44,8 @@ def _make_pipeline(
         ),
     )
     mock_llm.validate_hypothesis = AsyncMock(
-        return_value=validation or ValidationResult(
+        return_value=validation
+        or ValidationResult(
             agrees=True,
             confidence=0.90,
             reasoning="Hypothesis is well-supported.",

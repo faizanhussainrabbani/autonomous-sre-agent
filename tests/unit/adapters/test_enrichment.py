@@ -1,9 +1,10 @@
 """
 Unit tests for Alert Enrichment.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,10 +16,11 @@ def _make_cw_client(metric_data=None):
     """Create a mock CloudWatch client."""
     client = MagicMock()
     client.get_metric_data.return_value = {
-        "MetricDataResults": metric_data or [
+        "MetricDataResults": metric_data
+        or [
             {
                 "Id": "m0",
-                "Timestamps": [datetime(2024, 1, 1, tzinfo=timezone.utc)],
+                "Timestamps": [datetime(2024, 1, 1, tzinfo=UTC)],
                 "Values": [42.0],
             },
         ],
@@ -29,9 +31,10 @@ def _make_cw_client(metric_data=None):
 def _make_logs_client(events=None):
     """Create a mock CloudWatch Logs client."""
     client = MagicMock()
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
     client.filter_log_events.return_value = {
-        "events": events or [
+        "events": events
+        or [
             {
                 "timestamp": now_ms,
                 "message": "ERROR: Lambda timeout",
@@ -51,6 +54,7 @@ def _make_enricher(cw_client=None, logs_client=None, metadata_fetcher=None):
 
 
 # ── enrich() ─────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_enrich_returns_dict():
@@ -75,16 +79,17 @@ async def test_enrich_returns_dict():
 async def test_enrich_computes_deviation():
     """Deviation sigma should be computed from metric data."""
     enricher = _make_enricher(
-        cw_client=_make_cw_client(metric_data=[
-            {
-                "Id": "m0",
-                "Timestamps": [
-                    datetime(2024, 1, 1, 0, i, tzinfo=timezone.utc)
-                    for i in range(10)
-                ],
-                "Values": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 100.0],
-            },
-        ])
+        cw_client=_make_cw_client(
+            metric_data=[
+                {
+                    "Id": "m0",
+                    "Timestamps": [
+                        datetime(2024, 1, 1, 0, i, tzinfo=UTC) for i in range(10)
+                    ],
+                    "Values": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 100.0],
+                },
+            ]
+        )
     )
     result = await enricher.enrich(
         service="payment-handler",
@@ -100,13 +105,15 @@ async def test_enrich_computes_deviation():
 async def test_enrich_with_insufficient_data():
     """Deviation fallback to 10.0 when < 3 datapoints."""
     enricher = _make_enricher(
-        cw_client=_make_cw_client(metric_data=[
-            {
-                "Id": "m0",
-                "Timestamps": [datetime(2024, 1, 1, tzinfo=timezone.utc)],
-                "Values": [5.0],
-            },
-        ])
+        cw_client=_make_cw_client(
+            metric_data=[
+                {
+                    "Id": "m0",
+                    "Timestamps": [datetime(2024, 1, 1, tzinfo=UTC)],
+                    "Values": [5.0],
+                },
+            ]
+        )
     )
     result = await enricher.enrich(
         service="payment-handler",
@@ -137,8 +144,9 @@ async def test_enrich_resolves_ecs_log_group_with_shared_resolver():
     logs_client = MagicMock()
     logs_client.filter_log_events.return_value = {"events": []}
 
-    def _describe_groups(*, logGroupNamePrefix: str, limit: int):
-        if logGroupNamePrefix == "/ecs/orders-service":
+    def _describe_groups(*, limit: int, **kwargs):
+        log_group_name_prefix = kwargs["logGroupNamePrefix"]
+        if log_group_name_prefix == "/ecs/orders-service":
             return {"logGroups": [{"logGroupName": "/ecs/orders-service"}]}
         return {"logGroups": []}
 
@@ -162,11 +170,13 @@ async def test_enrich_with_metadata_fetcher():
     from unittest.mock import AsyncMock
 
     fetcher = MagicMock()
-    fetcher.fetch_lambda_context = AsyncMock(return_value={
-        "memory_mb": 512,
-        "timeout_s": 30,
-        "runtime": "python3.11",
-    })
+    fetcher.fetch_lambda_context = AsyncMock(
+        return_value={
+            "memory_mb": 512,
+            "timeout_s": 30,
+            "runtime": "python3.11",
+        }
+    )
     enricher = _make_enricher(metadata_fetcher=fetcher)
     result = await enricher.enrich(
         service="payment-handler",
@@ -204,6 +214,7 @@ async def test_enrich_handles_metric_error():
 
 # ── _compute_deviation() ─────────────────────────────────────────────────────
 
+
 def test_compute_deviation_normal():
     enricher = _make_enricher()
     values = [10.0, 10.0, 10.0, 10.0, 10.0]
@@ -230,6 +241,7 @@ def test_compute_deviation_insufficient_data():
 
 # ── _to_canonical_logs() — AC-LF-2.1 ─────────────────────────────────────────
 
+
 def test_to_canonical_logs_returns_canonical_entry_instances():
     """Enrichment must return CanonicalLogEntry instances, not dicts."""
     from sre_agent.domain.models.canonical import (
@@ -239,7 +251,7 @@ def test_to_canonical_logs_returns_canonical_entry_instances():
     )
 
     enricher = _make_enricher()
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
     events = [
         {"timestamp": now_ms, "message": "ERROR: Lambda timeout"},
         {"timestamp": now_ms, "message": "ERROR: Connection refused"},
@@ -248,7 +260,9 @@ def test_to_canonical_logs_returns_canonical_entry_instances():
 
     assert len(result) == 2
     for entry in result:
-        assert isinstance(entry, CanonicalLogEntry), f"Expected CanonicalLogEntry, got {type(entry)}"
+        assert isinstance(entry, CanonicalLogEntry), (
+            f"Expected CanonicalLogEntry, got {type(entry)}"
+        )
         assert entry.provider_source == "cloudwatch"
         assert isinstance(entry.labels, ServiceLabels)
         assert entry.labels.service == "payment-handler"
@@ -272,4 +286,4 @@ def test_to_canonical_logs_missing_timestamp_defaults_to_epoch():
     result = enricher._to_canonical_logs(events, "svc")
     assert len(result) == 1
     # timestamp 0 / 1000 = 0 → epoch
-    assert result[0].timestamp == datetime(1970, 1, 1, tzinfo=timezone.utc)
+    assert result[0].timestamp == datetime(1970, 1, 1, tzinfo=UTC)

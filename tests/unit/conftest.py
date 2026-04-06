@@ -2,14 +2,15 @@
 Unit test conftest — fixtures specific to isolated domain tests.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from sre_agent.domain.detection.baseline import BaselineService
-from sre_agent.domain.detection.anomaly_detector import AnomalyDetector
-from sre_agent.domain.detection.alert_correlation import AlertCorrelationEngine
-from sre_agent.events.in_memory import InMemoryEventBus
+import pytest
+
 from sre_agent.config.settings import DetectionConfig
+from sre_agent.domain.detection.alert_correlation import AlertCorrelationEngine
+from sre_agent.domain.detection.anomaly_detector import AnomalyDetector
+from sre_agent.domain.detection.baseline import BaselineService
+from sre_agent.events.in_memory import InMemoryEventBus
 
 
 @pytest.fixture

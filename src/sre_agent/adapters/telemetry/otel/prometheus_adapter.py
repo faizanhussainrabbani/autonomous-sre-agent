@@ -9,7 +9,8 @@ Validates: AC-1.3.1
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -110,7 +111,10 @@ class PrometheusMetricsAdapter(MetricsQuery):
             )
             response.raise_for_status()
             data = response.json()
-            return data.get("data", [])
+            names = data.get("data", [])
+            if isinstance(names, list):
+                return [str(name) for name in names]
+            return []
         except httpx.HTTPError as exc:
             logger.error("prometheus_list_metrics_failed", service=service, error=str(exc))
             return []
@@ -131,9 +135,7 @@ class PrometheusMetricsAdapter(MetricsQuery):
     # Internal helpers
     # -----------------------------------------------------------------------
 
-    def _build_query(
-        self, service: str, metric: str, labels: dict[str, str] | None = None
-    ) -> str:
+    def _build_query(self, service: str, metric: str, labels: dict[str, str] | None = None) -> str:
         """Build a PromQL query string with service and label filters."""
         label_parts = [f'service="{service}"']
         if labels:
@@ -162,13 +164,11 @@ class PrometheusMetricsAdapter(MetricsQuery):
                         CanonicalMetric(
                             name=prom_labels.get("__name__", metric_name),
                             value=float(value_str),
-                            timestamp=datetime.fromtimestamp(
-                                float(timestamp_val), tz=timezone.utc
-                            ),
+                            timestamp=datetime.fromtimestamp(float(timestamp_val), tz=UTC),
                             labels=service_labels,
                             quality=self._assess_quality(service_labels),
                             provider_source="otel",
-                            ingestion_timestamp=datetime.now(timezone.utc),
+                            ingestion_timestamp=datetime.now(UTC),
                         )
                     )
                 except (ValueError, TypeError) as exc:
@@ -195,22 +195,18 @@ class PrometheusMetricsAdapter(MetricsQuery):
             value_pair = result.get("value", [])
 
             if len(value_pair) == 2:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     metrics.append(
                         CanonicalMetric(
                             name=prom_labels.get("__name__", metric_name),
                             value=float(value_pair[1]),
-                            timestamp=datetime.fromtimestamp(
-                                float(value_pair[0]), tz=timezone.utc
-                            ),
+                            timestamp=datetime.fromtimestamp(float(value_pair[0]), tz=UTC),
                             labels=service_labels,
                             quality=self._assess_quality(service_labels),
                             provider_source="otel",
-                            ingestion_timestamp=datetime.now(timezone.utc),
+                            ingestion_timestamp=datetime.now(UTC),
                         )
                     )
-                except (ValueError, TypeError):
-                    pass
 
         return metrics
 
@@ -235,8 +231,15 @@ class PrometheusMetricsAdapter(MetricsQuery):
 
         # Collect remaining labels as extra
         standard_keys = {
-            "service", "service_name", "job", "namespace",
-            "pod", "pod_name", "node", "instance", "__name__",
+            "service",
+            "service_name",
+            "job",
+            "namespace",
+            "pod",
+            "pod_name",
+            "node",
+            "instance",
+            "__name__",
         }
         extra = {k: v for k, v in prom_labels.items() if k not in standard_keys}
 

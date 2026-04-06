@@ -7,7 +7,6 @@ Covers: config/settings.py — raising coverage from 63% to ~90%.
 from __future__ import annotations
 
 import tempfile
-from pathlib import Path
 
 import yaml
 
@@ -20,14 +19,13 @@ from sre_agent.config.settings import (
     LockBackendType,
     NewRelicConfig,
     OTelConfig,
-    PerformanceConfig,
     TelemetryProviderType,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tests: Default configuration
 # ---------------------------------------------------------------------------
+
 
 def test_default_config():
     config = AgentConfig()
@@ -40,6 +38,7 @@ def test_default_config():
 # ---------------------------------------------------------------------------
 # Tests: from_dict
 # ---------------------------------------------------------------------------
+
 
 def test_from_dict_full():
     data = {
@@ -79,6 +78,7 @@ def test_from_dict_empty():
 # Tests: from_yaml
 # ---------------------------------------------------------------------------
 
+
 def test_from_yaml():
     data = {"telemetry_provider": "newrelic", "log_level": "ERROR"}
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -100,6 +100,7 @@ def test_from_yaml_empty_file():
 # ---------------------------------------------------------------------------
 # Tests: Validation
 # ---------------------------------------------------------------------------
+
 
 def test_validate_otel_valid():
     config = AgentConfig(telemetry_provider=TelemetryProviderType.OTEL)
@@ -196,8 +197,8 @@ def test_validate_lock_backend_etcd_invalid_port():
 # Tests: FeatureFlags defaults — AC-LF-3.2
 # ---------------------------------------------------------------------------
 
+
 def test_feature_flags_bridge_enrichment_defaults_true():
     """FeatureFlags.bridge_enrichment defaults to True (Phase 2.9)."""
     flags = FeatureFlags()
     assert flags.bridge_enrichment is True
-

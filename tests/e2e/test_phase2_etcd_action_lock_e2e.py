@@ -5,7 +5,10 @@ import warnings
 
 import pytest
 
-from sre_agent.adapters.coordination.etcd_lock_manager import EtcdDistributedLockManager, EtcdLockConfig
+from sre_agent.adapters.coordination.etcd_lock_manager import (
+    EtcdDistributedLockManager,
+    EtcdLockConfig,
+)
 from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
 from sre_agent.domain.models.canonical import AnomalyAlert, AnomalyType, ComputeMechanism, Severity
 from sre_agent.domain.models.diagnosis import Diagnosis
@@ -22,7 +25,7 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         import etcd3
-except Exception:  # pragma: no cover
+except Exception:  # noqa: BLE001, pragma: no cover
     etcd3 = None
 
 try:
@@ -160,7 +163,9 @@ async def _build_plan():
 @pytest.mark.slow
 @pytest.mark.asyncio
 class TestPhase2EtcdActionLockE2E:
-    async def test_etcd_backed_remediation_execution_flow(self, etcd_endpoint: tuple[str, int]) -> None:
+    async def test_etcd_backed_remediation_execution_flow(
+        self, etcd_endpoint: tuple[str, int]
+    ) -> None:
         host, port = etcd_endpoint
         engine, operator = _build_engine_with_etcd(host=host, port=port)
         plan = await _build_plan()

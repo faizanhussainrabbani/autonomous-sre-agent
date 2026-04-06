@@ -7,8 +7,6 @@ and error taxonomy classification.
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
 from sre_agent.adapters.cloud.resilience import (
@@ -22,10 +20,10 @@ from sre_agent.adapters.cloud.resilience import (
     retry_with_backoff,
 )
 
-
 # ---------------------------------------------------------------------------
 # Circuit Breaker tests
 # ---------------------------------------------------------------------------
+
 
 def test_circuit_starts_closed():
     cb = CircuitBreaker(name="test")
@@ -59,6 +57,7 @@ def test_circuit_half_open_after_recovery_timeout():
 # ---------------------------------------------------------------------------
 # Retry tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_retry_succeeds_on_first_attempt():

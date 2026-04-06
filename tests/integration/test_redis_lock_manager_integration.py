@@ -39,7 +39,9 @@ def _request(agent_id: str, priority: int, ttl_seconds: int = 60) -> LockRequest
 
 
 async def test_redis_lock_grant_and_deny(redis_client) -> None:
-    manager = RedisDistributedLockManager(client=redis_client, config=RedisLockConfig(key_prefix="it"))
+    manager = RedisDistributedLockManager(
+        client=redis_client, config=RedisLockConfig(key_prefix="it")
+    )
 
     granted = await manager.acquire_lock(_request("sre-agent", priority=2))
     denied = await manager.acquire_lock(_request("finops-agent", priority=3))
@@ -51,7 +53,9 @@ async def test_redis_lock_grant_and_deny(redis_client) -> None:
 
 
 async def test_redis_lock_preemption_and_release(redis_client) -> None:
-    manager = RedisDistributedLockManager(client=redis_client, config=RedisLockConfig(key_prefix="it"))
+    manager = RedisDistributedLockManager(
+        client=redis_client, config=RedisLockConfig(key_prefix="it")
+    )
 
     low = await manager.acquire_lock(_request("sre-agent", priority=2))
     high = await manager.acquire_lock(_request("secops-agent", priority=1))
@@ -70,7 +74,9 @@ async def test_redis_lock_preemption_and_release(redis_client) -> None:
 
 
 async def test_redis_lock_ttl_expiry(redis_client) -> None:
-    manager = RedisDistributedLockManager(client=redis_client, config=RedisLockConfig(key_prefix="it"))
+    manager = RedisDistributedLockManager(
+        client=redis_client, config=RedisLockConfig(key_prefix="it")
+    )
 
     first = await manager.acquire_lock(_request("sre-agent", priority=2, ttl_seconds=1))
     await asyncio.sleep(1.1)

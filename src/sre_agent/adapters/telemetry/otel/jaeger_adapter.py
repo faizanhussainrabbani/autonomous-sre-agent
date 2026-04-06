@@ -9,7 +9,8 @@ Validates: AC-1.3.2
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -89,10 +90,7 @@ class JaegerTraceAdapter(TraceQuery):
             logger.error("jaeger_query_traces_failed", service=service, error=str(exc))
             return []
 
-        return [
-            self._parse_jaeger_trace(trace_data)
-            for trace_data in data.get("data", [])
-        ]
+        return [self._parse_jaeger_trace(trace_data) for trace_data in data.get("data", [])]
 
     async def health_check(self) -> bool:
         """Check Jaeger is reachable."""
@@ -140,7 +138,7 @@ class JaegerTraceAdapter(TraceQuery):
                 missing_services.append(f"unknown (parent_span={s.parent_span_id})")
 
         # Also check for orphan spans (no parent, not root) in multi-service traces
-        services = {s.service for s in spans}
+        {s.service for s in spans}
         root_spans = [s for s in spans if s.parent_span_id is None]
         if len(root_spans) == 0 and spans:
             is_complete = False
@@ -160,7 +158,7 @@ class JaegerTraceAdapter(TraceQuery):
             missing_services=missing_services,
             quality=DataQuality.HIGH if is_complete else DataQuality.INCOMPLETE,
             provider_source="otel",
-            ingestion_timestamp=datetime.now(timezone.utc),
+            ingestion_timestamp=datetime.now(UTC),
         )
 
     def _parse_jaeger_span(
@@ -189,31 +187,26 @@ class JaegerTraceAdapter(TraceQuery):
             attributes[key] = value
 
             if key == "http.status_code":
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     status_code = int(value)
-                except (ValueError, TypeError):
-                    pass
             elif key == "error" and value:
                 error = str(value)
 
         # Parse logs for error messages
         for log_entry in span_data.get("logs", []):
             for log_field in log_entry.get("fields", []):
-                if log_field.get("key") == "message" and error is None:
-                    if any(
-                        f.get("key") == "level" and f.get("value") == "error"
-                        for f in log_entry.get("fields", [])
-                    ):
-                        error = str(log_field.get("value", ""))
+                if log_field.get("key") == "message" and error is None and any(
+                    f.get("key") == "level" and f.get("value") == "error"
+                    for f in log_entry.get("fields", [])
+                ):
+                    error = str(log_field.get("value", ""))
 
         # Timestamps: Jaeger uses microseconds
         start_us = span_data.get("startTime", 0)
         duration_us = span_data.get("duration", 0)
 
-        start_time = datetime.fromtimestamp(start_us / 1_000_000, tz=timezone.utc)
-        end_time = datetime.fromtimestamp(
-            (start_us + duration_us) / 1_000_000, tz=timezone.utc
-        )
+        start_time = datetime.fromtimestamp(start_us / 1_000_000, tz=UTC)
+        end_time = datetime.fromtimestamp((start_us + duration_us) / 1_000_000, tz=UTC)
 
         return TraceSpan(
             span_id=span_data.get("spanID", ""),

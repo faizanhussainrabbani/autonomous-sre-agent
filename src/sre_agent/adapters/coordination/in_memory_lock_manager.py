@@ -111,11 +111,5 @@ class InMemoryDistributedLockManager(DistributedLockManagerPort):
     @staticmethod
     def _lock_key(request: LockRequest) -> str:
         if request.compute_mechanism == ComputeMechanism.KUBERNETES:
-            return (
-                f"lock:{request.namespace}:{request.resource_type}:"
-                f"{request.resource_name}"
-            )
-        return (
-            f"lock:{request.provider}:{request.compute_mechanism.name}:"
-            f"{request.resource_id}"
-        )
+            return f"lock:{request.namespace}:{request.resource_type}:{request.resource_name}"
+        return f"lock:{request.provider}:{request.compute_mechanism.name}:{request.resource_id}"

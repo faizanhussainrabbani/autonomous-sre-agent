@@ -13,17 +13,17 @@ Phase 2: Intelligence Layer
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import IntEnum
 from typing import Any
 from uuid import UUID, uuid4
 
 from sre_agent.domain.models.canonical import Severity
 
-
 # ---------------------------------------------------------------------------
 # Service Tier (criticality classification)
 # ---------------------------------------------------------------------------
+
 
 class ServiceTier(IntEnum):
     """Service criticality tier (1 = most critical).
@@ -44,6 +44,7 @@ class ServiceTier(IntEnum):
 # Diagnostic State
 # ---------------------------------------------------------------------------
 
+
 class DiagnosticState(IntEnum):
     """Pipeline processing states."""
 
@@ -63,6 +64,7 @@ class DiagnosticState(IntEnum):
 # ---------------------------------------------------------------------------
 # Confidence Level — routing thresholds
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class ConfidenceLevel:
@@ -98,6 +100,7 @@ class ConfidenceLevel:
 # Evidence Citation
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class EvidenceCitation:
     """A single piece of evidence backing a diagnostic hypothesis.
@@ -119,6 +122,7 @@ class EvidenceCitation:
 # ---------------------------------------------------------------------------
 # Impact Dimensions — multi-dimensional severity scoring
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ImpactDimensions:
@@ -177,6 +181,7 @@ class ImpactDimensions:
 # Diagnosis Entity
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Diagnosis:
     """Complete diagnosis record produced by the RAG pipeline.
@@ -197,7 +202,7 @@ class Diagnosis:
     suggested_remediation: str = ""
     is_novel: bool = False
     state: DiagnosticState = DiagnosticState.PENDING
-    diagnosed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    diagnosed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     audit_entries: list[AuditEntry] = field(default_factory=list)
 
     @property
@@ -222,6 +227,7 @@ class Diagnosis:
 # Audit Entry — immutable provenance record
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class AuditEntry:
     """Immutable record of a pipeline processing step.
@@ -232,5 +238,5 @@ class AuditEntry:
 
     stage: str
     action: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     details: dict[str, Any] = field(default_factory=dict)

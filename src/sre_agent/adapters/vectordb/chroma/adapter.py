@@ -9,7 +9,8 @@ Phase 2: Intelligence Layer — Sprint 1 (Foundation & Dependency Injection)
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+from typing import Any, cast
 
 import structlog
 
@@ -75,9 +76,9 @@ class ChromaVectorStoreAdapter(VectorStorePort):
 
         self._collection.upsert(
             ids=[document.doc_id],
-            embeddings=[document.embedding],
+            embeddings=cast(Any, [document.embedding]),
             documents=[document.content],
-            metadatas=[metadata],
+            metadatas=cast(Any, [metadata]),
         )
 
     async def store_batch(self, documents: list[VectorDocument]) -> int:
@@ -98,16 +99,16 @@ class ChromaVectorStoreAdapter(VectorStorePort):
 
         self._collection.upsert(
             ids=ids,
-            embeddings=embeddings,
+            embeddings=cast(Any, embeddings),
             documents=contents,
-            metadatas=metadatas,
+            metadatas=cast(Any, metadatas),
         )
         return len(documents)
 
     async def search(self, query: SearchQuery) -> list[SearchResult]:
         """Perform semantic similarity search."""
         results = self._collection.query(
-            query_embeddings=[query.embedding],
+            query_embeddings=cast(Any, [query.embedding]),
             n_results=query.top_k,
         )
 
@@ -120,7 +121,13 @@ class ChromaVectorStoreAdapter(VectorStorePort):
         distances = results["distances"][0] if results["distances"] else [1.0] * len(ids)
         metadatas = results["metadatas"][0] if results["metadatas"] else [{}] * len(ids)
 
-        for doc_id, content, distance, metadata in zip(ids, documents, distances, metadatas):
+        for doc_id, content, distance, metadata in zip(
+            ids,
+            documents,
+            distances,
+            metadatas,
+            strict=False,
+        ):
             # ChromaDB cosine distance: 0 = identical, 2 = opposite
             # Convert to similarity score: 1 - (distance / 2)
             score = 1.0 - (distance / 2.0)
@@ -128,16 +135,23 @@ class ChromaVectorStoreAdapter(VectorStorePort):
             if score < query.min_score:
                 continue
 
-            metadata_copy = dict(metadata or {})
-            source = metadata_copy.pop("source", "")
+            raw_metadata = dict(metadata or {})
+            source = str(raw_metadata.pop("source", ""))
+            metadata_copy = {
+                str(key): str(value)
+                for key, value in raw_metadata.items()
+                if value is not None
+            }
 
-            search_results.append(SearchResult(
-                doc_id=doc_id,
-                content=content or "",
-                score=score,
-                metadata=metadata_copy,
-                source=source,
-            ))
+            search_results.append(
+                SearchResult(
+                    doc_id=doc_id,
+                    content=content or "",
+                    score=score,
+                    metadata=metadata_copy,
+                    source=source,
+                )
+            )
 
         return search_results
 
@@ -158,8 +172,9 @@ class ChromaVectorStoreAdapter(VectorStorePort):
 
         stale_ids: list[str] = []
         if all_docs["ids"] and all_docs["metadatas"]:
-            for doc_id, metadata in zip(all_docs["ids"], all_docs["metadatas"]):
-                created = (metadata or {}).get("created_at", "")
+            for doc_id, metadata in zip(all_docs["ids"], all_docs["metadatas"], strict=False):
+                created_raw = (metadata or {}).get("created_at", "")
+                created = "" if created_raw is None else str(created_raw)
                 if created and created < cutoff:
                     stale_ids.append(doc_id)
 

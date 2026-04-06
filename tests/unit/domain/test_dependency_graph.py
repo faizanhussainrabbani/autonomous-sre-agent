@@ -6,28 +6,25 @@ Covers: dependency_graph.py — raising coverage from 54% to ~90%.
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass, field
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
 import pytest
 
+from sre_agent.domain.detection.dependency_graph import DependencyGraphService
 from sre_agent.domain.models.canonical import (
+    CanonicalTrace,
+    ServiceEdge,
     ServiceGraph,
     ServiceNode,
-    ServiceEdge,
-    CanonicalTrace,
     TraceSpan,
 )
-from sre_agent.domain.detection.dependency_graph import DependencyGraphService
 from sre_agent.ports.telemetry import DependencyGraphQuery, TraceQuery
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_graph(nodes: dict[str, ServiceNode], edges: list[ServiceEdge]) -> ServiceGraph:
     g = ServiceGraph()
@@ -69,6 +66,7 @@ def mock_event_bus() -> AsyncMock:
 # Tests: Initialization and properties
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_initial_state(mock_dep_query):
     svc = DependencyGraphService(mock_dep_query)
@@ -80,6 +78,7 @@ async def test_initial_state(mock_dep_query):
 # ---------------------------------------------------------------------------
 # Tests: Refresh
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_refresh_updates_graph(mock_dep_query, simple_graph):
@@ -97,6 +96,7 @@ async def test_refresh_detects_new_edges(mock_dep_query, mock_event_bus):
     await svc.refresh()
     # Event bus should be notified of the new edges (from empty → 2 edges)
     from sre_agent.domain.models.canonical import EventTypes
+
     mock_event_bus.publish.assert_called_once()
     event = mock_event_bus.publish.call_args[0][0]
     assert event.event_type == EventTypes.DEPENDENCY_GRAPH_UPDATED
@@ -123,6 +123,7 @@ async def test_is_stale_after_interval(mock_dep_query):
 # ---------------------------------------------------------------------------
 # Tests: Graph traversal
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_get_upstream(mock_dep_query):
@@ -163,6 +164,7 @@ async def test_get_blast_radius_leaf_node(mock_dep_query):
 # Tests: Health check
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_get_service_health(mock_dep_query):
     svc = DependencyGraphService(mock_dep_query)
@@ -195,12 +197,13 @@ async def test_get_service_health_default_when_no_cache(mock_dep_query):
 # Tests: Trace enrichment
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_enrich_no_trace_query(mock_dep_query):
     """No-op if trace_query not provided."""
     svc = DependencyGraphService(mock_dep_query, trace_query=None)
     await svc.refresh()
-    await svc.enrich_with_trace_data("A", datetime.now(timezone.utc), datetime.now(timezone.utc))
+    await svc.enrich_with_trace_data("A", datetime.now(UTC), datetime.now(UTC))
     # No error, no change
     assert len(svc.graph.edges) == 2
 
@@ -214,13 +217,17 @@ async def test_enrich_discovers_new_edge(mock_dep_query):
         trace_id="tr-1",
         spans=[
             TraceSpan(
-                span_id="s1", parent_span_id=None,
-                service="A", operation="handler",
+                span_id="s1",
+                parent_span_id=None,
+                service="A",
+                operation="handler",
                 duration_ms=100,
             ),
             TraceSpan(
-                span_id="s2", parent_span_id="s1",
-                service="C", operation="query",
+                span_id="s2",
+                parent_span_id="s1",
+                service="C",
+                operation="query",
                 duration_ms=50,
             ),
         ],
@@ -230,7 +237,7 @@ async def test_enrich_discovers_new_edge(mock_dep_query):
     svc = DependencyGraphService(mock_dep_query, trace_query=trace_query)
     await svc.refresh()
     old_edge_count = len(svc.graph.edges)
-    await svc.enrich_with_trace_data("A", datetime.now(timezone.utc), datetime.now(timezone.utc))
+    await svc.enrich_with_trace_data("A", datetime.now(UTC), datetime.now(UTC))
     # A->C should be added (A->B and B->C already exist)
     assert len(svc.graph.edges) == old_edge_count + 1
 
@@ -242,5 +249,5 @@ async def test_enrich_handles_trace_query_error(mock_dep_query):
     svc = DependencyGraphService(mock_dep_query, trace_query=trace_query)
     await svc.refresh()
     # Should not raise
-    await svc.enrich_with_trace_data("A", datetime.now(timezone.utc), datetime.now(timezone.utc))
+    await svc.enrich_with_trace_data("A", datetime.now(UTC), datetime.now(UTC))
     assert len(svc.graph.edges) == 2  # Unchanged

@@ -54,7 +54,9 @@ async def test_kill_switch_blocks_guardrail() -> None:
 
 def test_cooldown_key_formats() -> None:
     enforcer = CooldownEnforcer()
-    k8s_key = enforcer.build_key("deployment/checkout", ComputeMechanism.KUBERNETES, "kubernetes", "prod")
+    k8s_key = enforcer.build_key(
+        "deployment/checkout", ComputeMechanism.KUBERNETES, "kubernetes", "prod"
+    )
     aws_key = enforcer.build_key(
         "arn:aws:lambda:us-east-1:123:function:handler",
         ComputeMechanism.SERVERLESS,

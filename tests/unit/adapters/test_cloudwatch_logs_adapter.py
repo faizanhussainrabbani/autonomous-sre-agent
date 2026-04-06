@@ -1,16 +1,17 @@
 """
 Unit tests for CloudWatch Logs Adapter.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 
 from sre_agent.adapters.telemetry.cloudwatch.logs_adapter import (
-    CloudWatchLogsAdapter,
     LOG_GROUP_PATTERNS,
+    CloudWatchLogsAdapter,
 )
 
 
@@ -32,6 +33,7 @@ def _make_adapter(client=None):
 
 # ── LOG_GROUP_PATTERNS ────────────────────────────────────────────────────────
 
+
 def test_log_group_patterns_has_entries():
     assert len(LOG_GROUP_PATTERNS) >= 3
     assert any("lambda" in p for p in LOG_GROUP_PATTERNS)
@@ -40,12 +42,15 @@ def test_log_group_patterns_has_entries():
 
 # ── _resolve_log_group() ─────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_resolve_log_group_finds_existing():
     """Should resolve by checking DescribeLogGroups."""
-    client = _make_client(describe_result=[
-        {"logGroupName": "/aws/lambda/payment-handler"},
-    ])
+    client = _make_client(
+        describe_result=[
+            {"logGroupName": "/aws/lambda/payment-handler"},
+        ]
+    )
     adapter = _make_adapter(client)
     result = await adapter._resolve_log_group("payment-handler")
     assert result == "/aws/lambda/payment-handler"
@@ -54,9 +59,11 @@ async def test_resolve_log_group_finds_existing():
 @pytest.mark.asyncio
 async def test_resolve_log_group_uses_cache():
     """Second call should use cache, not call DescribeLogGroups again."""
-    client = _make_client(describe_result=[
-        {"logGroupName": "/aws/lambda/payment-handler"},
-    ])
+    client = _make_client(
+        describe_result=[
+            {"logGroupName": "/aws/lambda/payment-handler"},
+        ]
+    )
     adapter = _make_adapter(client)
     await adapter._resolve_log_group("payment-handler")
     await adapter._resolve_log_group("payment-handler")
@@ -78,10 +85,11 @@ async def test_resolve_log_group_fallback():
 
 # ── query_logs() ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_query_logs_returns_canonical_log_entries():
     """query_logs() should parse events into CanonicalLogEntry."""
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
     client = _make_client(
         filter_result=[
             {
@@ -93,7 +101,7 @@ async def test_query_logs_returns_canonical_log_entries():
         describe_result=[{"logGroupName": "/aws/lambda/payment-handler"}],
     )
     adapter = _make_adapter(client)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     results = await adapter.query_logs(
         service="payment-handler",
@@ -113,7 +121,7 @@ async def test_query_logs_with_severity_filter():
         describe_result=[{"logGroupName": "/aws/lambda/svc"}],
     )
     adapter = _make_adapter(client)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     await adapter.query_logs(
         service="svc",
@@ -140,16 +148,17 @@ async def test_query_logs_handles_api_error():
         operation_name="FilterLogEvents",
     )
     adapter = _make_adapter(client)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     results = await adapter.query_logs(service="svc", start_time=now, end_time=now)
     assert results == []
 
 
 # ── query_by_trace_id() ──────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_query_by_trace_id():
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
     client = _make_client(
         filter_result=[
             {
@@ -166,6 +175,7 @@ async def test_query_by_trace_id():
 
 
 # ── _infer_severity() ────────────────────────────────────────────────────────
+
 
 def test_infer_severity_error():
     adapter = _make_adapter()
@@ -188,6 +198,7 @@ def test_infer_severity_default():
 
 
 # ── health_check() ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_health_check_ok():

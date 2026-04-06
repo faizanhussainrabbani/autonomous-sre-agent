@@ -29,6 +29,7 @@ class DetectionConfig:
         prevents transient spikes from triggering false alerts. Even with
         ``latency_duration_minutes=0``, two data points are required.
     """
+
     latency_sigma_threshold: float = 3.0
     latency_duration_minutes: int = 2
     error_rate_surge_percent: float = 200.0
@@ -45,6 +46,6 @@ class DetectionConfig:
     cold_start_suppression_window_seconds: int = 15
 
     # Multi-dimensional correlation (AC-3.2.3)
-    multi_dim_latency_percent: float = 50.0   # +50% latency shift
-    multi_dim_error_percent: float = 80.0     # +80% error rate shift
-    multi_dim_window_minutes: int = 5         # Window to observe both shifts
+    multi_dim_latency_percent: float = 50.0  # +50% latency shift
+    multi_dim_error_percent: float = 80.0  # +80% error rate shift
+    multi_dim_window_minutes: int = 5  # Window to observe both shifts

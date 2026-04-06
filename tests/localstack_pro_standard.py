@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import pytest
 
@@ -59,9 +60,7 @@ def require_localstack_auth_token() -> str:
     if token:
         return token
 
-    pytest.skip(
-        "LOCALSTACK_AUTH_TOKEN is missing. Set it in .env or export it in your shell."
-    )
+    pytest.skip("LOCALSTACK_AUTH_TOKEN is missing. Set it in .env or export it in your shell.")
 
 
 def build_services(extra_services: Iterable[str] | None = None) -> str:
@@ -76,7 +75,7 @@ def build_services(extra_services: Iterable[str] | None = None) -> str:
 
 
 def build_localstack_pro_container(
-    LocalStackContainer: Any,
+    localstack_container_cls: Any,
     *,
     extra_services: Iterable[str] | None = None,
     extra_env: dict[str, str] | None = None,
@@ -84,7 +83,7 @@ def build_localstack_pro_container(
     """Create a testcontainers LocalStack Pro container using canonical settings."""
     token = require_localstack_auth_token()
     container = (
-        LocalStackContainer(image=LOCALSTACK_PRO_IMAGE)
+        localstack_container_cls(image=LOCALSTACK_PRO_IMAGE)
         .with_env("SERVICES", build_services(extra_services))
         .with_env("LOCALSTACK_AUTH_TOKEN", token)
         .with_env("DEFAULT_REGION", LOCALSTACK_DEFAULT_REGION)

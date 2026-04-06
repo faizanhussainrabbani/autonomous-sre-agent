@@ -11,7 +11,7 @@ Validates: AC-3.2.1, AC-3.2.2
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -35,12 +35,13 @@ class CorrelatedIncident:
 
     Prevents alert storms by grouping alerts from the same root cause.
     """
+
     incident_id: UUID = field(default_factory=uuid4)
     alerts: list[AnomalyAlert] = field(default_factory=list)
     services_affected: set[str] = field(default_factory=set)
     root_service: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     is_cascade: bool = False
 
     @property
@@ -55,7 +56,7 @@ class CorrelatedIncident:
         """Add an alert to this incident."""
         self.alerts.append(alert)
         self.services_affected.add(alert.service)
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
 
 class AlertCorrelationEngine:
@@ -149,9 +150,7 @@ class AlertCorrelationEngine:
 
         return incident
 
-    def _should_correlate(
-        self, alert: AnomalyAlert, incident: CorrelatedIncident
-    ) -> bool:
+    def _should_correlate(self, alert: AnomalyAlert, incident: CorrelatedIncident) -> bool:
         """Determine if an alert should be correlated with an existing incident.
 
         Correlation criteria:
@@ -164,9 +163,7 @@ class AlertCorrelationEngine:
             return True
 
         # Check time window
-        time_diff = abs(
-            (alert.timestamp - incident.created_at).total_seconds()
-        )
+        time_diff = abs((alert.timestamp - incident.created_at).total_seconds())
         if time_diff > self._correlation_window.total_seconds():
             return False
 
@@ -211,9 +208,10 @@ class AlertCorrelationEngine:
 
     def _expire_old_incidents(self) -> None:
         """Remove incidents that are too old for correlation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self._active_incidents = [
-            inc for inc in self._active_incidents
+            inc
+            for inc in self._active_incidents
             if (now - inc.updated_at) <= self._max_incident_age
         ]
 

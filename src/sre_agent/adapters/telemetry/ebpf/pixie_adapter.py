@@ -12,7 +12,7 @@ Validates: AC-2.2.1 (syscall capture), AC-2.2.3 (network flows),
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -145,12 +145,10 @@ class PixieAdapter(eBPFQuery):
         syscall_types: list[str] | None = None,
     ) -> list[CanonicalEvent]:
         """AC-2.2.1: Capture syscall activity per pod."""
-        script = PXL_SYSCALL_ACTIVITY.replace(
-            "__pod__", pod
-        ).replace(
-            "__namespace__", namespace
-        ).replace(
-            "__start_time__", f"'-{int((end_time - start_time).total_seconds())}s'"
+        script = (
+            PXL_SYSCALL_ACTIVITY.replace("__pod__", pod)
+            .replace("__namespace__", namespace)
+            .replace("__start_time__", f"'-{int((end_time - start_time).total_seconds())}s'")
         )
 
         results = await self._execute_pxl(script)
@@ -159,24 +157,26 @@ class PixieAdapter(eBPFQuery):
 
         events: list[CanonicalEvent] = []
         for row in results:
-            events.append(CanonicalEvent(
-                event_type="syscall_activity",
-                source="ebpf",
-                timestamp=self._parse_timestamp(row.get("timestamp", "")),
-                metadata={
-                    "pod": row.get("pod", pod),
-                    "container": row.get("container", ""),
-                    "pid": row.get("pid", ""),
-                    "cmdline": row.get("cmdline", ""),
-                    "cpu_ns": row.get("cpu_ns", 0),
-                    "rss_bytes": row.get("rss_bytes", 0),
-                    "read_bytes": row.get("read_bytes", 0),
-                    "write_bytes": row.get("write_bytes", 0),
-                },
-                labels=ServiceLabels(service=pod, namespace=namespace),
-                quality=DataQuality.HIGH,
-                provider_source="pixie",
-            ))
+            events.append(
+                CanonicalEvent(
+                    event_type="syscall_activity",
+                    source="ebpf",
+                    timestamp=self._parse_timestamp(row.get("timestamp", "")),
+                    metadata={
+                        "pod": row.get("pod", pod),
+                        "container": row.get("container", ""),
+                        "pid": row.get("pid", ""),
+                        "cmdline": row.get("cmdline", ""),
+                        "cpu_ns": row.get("cpu_ns", 0),
+                        "rss_bytes": row.get("rss_bytes", 0),
+                        "read_bytes": row.get("read_bytes", 0),
+                        "write_bytes": row.get("write_bytes", 0),
+                    },
+                    labels=ServiceLabels(service=pod, namespace=namespace),
+                    quality=DataQuality.HIGH,
+                    provider_source="pixie",
+                )
+            )
 
         logger.info(
             "ebpf_syscall_activity_fetched",
@@ -194,9 +194,7 @@ class PixieAdapter(eBPFQuery):
         end_time: datetime,
     ) -> list[CanonicalEvent]:
         """AC-2.2.3: Network flow data within encrypted service mesh."""
-        script = PXL_NETWORK_FLOWS.replace(
-            "__namespace__", namespace
-        ).replace(
+        script = PXL_NETWORK_FLOWS.replace("__namespace__", namespace).replace(
             "__start_time__", f"'-{int((end_time - start_time).total_seconds())}s'"
         )
 
@@ -206,23 +204,25 @@ class PixieAdapter(eBPFQuery):
 
         events: list[CanonicalEvent] = []
         for row in results:
-            events.append(CanonicalEvent(
-                event_type="network_flow",
-                source="ebpf",
-                timestamp=self._parse_timestamp(row.get("timestamp", "")),
-                metadata={
-                    "source_pod": row.get("source_pod", ""),
-                    "source_service": row.get("source_service", service),
-                    "remote_addr": row.get("remote_addr", ""),
-                    "remote_port": row.get("remote_port", 0),
-                    "protocol": row.get("protocol", "tcp"),
-                    "bytes_sent": row.get("bytes_sent", 0),
-                    "bytes_recv": row.get("bytes_recv", 0),
-                },
-                labels=ServiceLabels(service=service, namespace=namespace),
-                quality=DataQuality.HIGH,
-                provider_source="pixie",
-            ))
+            events.append(
+                CanonicalEvent(
+                    event_type="network_flow",
+                    source="ebpf",
+                    timestamp=self._parse_timestamp(row.get("timestamp", "")),
+                    metadata={
+                        "source_pod": row.get("source_pod", ""),
+                        "source_service": row.get("source_service", service),
+                        "remote_addr": row.get("remote_addr", ""),
+                        "remote_port": row.get("remote_port", 0),
+                        "protocol": row.get("protocol", "tcp"),
+                        "bytes_sent": row.get("bytes_sent", 0),
+                        "bytes_recv": row.get("bytes_recv", 0),
+                    },
+                    labels=ServiceLabels(service=service, namespace=namespace),
+                    quality=DataQuality.HIGH,
+                    provider_source="pixie",
+                )
+            )
 
         logger.info(
             "ebpf_network_flows_fetched",
@@ -240,12 +240,10 @@ class PixieAdapter(eBPFQuery):
         end_time: datetime,
     ) -> list[CanonicalEvent]:
         """Capture process starts, exits, and execution."""
-        script = PXL_PROCESS_ACTIVITY.replace(
-            "__pod__", pod
-        ).replace(
-            "__namespace__", namespace
-        ).replace(
-            "__start_time__", f"'-{int((end_time - start_time).total_seconds())}s'"
+        script = (
+            PXL_PROCESS_ACTIVITY.replace("__pod__", pod)
+            .replace("__namespace__", namespace)
+            .replace("__start_time__", f"'-{int((end_time - start_time).total_seconds())}s'")
         )
 
         results = await self._execute_pxl(script)
@@ -254,31 +252,31 @@ class PixieAdapter(eBPFQuery):
 
         events: list[CanonicalEvent] = []
         for row in results:
-            events.append(CanonicalEvent(
-                event_type="process_exec",
-                source="ebpf",
-                timestamp=self._parse_timestamp(row.get("timestamp", "")),
-                metadata={
-                    "pod": row.get("pod", pod),
-                    "container": row.get("container", ""),
-                    "pid": row.get("pid", ""),
-                    "filename": row.get("filename", ""),
-                    "args": row.get("args", ""),
-                    "retval": row.get("retval", 0),
-                },
-                labels=ServiceLabels(service=pod, namespace=namespace),
-                quality=DataQuality.HIGH,
-                provider_source="pixie",
-            ))
+            events.append(
+                CanonicalEvent(
+                    event_type="process_exec",
+                    source="ebpf",
+                    timestamp=self._parse_timestamp(row.get("timestamp", "")),
+                    metadata={
+                        "pod": row.get("pod", pod),
+                        "container": row.get("container", ""),
+                        "pid": row.get("pid", ""),
+                        "filename": row.get("filename", ""),
+                        "args": row.get("args", ""),
+                        "retval": row.get("retval", 0),
+                    },
+                    labels=ServiceLabels(service=pod, namespace=namespace),
+                    quality=DataQuality.HIGH,
+                    provider_source="pixie",
+                )
+            )
 
         return events
 
     async def health_check(self) -> bool:
         """Check if Pixie Vizier is reachable and collecting data."""
         try:
-            response = await self._client.get(
-                f"/api/v1/clusters/{self._cluster_id}/health"
-            )
+            response = await self._client.get(f"/api/v1/clusters/{self._cluster_id}/health")
             self._healthy = response.status_code == 200
             return self._healthy
         except httpx.HTTPError as exc:
@@ -295,13 +293,15 @@ class PixieAdapter(eBPFQuery):
         nodes = []
         for row in results:
             cpu_overhead = float(row.get("cpu_pct", 0))
-            nodes.append({
-                "node": row.get("node", "unknown"),
-                "kernel_version": row.get("kernel", "unknown"),
-                "ebpf_loaded": bool(row.get("loaded", False)),
-                "cpu_overhead_percent": cpu_overhead,
-                "within_budget": cpu_overhead <= MAX_CPU_OVERHEAD_PERCENT,
-            })
+            nodes.append(
+                {
+                    "node": row.get("node", "unknown"),
+                    "kernel_version": row.get("kernel", "unknown"),
+                    "ebpf_loaded": bool(row.get("loaded", False)),
+                    "cpu_overhead_percent": cpu_overhead,
+                    "within_budget": cpu_overhead <= MAX_CPU_OVERHEAD_PERCENT,
+                }
+            )
 
             if cpu_overhead > MAX_CPU_OVERHEAD_PERCENT:
                 logger.warning(
@@ -334,7 +334,10 @@ class PixieAdapter(eBPFQuery):
             )
             response.raise_for_status()
             data = response.json()
-            return data.get("results", [])
+            results = data.get("results", [])
+            if not isinstance(results, list):
+                return []
+            return [result for result in results if isinstance(result, dict)]
         except httpx.HTTPStatusError as exc:
             logger.error(
                 "pixie_pxl_execution_failed",
@@ -351,7 +354,7 @@ class PixieAdapter(eBPFQuery):
         """Parse a Pixie timestamp string to datetime."""
         try:
             if isinstance(ts_str, (int, float)):
-                return datetime.fromtimestamp(ts_str / 1e9, tz=timezone.utc)
+                return datetime.fromtimestamp(ts_str / 1e9, tz=UTC)
             return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
         except (ValueError, TypeError):
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)

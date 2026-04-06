@@ -7,9 +7,10 @@ and sequential incident processing.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
+
+import pytest
 
 from sre_agent.api.severity_override import SeverityOverrideService
 from sre_agent.domain.diagnostics.confidence import ConfidenceScorer
@@ -18,7 +19,7 @@ from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.diagnostics.timeline import TimelineConstructor
 from sre_agent.domain.diagnostics.validator import SecondOpinionValidator, ValidationStrategy
 from sre_agent.domain.models.canonical import AnomalyAlert, AnomalyType, Severity
-from sre_agent.domain.models.diagnosis import ConfidenceLevel, ServiceTier
+from sre_agent.domain.models.diagnosis import ServiceTier
 from sre_agent.ports.diagnostics import DiagnosisRequest
 from sre_agent.ports.llm import Hypothesis, ValidationResult
 from sre_agent.ports.vector_store import SearchResult
@@ -142,8 +143,10 @@ class TestPhase2E2E:
             suggested_remediation="Enable log rotation and clean /tmp.",
         )
         validation = ValidationResult(
-            agrees=True, confidence=0.90,
-            reasoning="Consistent with evidence.", contradictions=[],
+            agrees=True,
+            confidence=0.90,
+            reasoning="Consistent with evidence.",
+            contradictions=[],
         )
 
         pipeline = _build_e2e_pipeline(
@@ -173,7 +176,10 @@ class TestPhase2E2E:
             search_results=[],
             hypothesis=Hypothesis(root_cause="", confidence=0.0, reasoning=""),
             validation=ValidationResult(
-                agrees=False, confidence=0.0, reasoning="", contradictions=[],
+                agrees=False,
+                confidence=0.0,
+                reasoning="",
+                contradictions=[],
             ),
         )
 

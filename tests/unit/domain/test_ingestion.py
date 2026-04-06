@@ -6,8 +6,7 @@ Tests chunking strategy, store calls, empty documents, and TTL purge.
 
 from __future__ import annotations
 
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 from sre_agent.domain.diagnostics.ingestion import DocumentIngestionPipeline
@@ -53,9 +52,12 @@ class TestDocumentIngestionPipeline:
     async def test_store_batch_called(self):
         pipeline, mock_store, _ = _make_pipeline(store_batch_return=3)
         content = (
-            "# Section A\nDetailed content about memory pressure alerts and recovery steps for services.\n\n"
-            "# Section B\nDetailed content about latency spike diagnosis and auto-remediation procedures.\n\n"
-            "# Section C\nDetailed content about disk exhaustion monitoring and cleanup automation scripts."
+            "# Section A\nDetailed content about memory pressure alerts and "
+            "recovery steps for services.\n\n"
+            "# Section B\nDetailed content about latency spike diagnosis and "
+            "auto-remediation procedures.\n\n"
+            "# Section C\nDetailed content about disk exhaustion monitoring "
+            "and cleanup automation scripts."
         )
         await pipeline.ingest(content, source="postmortem.md")
         mock_store.store_batch.assert_called_once()
@@ -80,7 +82,7 @@ class TestDocumentIngestionPipeline:
 
     async def test_purge_stale(self):
         pipeline, mock_store, _ = _make_pipeline()
-        cutoff = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        cutoff = datetime(2024, 1, 1, tzinfo=UTC)
         deleted = await pipeline.purge_stale(cutoff)
         assert deleted == 5
         mock_store.delete_stale.assert_called_once_with(cutoff)

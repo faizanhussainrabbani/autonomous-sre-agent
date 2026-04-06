@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -58,20 +58,22 @@ class TestNewRelicLogAdapterQueryLogs:
     @pytest.mark.asyncio
     async def test_query_logs_returns_canonical_entries(self):
         """query_logs must return list[CanonicalLogEntry] with provider_source='newrelic'."""
-        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        response = build_nerdgraph_nrql_response([
-            build_newrelic_log_result(
-                message="ERROR: Payment failed",
-                level="error",
-                service="payment-svc",
-                trace_id="abc123",
-                span_id="span-1",
-                timestamp_ms=now_ms,
-            )
-        ])
+        now_ms = int(datetime.now(UTC).timestamp() * 1000)
+        response = build_nerdgraph_nrql_response(
+            [
+                build_newrelic_log_result(
+                    message="ERROR: Payment failed",
+                    level="error",
+                    service="payment-svc",
+                    trace_id="abc123",
+                    span_id="span-1",
+                    timestamp_ms=now_ms,
+                )
+            ]
+        )
         client = _make_client(lambda _query: response)
         adapter = NewRelicLogAdapter(client)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="payment-svc",
@@ -95,7 +97,7 @@ class TestNewRelicLogAdapterQueryLogs:
             captured_queries=captured_queries,
         )
         adapter = NewRelicLogAdapter(client)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         await adapter.query_logs(
             service="svc",
@@ -117,7 +119,7 @@ class TestNewRelicLogAdapterQueryLogs:
             captured_queries=captured_queries,
         )
         adapter = NewRelicLogAdapter(client)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         await adapter.query_logs(
             service="svc",
@@ -139,7 +141,7 @@ class TestNewRelicLogAdapterQueryLogs:
             captured_queries=captured_queries,
         )
         adapter = NewRelicLogAdapter(client)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         await adapter.query_logs(
             service="svc",
@@ -157,7 +159,7 @@ class TestNewRelicLogAdapterQueryLogs:
         """Empty NerdGraph result must return []."""
         client = _make_client(lambda _query: build_nerdgraph_nrql_response([]))
         adapter = NewRelicLogAdapter(client)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="svc",
@@ -171,16 +173,18 @@ class TestNewRelicLogAdapterQueryLogs:
     @pytest.mark.asyncio
     async def test_query_logs_missing_timestamp_uses_utc_now(self):
         """Entry without timestamp field gets current UTC time as fallback."""
-        response = build_nerdgraph_nrql_response([
-            build_newrelic_log_result(
-                message="no timestamp",
-                level="info",
-                include_timestamp=False,
-            )
-        ])
+        response = build_nerdgraph_nrql_response(
+            [
+                build_newrelic_log_result(
+                    message="no timestamp",
+                    level="info",
+                    include_timestamp=False,
+                )
+            ]
+        )
         client = _make_client(lambda _query: response)
         adapter = NewRelicLogAdapter(client)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="svc",
@@ -200,16 +204,18 @@ class TestNewRelicLogAdapterQueryByTraceId:
     @pytest.mark.asyncio
     async def test_query_by_trace_id_returns_canonical_entries(self):
         """query_by_trace_id must return list[CanonicalLogEntry]."""
-        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        response = build_nerdgraph_nrql_response([
-            build_newrelic_log_result(
-                message="trace log",
-                level="info",
-                service="svc",
-                span_id="span-1",
-                timestamp_ms=now_ms,
-            )
-        ])
+        now_ms = int(datetime.now(UTC).timestamp() * 1000)
+        response = build_nerdgraph_nrql_response(
+            [
+                build_newrelic_log_result(
+                    message="trace log",
+                    level="info",
+                    service="svc",
+                    span_id="span-1",
+                    timestamp_ms=now_ms,
+                )
+            ]
+        )
         client = _make_client(lambda _query: response)
         adapter = NewRelicLogAdapter(client)
 

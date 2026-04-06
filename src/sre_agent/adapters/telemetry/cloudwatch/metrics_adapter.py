@@ -13,7 +13,7 @@ Validates: AC-CW-1.1 through AC-CW-1.6
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -107,8 +107,8 @@ class CloudWatchMetricsAdapter(MetricsQuery):
         """
         # Support kwarg aliases from tests / legacy callers
         metric = metric_name or metric
-        start_time = start_time or start or datetime.now(timezone.utc)
-        end_time = end_time or end or datetime.now(timezone.utc)
+        start_time = start_time or start or datetime.now(UTC)
+        end_time = end_time or end or datetime.now(UTC)
 
         if not metric or metric not in METRIC_MAP:
             return []
@@ -136,7 +136,7 @@ class CloudWatchMetricsAdapter(MetricsQuery):
                 StartTime=start_time,
                 EndTime=end_time,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.error(
                 "cloudwatch_query_failed",
                 metric=metric,
@@ -160,7 +160,7 @@ class CloudWatchMetricsAdapter(MetricsQuery):
 
         Uses a 5-minute lookback window and returns the most recent data point.
         """
-        end_time = timestamp or datetime.now(timezone.utc)
+        end_time = timestamp or datetime.now(UTC)
         start_time = end_time - timedelta(minutes=5)
         effective_metric = metric_name or metric
 
@@ -188,11 +188,8 @@ class CloudWatchMetricsAdapter(MetricsQuery):
                     Namespace=namespace,
                     RecentlyActive="PT3H",
                 )
-                return [
-                    m.get("MetricName", "")
-                    for m in response.get("Metrics", [])
-                ]
-            except Exception as exc:
+                return [m.get("MetricName", "") for m in response.get("Metrics", [])]
+            except Exception as exc:  # noqa: BLE001
                 logger.debug(
                     "cloudwatch_list_metrics_namespace_error",
                     namespace=namespace,
@@ -213,7 +210,7 @@ class CloudWatchMetricsAdapter(MetricsQuery):
                 )
                 if response.get("Metrics"):
                     found.append(canonical_name)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.debug(
                     "cloudwatch_list_metrics_error",
                     namespace=ns,
@@ -227,7 +224,7 @@ class CloudWatchMetricsAdapter(MetricsQuery):
         try:
             self._client.list_metrics(Namespace="AWS/Lambda", RecentlyActive="PT3H")
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("cloudwatch_health_check_failed", error=str(exc))
             return False
 
@@ -278,10 +275,10 @@ class CloudWatchMetricsAdapter(MetricsQuery):
             timestamps = result.get("Timestamps", [])
             values = result.get("Values", [])
 
-            for ts, val in zip(timestamps, values):
+            for ts, val in zip(timestamps, values, strict=False):
                 # Ensure timezone-aware datetime
                 if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=timezone.utc)
+                    ts = ts.replace(tzinfo=UTC)
 
                 metrics.append(
                     CanonicalMetric(
@@ -291,7 +288,7 @@ class CloudWatchMetricsAdapter(MetricsQuery):
                         labels=ServiceLabels(service=service),
                         quality=DataQuality.HIGH,
                         provider_source="cloudwatch",
-                        ingestion_timestamp=datetime.now(timezone.utc),
+                        ingestion_timestamp=datetime.now(UTC),
                     )
                 )
 

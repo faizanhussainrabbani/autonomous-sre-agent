@@ -18,7 +18,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -31,14 +30,12 @@ from sre_agent.domain.models.canonical import (
     AnomalyAlert,
     AnomalyType,
     EventTypes,
-    Severity,
 )
 from sre_agent.domain.models.diagnosis import ServiceTier
 from sre_agent.events.in_memory import InMemoryEventBus, InMemoryEventStore
 from sre_agent.ports.diagnostics import DiagnosisRequest
 from sre_agent.ports.llm import Hypothesis, TokenUsage, ValidationResult
 from sre_agent.ports.vector_store import SearchResult
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -80,15 +77,19 @@ def _make_pipeline(
     event_store: InMemoryEventStore | None = None,
     search_results: list[SearchResult] | None = None,
 ) -> RAGDiagnosticPipeline:
-    results = search_results if search_results is not None else [
-        SearchResult(
-            doc_id=f"doc-{i}",
-            content=f"Runbook section {i}: OOM kill recovery steps for pod restart.",
-            score=0.85 - i * 0.05,
-            source=f"runbook/oom-{i}.md",
-        )
-        for i in range(2)
-    ]
+    results = (
+        search_results
+        if search_results is not None
+        else [
+            SearchResult(
+                doc_id=f"doc-{i}",
+                content=f"Runbook section {i}: OOM kill recovery steps for pod restart.",
+                score=0.85 - i * 0.05,
+                source=f"runbook/oom-{i}.md",
+            )
+            for i in range(2)
+        ]
+    )
 
     mock_vs = MagicMock()
     mock_vs.search = AsyncMock(return_value=results)
@@ -154,8 +155,7 @@ class TestE2EEventSourcing:
             EventTypes.SEVERITY_ASSIGNED,
         ]:
             assert expected_type in event_types, (
-                f"Expected event '{expected_type}' not found in bus; "
-                f"found: {event_types}"
+                f"Expected event '{expected_type}' not found in bus; found: {event_types}"
             )
 
         await throttled.close()
@@ -231,9 +231,7 @@ class TestE2EConcurrencyLimiting:
             )
 
         async def fast_val(request):
-            return ValidationResult(
-                agrees=True, confidence=0.85, reasoning="OK", contradictions=[]
-            )
+            return ValidationResult(agrees=True, confidence=0.85, reasoning="OK", contradictions=[])
 
         inner = MagicMock()
         inner.generate_hypothesis = slow_gen
@@ -247,13 +245,9 @@ class TestE2EConcurrencyLimiting:
         pipeline = _make_pipeline(throttled)
 
         alerts = [_make_alert() for _ in range(10)]
-        await asyncio.gather(
-            *[pipeline.diagnose(DiagnosisRequest(alert=a)) for a in alerts]
-        )
+        await asyncio.gather(*[pipeline.diagnose(DiagnosisRequest(alert=a)) for a in alerts])
 
-        assert concurrent_peak <= cap, (
-            f"Concurrent peak {concurrent_peak} exceeded cap {cap}"
-        )
+        assert concurrent_peak <= cap, f"Concurrent peak {concurrent_peak} exceeded cap {cap}"
         await throttled.close()
 
     async def test_sev1_priority_request_uses_priority_1(self):
@@ -305,6 +299,7 @@ class TestE2ESeverityOverrideAPI:
         assert response.json()["halts_pipeline"] is True
 
         from uuid import UUID
+
         assert service.has_active_override(UUID(alert_id))
         override = service.get_override(UUID(alert_id))
         assert override is not None
@@ -404,14 +399,11 @@ class TestE2EQueueMetrics:
         pipeline = _make_pipeline(throttled)
 
         alerts = [_make_alert() for _ in range(5)]
-        await asyncio.gather(
-            *[pipeline.diagnose(DiagnosisRequest(alert=a)) for a in alerts]
-        )
+        await asyncio.gather(*[pipeline.diagnose(DiagnosisRequest(alert=a)) for a in alerts])
 
         after_sum = LLM_QUEUE_WAIT._sum.get()
         assert after_sum > before_sum, (
-            "LLM_QUEUE_WAIT should record non-zero wait times when "
-            "load exceeds concurrency cap"
+            "LLM_QUEUE_WAIT should record non-zero wait times when load exceeds concurrency cap"
         )
 
         await throttled.close()

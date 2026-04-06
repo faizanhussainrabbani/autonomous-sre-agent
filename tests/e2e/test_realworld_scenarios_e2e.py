@@ -25,8 +25,7 @@ Phase 1.5 multi-cloud paths are exercised in S10 (serverless compute mechanism).
 from __future__ import annotations
 
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -34,7 +33,6 @@ from sre_agent.adapters.cloud.resilience import (
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,
-    TransientError,
 )
 from sre_agent.adapters.telemetry.metrics import CIRCUIT_BREAKER_STATE, SEVERITY_ASSIGNED
 from sre_agent.domain.diagnostics.confidence import ConfidenceScorer
@@ -55,6 +53,7 @@ from sre_agent.ports.vector_store import SearchResult
 # ---------------------------------------------------------------------------
 # Factory helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_llm_inner(
     root_cause: str = "Memory leak in connection pool",
@@ -167,6 +166,7 @@ def _make_alert(
 # S1 — Error Rate Surge on Tier 1 Payment Service
 # ---------------------------------------------------------------------------
 
+
 class TestS1ErrorRateSurgeTier1:
     """Flash-sale traffic causes 180 errors/sec on the payment gateway.
 
@@ -264,6 +264,7 @@ class TestS1ErrorRateSurgeTier1:
 # S2 — Deployment-Induced Incident with Metadata Auto-Correlation
 # ---------------------------------------------------------------------------
 
+
 class TestS2DeploymentInducedIncident:
     """A bad canary deployment to checkout-service causes a latency spike.
 
@@ -338,6 +339,7 @@ class TestS2DeploymentInducedIncident:
 # ---------------------------------------------------------------------------
 # S3 — Multi-Service Cascade (Primary OOM → Downstream Error Surge)
 # ---------------------------------------------------------------------------
+
 
 class TestS3MultiServiceCascade:
     """OOM kill on order-service causes a cascade error surge in checkout-service.
@@ -429,8 +431,12 @@ class TestS3MultiServiceCascade:
             event_store=store_secondary,
         )
 
-        primary_alert = _make_alert(service="order-service", anomaly_type=AnomalyType.MEMORY_PRESSURE)
-        secondary_alert = _make_alert(service="checkout-service", anomaly_type=AnomalyType.ERROR_RATE_SURGE)
+        primary_alert = _make_alert(
+            service="order-service", anomaly_type=AnomalyType.MEMORY_PRESSURE
+        )
+        secondary_alert = _make_alert(
+            service="checkout-service", anomaly_type=AnomalyType.ERROR_RATE_SURGE
+        )
 
         await primary_pipeline.diagnose(DiagnosisRequest(alert=primary_alert))
         await secondary_pipeline.diagnose(DiagnosisRequest(alert=secondary_alert))
@@ -451,6 +457,7 @@ class TestS3MultiServiceCascade:
 # ---------------------------------------------------------------------------
 # S4 — LLM Validation Disagreement → Composite Confidence Drop
 # ---------------------------------------------------------------------------
+
 
 class TestS4ValidationDisagreement:
     """The second-opinion validator contradicts the LLM hypothesis.
@@ -508,9 +515,7 @@ class TestS4ValidationDisagreement:
         # Validator disagreement + moderate LLM confidence → requires approval
         # Note: the SeverityClassifier may still allow autonomous for SEV4 Tier 4,
         # but a Tier 3 analytics service with validation disagreement should be halted.
-        assert result.confidence < 0.85, (
-            "Validation disagreement must reduce composite confidence"
-        )
+        assert result.confidence < 0.85, "Validation disagreement must reduce composite confidence"
         # Evidence should still be returned
         assert result.evidence_citations
 
@@ -580,6 +585,7 @@ class TestS4ValidationDisagreement:
 # S5 — Token Budget Exhaustion Trims Large Evidence Set
 # ---------------------------------------------------------------------------
 
+
 class TestS5TokenBudgetExhaustion:
     """10 search results arrive but the context_budget is tiny (400 tokens).
 
@@ -643,6 +649,7 @@ class TestS5TokenBudgetExhaustion:
 # ---------------------------------------------------------------------------
 # S6 — Observability Metrics Verified After Real Pipeline Run
 # ---------------------------------------------------------------------------
+
 
 class TestS6ObservabilityMetrics:
     """Phase 2.1 Prometheus counters must increment during diagnose().
@@ -731,15 +738,17 @@ class TestS6ObservabilityMetrics:
     def _sample_counter(counter, labels: dict) -> float:
         for metric in counter.collect():
             for sample in metric.samples:
-                if sample.name.endswith("_total"):
-                    if all(sample.labels.get(k) == v for k, v in labels.items()):
-                        return sample.value
+                if sample.name.endswith("_total") and all(
+                    sample.labels.get(k) == v for k, v in labels.items()
+                ):
+                    return sample.value
         return 0.0
 
 
 # ---------------------------------------------------------------------------
 # S7 — Circuit Breaker Trip, OPEN Rejection, and Recovery
 # ---------------------------------------------------------------------------
+
 
 class TestS7CircuitBreakerTripAndRecovery:
     """Simulate 5 consecutive cloud-operator failures, verify OPEN state,
@@ -770,11 +779,13 @@ class TestS7CircuitBreakerTripAndRecovery:
         async def _dummy_call():
             return "ok"
 
-        from sre_agent.adapters.cloud.resilience import retry_with_backoff, RetryConfig
+        from sre_agent.adapters.cloud.resilience import RetryConfig, retry_with_backoff
 
         with pytest.raises(CircuitOpenError):
             asyncio.get_event_loop().run_until_complete(
-                retry_with_backoff(_dummy_call, config=RetryConfig(max_retries=0), circuit_breaker=cb)
+                retry_with_backoff(
+                    _dummy_call, config=RetryConfig(max_retries=0), circuit_breaker=cb
+                )
             )
 
     def test_breaker_transitions_to_half_open_after_timeout(self) -> None:
@@ -842,6 +853,7 @@ class TestS7CircuitBreakerTripAndRecovery:
 # ---------------------------------------------------------------------------
 # S8 — Confidence Threshold Boundary (Just-Above vs Just-Below Autonomous)
 # ---------------------------------------------------------------------------
+
 
 class TestS8ConfidenceThresholdBoundary:
     """The SeverityClassifier uses confidence to determine autonomous eligibility.
@@ -939,6 +951,7 @@ class TestS8ConfidenceThresholdBoundary:
 # S9 — Traffic Anomaly (DDoS-Like Spike) → Novel Escalation Path
 # ---------------------------------------------------------------------------
 
+
 class TestS9TrafficAnomalyNovelEscalation:
     """A traffic anomaly with no matching runbooks triggers the novel escalation path.
 
@@ -1020,6 +1033,7 @@ class TestS9TrafficAnomalyNovelEscalation:
 # S10 — Invocation Error Surge on Serverless Lambda (Phase 1.5)
 # ---------------------------------------------------------------------------
 
+
 class TestS10ServerlessInvocationErrorSurge:
     """AWS Lambda function hits error surge — Phase 1.5 serverless path.
 
@@ -1031,9 +1045,15 @@ class TestS10ServerlessInvocationErrorSurge:
     async def test_lambda_invocation_error_surge_diagnosed(self) -> None:
         pipeline = _make_pipeline(
             service_tiers={"payment-handler": ServiceTier.TIER_1},
-            root_cause="Lambda cold-start storm caused invocation timeouts — reserved concurrency too low.",
+            root_cause=(
+                "Lambda cold-start storm caused invocation timeouts — "
+                "reserved concurrency too low."
+            ),
             confidence=0.86,
-            remediation="Set reserved concurrency to 500; enable provisioned concurrency for warm starts.",
+            remediation=(
+                "Set reserved concurrency to 500; enable provisioned "
+                "concurrency for warm starts."
+            ),
             search_results=_make_search_results(2, base_score=0.80),
         )
         alert = AnomalyAlert(
@@ -1051,9 +1071,7 @@ class TestS10ServerlessInvocationErrorSurge:
 
         # Tier 1 without blast_radius → SEV3; composite confidence 0.78 < 0.85
         # → NOT AUTONOMOUS → requires_human_approval=True
-        assert result.severity != Severity.SEV4, (
-            "Lambda Tier 1 incident must not be SEV4"
-        )
+        assert result.severity != Severity.SEV4, "Lambda Tier 1 incident must not be SEV4"
         assert result.requires_human_approval, (
             "Confidence below AUTONOMOUS threshold must require human approval"
         )

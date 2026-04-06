@@ -13,9 +13,9 @@ Tests:
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -33,11 +33,10 @@ from sre_agent.domain.models.canonical import (
     ServiceLabels,
     Severity,
 )
-from sre_agent.ports.compressor import CompressorPort, CompressionResult
+from sre_agent.ports.compressor import CompressionResult, CompressorPort
 from sre_agent.ports.diagnostics import DiagnosisResult
 from sre_agent.ports.llm import EvidenceContext, Hypothesis, ValidationRequest
 from sre_agent.ports.reranker import RankedDocument, RerankerPort
-
 
 # ── DiagnosticCache ──────────────────────────────────────────────────
 
@@ -118,6 +117,7 @@ class TestLLMLinguaCompressorFallback:
     def test_compress_returns_result(self):
         """AC-2.2.1 / AC-2.2.2: Compressor returns CompressionResult."""
         from sre_agent.adapters.compressor.llmlingua_adapter import LLMLinguaCompressor
+
         compressor = LLMLinguaCompressor()
         text = (
             "The checkout-service pod experienced an OOM kill at 14:30 UTC. "
@@ -135,6 +135,7 @@ class TestLLMLinguaCompressorFallback:
     def test_compress_preserves_sre_terms(self):
         """AC-2.2.3: SRE-critical terms survive compression."""
         from sre_agent.adapters.compressor.llmlingua_adapter import LLMLinguaCompressor
+
         compressor = LLMLinguaCompressor()
         text = (
             "The OOM kill event triggered a pod restart. Memory usage exceeded "
@@ -147,8 +148,17 @@ class TestLLMLinguaCompressorFallback:
         # Extractive fallback selects sentences rich in SRE keywords,
         # so at least 2 of the critical terms should survive
         critical_terms_found = sum(
-            1 for term in ["oom", "restart", "memory", "deployment", "latency",
-                           "timeout", "pod", "container"]
+            1
+            for term in [
+                "oom",
+                "restart",
+                "memory",
+                "deployment",
+                "latency",
+                "timeout",
+                "pod",
+                "container",
+            ]
             if term in compressed
         )
         assert critical_terms_found >= 2, (
@@ -158,6 +168,7 @@ class TestLLMLinguaCompressorFallback:
     def test_short_text_not_compressed(self):
         """Very short text is returned unchanged."""
         from sre_agent.adapters.compressor.llmlingua_adapter import LLMLinguaCompressor
+
         compressor = LLMLinguaCompressor()
         result = compressor.compress("OOM kill", target_ratio=0.5)
         assert result.compressed_text == "OOM kill"
@@ -165,6 +176,7 @@ class TestLLMLinguaCompressorFallback:
 
     def test_compress_batch(self):
         from sre_agent.adapters.compressor.llmlingua_adapter import LLMLinguaCompressor
+
         compressor = LLMLinguaCompressor()
         texts = [
             "The memory usage reached 95% causing OOM kill on the checkout service pod.",
@@ -185,6 +197,7 @@ class TestCrossEncoderRerankerFallback:
     def test_rerank_returns_ranked_documents(self):
         """AC-2.2.5 / AC-2.2.6: Reranker returns sorted RankedDocuments."""
         from sre_agent.adapters.reranker.cross_encoder_adapter import CrossEncoderReranker
+
         reranker = CrossEncoderReranker()
         docs = [
             {"content": "OOM kill on checkout", "source": "pm-1", "score": 0.7, "doc_id": "d1"},
@@ -201,6 +214,7 @@ class TestCrossEncoderRerankerFallback:
     def test_rerank_respects_top_k(self):
         """AC-2.2.8: top_k limits output count."""
         from sre_agent.adapters.reranker.cross_encoder_adapter import CrossEncoderReranker
+
         reranker = CrossEncoderReranker()
         docs = [
             {"content": f"doc {i}", "source": f"s-{i}", "score": 0.5 + i * 0.1, "doc_id": f"d{i}"}
@@ -211,6 +225,7 @@ class TestCrossEncoderRerankerFallback:
 
     def test_rerank_empty_docs(self):
         from sre_agent.adapters.reranker.cross_encoder_adapter import CrossEncoderReranker
+
         reranker = CrossEncoderReranker()
         assert reranker.rerank("query", [], top_k=5) == []
 
@@ -222,7 +237,7 @@ class TestTimelineFiltering:
     """Tests for anomaly-type-aware timeline filtering."""
 
     def _make_signals(self) -> CorrelatedSignals:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         labels = ServiceLabels(service="svc-a")
         return CorrelatedSignals(
             service="svc-a",
@@ -301,13 +316,19 @@ class TestTimelineFiltering:
         unfiltered = tc.build(signals, anomaly_type=None)
         filtered = tc.build(signals, anomaly_type="OOM_KILL")
         # Count event lines (lines containing "|")
-        unfiltered_count = sum(1 for l in unfiltered.split("\n") if "|" in l)
-        filtered_count = sum(1 for l in filtered.split("\n") if "|" in l)
+        unfiltered_count = sum(1 for line in unfiltered.split("\n") if "|" in line)
+        filtered_count = sum(1 for line in filtered.split("\n") if "|" in line)
         assert filtered_count < unfiltered_count
 
     def test_signal_relevance_map_has_all_anomaly_types(self):
         """Verify SIGNAL_RELEVANCE covers our 5 incident taxonomy types."""
-        expected = {"OOM_KILL", "HIGH_LATENCY", "ERROR_RATE_SPIKE", "DISK_EXHAUSTION", "CERT_EXPIRY"}
+        expected = {
+            "OOM_KILL",
+            "HIGH_LATENCY",
+            "ERROR_RATE_SPIKE",
+            "DISK_EXHAUSTION",
+            "CERT_EXPIRY",
+        }
         assert set(SIGNAL_RELEVANCE.keys()) == expected
 
 
@@ -384,7 +405,8 @@ class TestCompressorPortABC:
     def test_required_methods(self):
         methods = {"compress", "compress_batch"}
         actual = {
-            m for m in dir(CompressorPort)
+            m
+            for m in dir(CompressorPort)
             if not m.startswith("_") and callable(getattr(CompressorPort, m))
         }
         assert methods.issubset(actual)
@@ -417,10 +439,12 @@ class TestRAGPipelineOptimizations:
         from sre_agent.domain.diagnostics.severity import SeverityClassifier
 
         vector_store = AsyncMock()
-        vector_store.search = AsyncMock(return_value=[
-            SimpleNamespace(content="OOM evidence", source="pm-1", score=0.85, doc_id="d1"),
-            SimpleNamespace(content="Memory leak fix", source="rb-2", score=0.7, doc_id="d2"),
-        ])
+        vector_store.search = AsyncMock(
+            return_value=[
+                SimpleNamespace(content="OOM evidence", source="pm-1", score=0.85, doc_id="d1"),
+                SimpleNamespace(content="Memory leak fix", source="rb-2", score=0.7, doc_id="d2"),
+            ]
+        )
         vector_store.health_check = AsyncMock(return_value=True)
 
         embedding = AsyncMock()
@@ -428,16 +452,23 @@ class TestRAGPipelineOptimizations:
         embedding.health_check = AsyncMock(return_value=True)
 
         llm = AsyncMock()
-        llm.generate_hypothesis = AsyncMock(return_value=Hypothesis(
-            root_cause="Memory leak in payment handler",
-            confidence=0.88,
-            reasoning="Evidence shows OOM pattern",
-            evidence_citations=["pm-1", "rb-2"],
-        ))
+        llm.generate_hypothesis = AsyncMock(
+            return_value=Hypothesis(
+                root_cause="Memory leak in payment handler",
+                confidence=0.88,
+                reasoning="Evidence shows OOM pattern",
+                evidence_citations=["pm-1", "rb-2"],
+            )
+        )
         from sre_agent.ports.llm import ValidationResult
-        llm.validate_hypothesis = AsyncMock(return_value=ValidationResult(
-            agrees=True, confidence=0.85, reasoning="Confirms hypothesis",
-        ))
+
+        llm.validate_hypothesis = AsyncMock(
+            return_value=ValidationResult(
+                agrees=True,
+                confidence=0.85,
+                reasoning="Confirms hypothesis",
+            )
+        )
         llm.count_tokens = MagicMock(side_effect=lambda t: len(t.split()))
         llm.health_check = AsyncMock(return_value=True)
 
@@ -454,6 +485,7 @@ class TestRAGPipelineOptimizations:
 
     def _make_alert(self):
         from sre_agent.domain.models.canonical import AnomalyAlert
+
         return AnomalyAlert(
             alert_id=uuid4(),
             service="checkout-service",
@@ -507,13 +539,15 @@ class TestRAGPipelineOptimizations:
         from sre_agent.ports.diagnostics import DiagnosisRequest
 
         compressor = MagicMock(spec=CompressorPort)
-        compressor.compress = MagicMock(side_effect=lambda text, **kw: CompressionResult(
-            original_text=text,
-            compressed_text=text[:50],
-            original_tokens=len(text.split()),
-            compressed_tokens=len(text[:50].split()),
-            compression_ratio=0.5,
-        ))
+        compressor.compress = MagicMock(
+            side_effect=lambda text, **kw: CompressionResult(
+                original_text=text,
+                compressed_text=text[:50],
+                original_tokens=len(text.split()),
+                compressed_tokens=len(text[:50].split()),
+                compression_ratio=0.5,
+            )
+        )
 
         pipeline = RAGDiagnosticPipeline(**mock_pipeline_deps, compressor=compressor)
 
@@ -529,16 +563,24 @@ class TestRAGPipelineOptimizations:
         from sre_agent.ports.diagnostics import DiagnosisRequest
 
         reranker = MagicMock(spec=RerankerPort)
-        reranker.rerank = MagicMock(return_value=[
-            RankedDocument(
-                content="OOM evidence", source="pm-1",
-                original_score=0.85, rerank_score=0.95, doc_id="d1",
-            ),
-            RankedDocument(
-                content="Memory leak fix", source="rb-2",
-                original_score=0.7, rerank_score=0.75, doc_id="d2",
-            ),
-        ])
+        reranker.rerank = MagicMock(
+            return_value=[
+                RankedDocument(
+                    content="OOM evidence",
+                    source="pm-1",
+                    original_score=0.85,
+                    rerank_score=0.95,
+                    doc_id="d1",
+                ),
+                RankedDocument(
+                    content="Memory leak fix",
+                    source="rb-2",
+                    original_score=0.7,
+                    rerank_score=0.75,
+                    doc_id="d2",
+                ),
+            ]
+        )
 
         pipeline = RAGDiagnosticPipeline(**mock_pipeline_deps, reranker=reranker)
 

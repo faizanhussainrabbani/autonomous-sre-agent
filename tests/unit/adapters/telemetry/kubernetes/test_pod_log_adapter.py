@@ -9,8 +9,8 @@ Validates: AC-LF-4.1, AC-LF-4.2
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -58,7 +58,7 @@ class TestQueryLogs:
             log_text="2024-01-01 ERROR: Connection refused\nINFO: Service started",
         )
         adapter = KubernetesLogAdapter(core_v1_api=api, namespace="prod")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="checkout-service",
@@ -80,7 +80,7 @@ class TestQueryLogs:
         pods = [f"pod-{i}" for i in range(10)]
         api = _make_api(pods=pods, log_text="some log line")
         adapter = KubernetesLogAdapter(core_v1_api=api)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         await adapter.query_logs(
             service="svc",
@@ -97,7 +97,7 @@ class TestQueryLogs:
         api = MagicMock()
         api.list_namespaced_pod.side_effect = Exception("API unreachable")
         adapter = KubernetesLogAdapter(core_v1_api=api)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="svc",
@@ -115,7 +115,7 @@ class TestQueryLogs:
             log_text="ERROR: Database connection failed",
         )
         adapter = KubernetesLogAdapter(core_v1_api=api)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="svc",
@@ -131,7 +131,7 @@ class TestQueryLogs:
         """Log lines with WARN keyword should get severity=WARNING."""
         api = _make_api(pods=["pod-1"], log_text="WARN: High memory usage")
         adapter = KubernetesLogAdapter(core_v1_api=api)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="svc",
@@ -146,7 +146,7 @@ class TestQueryLogs:
         """Log lines without severity keywords should default to INFO."""
         api = _make_api(pods=["pod-1"], log_text="Service started successfully")
         adapter = KubernetesLogAdapter(core_v1_api=api)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="svc",
@@ -161,7 +161,7 @@ class TestQueryLogs:
         """Service with zero matching pods should return []."""
         api = _make_api(pods=[], log_text="")
         adapter = KubernetesLogAdapter(core_v1_api=api)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         result = await adapter.query_logs(
             service="nonexistent",
@@ -180,7 +180,7 @@ class TestQueryByTraceId:
         """query_by_trace_id filters client-side for trace ID patterns."""
         api = _make_api(
             pods=["pod-1"],
-            log_text='trace_id=abc123 ERROR: timeout\nno trace here\ntraceID=abc123 INFO: started',
+            log_text="trace_id=abc123 ERROR: timeout\nno trace here\ntraceID=abc123 INFO: started",
         )
         adapter = KubernetesLogAdapter(core_v1_api=api)
 

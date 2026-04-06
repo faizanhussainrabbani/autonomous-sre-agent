@@ -5,18 +5,19 @@ Phase 1.5.1: Added to ensure accurate resilience behavior (e.g. not retrying 404
 and better support for Chaos Engineering fault injection tests.
 """
 
-from typing import Any
 
-from sre_agent.adapters.cloud.resilience import AuthenticationError
-from sre_agent.adapters.cloud.resilience import CloudOperatorError
-from sre_agent.adapters.cloud.resilience import RateLimitError
-from sre_agent.adapters.cloud.resilience import ResourceNotFoundError
-from sre_agent.adapters.cloud.resilience import TransientError
+from sre_agent.adapters.cloud.resilience import (
+    AuthenticationError,
+    CloudOperatorError,
+    RateLimitError,
+    ResourceNotFoundError,
+    TransientError,
+)
 
 
 def map_boto_error(exc: Exception) -> CloudOperatorError:
     """Map a boto3 exception to our canonical resilience exceptions.
-    
+
     If it's not a boto3 ClientError or recognized type, it passes through
     as a base exception or TransientError depending on the hierarchy.
     """
@@ -28,7 +29,10 @@ def map_boto_error(exc: Exception) -> CloudOperatorError:
 
     # 1. Authentication / Authorization
     if status_code in (401, 403) or error_code in (
-        "AccessDenied", "AccessDeniedException", "AuthFailure", "UnauthorizedOperation",
+        "AccessDenied",
+        "AccessDeniedException",
+        "AuthFailure",
+        "UnauthorizedOperation",
     ):
         return AuthenticationError(f"AWS Auth Error ({error_code}): {exc}")
 
@@ -37,7 +41,12 @@ def map_boto_error(exc: Exception) -> CloudOperatorError:
         return ResourceNotFoundError(f"AWS Resource Not Found ({error_code}): {exc}")
 
     # 3. Rate Limiting / Throttling
-    if status_code == 429 or "Throttling" in error_code or "ProvisionedThroughputExceeded" in error_code or "LimitExceeded" in error_code:
+    if (
+        status_code == 429
+        or "Throttling" in error_code
+        or "ProvisionedThroughputExceeded" in error_code
+        or "LimitExceeded" in error_code
+    ):
         return RateLimitError(f"AWS Rate Limit Exceeded ({error_code}): {exc}")
 
     # 4. Server Errors (Transient)

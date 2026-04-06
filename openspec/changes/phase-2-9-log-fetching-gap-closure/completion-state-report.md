@@ -1,7 +1,7 @@
 ---
 title: Phase 2.9 Log Fetching Gap Closure Completion Review
-description: Updated completion-state review after executing the full Phase 2.9 closure framework.
-ms.date: 2026-04-02
+description: Updated completion-state review after closure execution and follow-on quality gate reconciliation.
+ms.date: 2026-04-06
 ms.topic: reference
 author: SRE Agent Engineering Team
 ---
@@ -21,10 +21,10 @@ Primary references:
 
 Phase 2.9 closure is **partially complete**.
 
-Implementation and runtime integration gaps are closed. Two repository-wide quality gates remain open:
+Implementation and runtime integration gaps are closed. Coverage and boundary invariants are now also closed. Remaining open work is limited to repository-wide lint debt and optional integration-suite rerun evidence.
 
-1. Global coverage gate: `85.07%` vs required `>=90%`
-2. Global lint gate: fails with broad pre-existing Ruff findings
+1. Global lint gate: fails with broad pre-existing Ruff findings
+2. Gate 6.6 integration-suite rerun evidence: still pending in this closure report
 
 ## Achieved
 
@@ -48,21 +48,26 @@ Implementation and runtime integration gaps are closed. Two repository-wide qual
     * `tests/unit/domain/test_token_optimization.py`
 11. Event-sourcing e2e regressions were fixed for stricter validator rules.
 12. Kubernetes optional dependency now uses bounded major range.
+13. Global coverage gate now passes:
+   * `bash scripts/dev/run.sh coverage` reports `857 passed`
+   * total coverage `90.02%` meets fail-under `90%`
+14. Hexagonal boundary invariant closure is complete:
+   * direct domain-to-adapter metrics import removed from `domain/diagnostics/rag_pipeline.py`
+   * shared observability metrics moved to `src/sre_agent/observability/metrics.py`
+   * boundary guard test is present and passing (`tests/unit/domain/test_hexagonal_boundaries.py`)
 
 ## Remaining
 
-1. Global coverage fail-under remains open:
-   * `bash scripts/dev/run.sh coverage` runs green at test execution level (`790 passed`) but fails threshold (`85.07%`).
-2. Global lint gate remains open:
+1. Global lint gate remains open:
    * `bash scripts/dev/run.sh lint` reports pre-existing repository-wide Ruff issues.
-3. Hexagonal invariant target from closure acceptance criteria remains partially blocked by a pre-existing domain import of adapter metrics in `src/sre_agent/domain/diagnostics/rag_pipeline.py`.
+2. Full integration-suite rerun evidence for Gate 6.6 is not yet recorded in this report.
 
 ## Verification evidence snapshot
 
-* `bash scripts/dev/run.sh test:unit` -> `666 passed`
+* `bash scripts/dev/run.sh test:unit` -> pass (latest full-suite validations remain green)
 * `.venv/bin/pytest tests/integration/test_cloudwatch_bootstrap.py -q` -> `1 passed`
 * `.venv/bin/pytest tests/unit/adapters/test_newrelic_adapter.py tests/unit/adapters/telemetry/newrelic/test_newrelic_log_adapter.py --cov=sre_agent.adapters.telemetry.newrelic --cov-report=term-missing -q` -> `32 passed`, `92.6%`
-* `bash scripts/dev/run.sh coverage` -> `790 passed`, fails fail-under (`85.07%`)
+* `bash scripts/dev/run.sh coverage` -> `857 passed`, global coverage `90.02%`, fail-under gate satisfied
 * `bash scripts/dev/run.sh lint` -> fails with pre-existing repository-wide findings
 
 ## Strict best-practice checklist
@@ -93,17 +98,17 @@ Status legend:
 | New Relic response factory module exists | Pass | `tests/factories/newrelic_responses.py` |
 | New Relic adapter coverage reaches >=90 in adapter-scope verification | Pass | Combined New Relic suites report `92.6%` |
 | Unit suite gate | Pass | `bash scripts/dev/run.sh test:unit` |
-| Global coverage gate | Fail | `bash scripts/dev/run.sh coverage` -> `85.07%` |
+| Global coverage gate | Pass | `bash scripts/dev/run.sh coverage` -> `90.02%` |
 | Global lint gate | Fail | `bash scripts/dev/run.sh lint` |
 
 Checklist totals:
 
-* Pass: 18
+* Pass: 19
 * Partial: 0
-* Fail: 2
+* Fail: 1
 
 ## Final assessment
 
-Phase 2.9 closure achieved its functional and runtime objectives.
+Phase 2.9 closure achieved its functional, runtime, coverage, and boundary-invariant objectives.
 
-The only open work is repository-wide quality debt outside the direct Phase 2.9 implementation slice.
+Open follow-on work is now concentrated to repository-wide lint debt and optional integration-suite rerun documentation.

@@ -1,17 +1,18 @@
 """
 Unit tests for CloudWatch Metrics Adapter.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 import pytest
 
 from sre_agent.adapters.telemetry.cloudwatch.metrics_adapter import (
-    CloudWatchMetricsAdapter,
     METRIC_MAP,
     SERVICE_DIMENSION_MAP,
+    CloudWatchMetricsAdapter,
 )
 
 
@@ -32,6 +33,7 @@ def _make_adapter(client=None):
 
 
 # ── METRIC_MAP coverage ──────────────────────────────────────────────────────
+
 
 def test_metric_map_contains_lambda_metrics():
     assert "lambda_errors" in METRIC_MAP
@@ -60,6 +62,7 @@ def test_metric_map_total_count():
 
 # ── SERVICE_DIMENSION_MAP ─────────────────────────────────────────────────────
 
+
 def test_service_dimension_map_entries():
     assert "AWS/Lambda" in SERVICE_DIMENSION_MAP
     assert "ECS/ContainerInsights" in SERVICE_DIMENSION_MAP
@@ -69,18 +72,21 @@ def test_service_dimension_map_entries():
 
 # ── query() ──────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_query_returns_canonical_metrics():
     """query() should call get_metric_data and return CanonicalMetric list."""
-    client = _make_client(metric_data_results=[
-        {
-            "Id": "m0",
-            "Timestamps": [datetime(2024, 1, 1, tzinfo=timezone.utc)],
-            "Values": [42.0],
-        },
-    ])
+    client = _make_client(
+        metric_data_results=[
+            {
+                "Id": "m0",
+                "Timestamps": [datetime(2024, 1, 1, tzinfo=UTC)],
+                "Values": [42.0],
+            },
+        ]
+    )
     adapter = _make_adapter(client)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     results = await adapter.query(
         service="payment-handler",
@@ -98,7 +104,7 @@ async def test_query_returns_canonical_metrics():
 async def test_query_unknown_metric_returns_empty():
     """query() with an unmapped metric name returns an empty list."""
     adapter = _make_adapter()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     results = await adapter.query(
         metric="totally_unknown_metric",
         service="svc",
@@ -119,7 +125,7 @@ async def test_query_handles_api_error():
         operation_name="GetMetricData",
     )
     adapter = _make_adapter(client)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     results = await adapter.query(
         metric="lambda_errors",
         service="svc",
@@ -131,16 +137,19 @@ async def test_query_handles_api_error():
 
 # ── query_instant() ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_query_instant_uses_5min_window():
     """query_instant() should query the last 5 minutes."""
-    client = _make_client(metric_data_results=[
-        {
-            "Id": "m0",
-            "Timestamps": [datetime(2024, 1, 1, tzinfo=timezone.utc)],
-            "Values": [7.0],
-        },
-    ])
+    client = _make_client(
+        metric_data_results=[
+            {
+                "Id": "m0",
+                "Timestamps": [datetime(2024, 1, 1, tzinfo=UTC)],
+                "Values": [7.0],
+            },
+        ]
+    )
     adapter = _make_adapter(client)
     result = await adapter.query_instant(
         service="payment-handler",
@@ -152,12 +161,15 @@ async def test_query_instant_uses_5min_window():
 
 # ── list_metrics() ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_metrics_returns_names():
-    client = _make_client(list_metrics_result=[
-        {"MetricName": "Errors", "Namespace": "AWS/Lambda"},
-        {"MetricName": "Invocations", "Namespace": "AWS/Lambda"},
-    ])
+    client = _make_client(
+        list_metrics_result=[
+            {"MetricName": "Errors", "Namespace": "AWS/Lambda"},
+            {"MetricName": "Invocations", "Namespace": "AWS/Lambda"},
+        ]
+    )
     adapter = _make_adapter(client)
     names = await adapter.list_metrics(service="payment-handler")
     # list_metrics(service=...) returns canonical names from METRIC_MAP
@@ -165,6 +177,7 @@ async def test_list_metrics_returns_names():
 
 
 # ── health_check() ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_health_check_ok():
@@ -181,6 +194,7 @@ async def test_health_check_fail():
 
 
 # ── close() ──────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_close_is_noop():

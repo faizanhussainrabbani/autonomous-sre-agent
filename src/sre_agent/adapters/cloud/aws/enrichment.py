@@ -12,7 +12,7 @@ Validates: AC-CW-6.1 through AC-CW-6.8
 from __future__ import annotations
 
 import statistics
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -23,7 +23,6 @@ from sre_agent.adapters.telemetry.cloudwatch.log_group_resolver import (
 )
 from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
-    CanonicalMetric,
     ComputeMechanism,
     DataQuality,
     ServiceLabels,
@@ -88,7 +87,7 @@ class AlertEnricher:
         if alarm_data is None:
             alarm_data = {"Trigger": {"Threshold": threshold}}
 
-        end_time = datetime.now(timezone.utc)
+        end_time = datetime.now(UTC)
         metric_start = end_time - timedelta(minutes=self._metric_window)
         log_start = end_time - timedelta(minutes=self._log_window)
 
@@ -114,9 +113,7 @@ class AlertEnricher:
         resource_metadata = await self._fetch_metadata(service, effective_namespace)
 
         # Build canonical metrics for correlated_signals
-        canonical_metrics = self._to_canonical_metrics(
-            metric_points, metric_name, service
-        )
+        canonical_metrics = self._to_canonical_metrics(metric_points, metric_name, service)
 
         # Build canonical logs for correlated_signals
         canonical_logs = self._to_canonical_logs(log_entries, service)
@@ -173,12 +170,12 @@ class AlertEnricher:
             # Pair timestamps with values and sort chronologically
             points = [
                 {"timestamp": ts, "value": val}
-                for ts, val in zip(timestamps, values)
+                for ts, val in zip(timestamps, values, strict=False)
             ]
             points.sort(key=lambda p: p["timestamp"])
             return points
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "enrichment_metric_fetch_failed",
                 namespace=namespace,
@@ -203,9 +200,7 @@ class AlertEnricher:
         Returns:
             Number of standard deviations the current value is from the mean.
         """
-        _, _, sigma = self._compute_deviation_from_points(
-            values + [current_value], threshold=0.0
-        )
+        _, _, sigma = self._compute_deviation_from_points(values + [current_value], threshold=0.0)
         return sigma
 
     def _compute_deviation_from_points(
@@ -238,9 +233,7 @@ class AlertEnricher:
                 deviation_sigma = abs(current_value - baseline_value) / std_dev
             else:
                 # All historical values are the same — any deviation is significant
-                deviation_sigma = (
-                    10.0 if current_value != baseline_value else 0.0
-                )
+                deviation_sigma = 10.0 if current_value != baseline_value else 0.0
         else:
             deviation_sigma = 10.0  # Not enough data for meaningful std
 
@@ -266,8 +259,11 @@ class AlertEnricher:
                 limit=50,
                 interleaved=True,
             )
-            return response.get("events", [])
-        except Exception as exc:
+            events = response.get("events", [])
+            if not isinstance(events, list):
+                return []
+            return [event for event in events if isinstance(event, dict)]
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "enrichment_log_fetch_failed",
                 service=service,
@@ -330,9 +326,7 @@ class AlertEnricher:
         """
         return [
             CanonicalLogEntry(
-                timestamp=datetime.fromtimestamp(
-                    event.get("timestamp", 0) / 1000, tz=timezone.utc
-                ),
+                timestamp=datetime.fromtimestamp(event.get("timestamp", 0) / 1000, tz=UTC),
                 message=event.get("message", ""),
                 severity="ERROR",
                 labels=ServiceLabels(
@@ -341,7 +335,7 @@ class AlertEnricher:
                 ),
                 provider_source="cloudwatch",
                 quality=DataQuality.LOW,
-                ingestion_timestamp=datetime.now(timezone.utc),
+                ingestion_timestamp=datetime.now(UTC),
             )
             for event in log_events
         ]

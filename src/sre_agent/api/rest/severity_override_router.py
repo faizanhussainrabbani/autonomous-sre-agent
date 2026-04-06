@@ -20,6 +20,7 @@ Phase 2: Intelligence Layer — Gap C closure
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -38,6 +39,9 @@ _service: SeverityOverrideService = SeverityOverrideService()
 def get_override_service() -> SeverityOverrideService:
     """FastAPI dependency — returns the active SeverityOverrideService."""
     return _service
+
+
+OverrideServiceDep = Annotated[SeverityOverrideService, Depends(get_override_service)]
 
 
 router = APIRouter(
@@ -85,11 +89,11 @@ def _parse_severity(value: str) -> Severity:
     """
     try:
         return Severity[value.upper()]
-    except KeyError:
+    except KeyError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid severity '{value}'. Expected one of: SEV1, SEV2, SEV3, SEV4.",
-        )
+        ) from exc
 
 
 def _to_response(alert_id: str, override: SeverityOverride) -> SeverityOverrideResponse:
@@ -122,7 +126,7 @@ def _to_response(alert_id: str, override: SeverityOverride) -> SeverityOverrideR
 async def apply_severity_override(
     alert_id: UUID,
     body: SeverityOverrideRequest,
-    service: SeverityOverrideService = Depends(get_override_service),
+    service: OverrideServiceDep,
 ) -> SeverityOverrideResponse:
     """Apply a human severity override with real-time reclassification."""
     original = _parse_severity(body.original_severity)
@@ -144,7 +148,7 @@ async def apply_severity_override(
 )
 async def get_severity_override(
     alert_id: UUID,
-    service: SeverityOverrideService = Depends(get_override_service),
+    service: OverrideServiceDep,
 ) -> SeverityOverrideResponse:
     """Fetch the active severity override for an alert."""
     override = service.get_override(alert_id)
@@ -167,7 +171,7 @@ async def get_severity_override(
 )
 async def revoke_severity_override(
     alert_id: UUID,
-    service: SeverityOverrideService = Depends(get_override_service),
+    service: OverrideServiceDep,
 ) -> None:
     """Revoke an existing severity override."""
     removed = service.revoke_override(alert_id)

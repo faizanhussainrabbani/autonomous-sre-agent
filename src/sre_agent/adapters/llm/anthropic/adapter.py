@@ -12,14 +12,15 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from typing import Any
 
 import structlog
 
+from sre_agent.adapters.llm.openai.adapter import OpenAILLMAdapter
 from sre_agent.adapters.llm.prompts import (
     HYPOTHESIS_SYSTEM_PROMPT,
     VALIDATION_SYSTEM_PROMPT,
 )
-from sre_agent.adapters.llm.openai.adapter import OpenAILLMAdapter
 from sre_agent.adapters.telemetry.metrics import (
     LLM_CALL_DURATION,
     LLM_PARSE_FAILURES,
@@ -46,10 +47,10 @@ class AnthropicLLMAdapter(LLMReasoningPort):
 
     def __init__(self, config: LLMConfig | None = None) -> None:
         self._config = config or LLMConfig(model_name="claude-sonnet-4-20250514")
-        self._client = None
+        self._client: Any | None = None
         self._usage = TokenUsage()
 
-    def _ensure_client(self):
+    def _ensure_client(self) -> None:
         """Lazily initialize the Anthropic client."""
         if self._client is None:
             try:
@@ -68,6 +69,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
     ) -> Hypothesis:
         """Generate a root-cause hypothesis using Claude."""
         self._ensure_client()
+        assert self._client is not None
 
         user_prompt = OpenAILLMAdapter._build_hypothesis_prompt(request)
 
@@ -83,7 +85,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
                 ),
                 timeout=self._config.timeout_seconds,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError as exc:
             logger.error(
                 "llm_call_timeout",
                 provider="anthropic",
@@ -92,7 +94,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
             )
             raise TimeoutError(
                 f"Anthropic hypothesis call timed out after {self._config.timeout_seconds}s"
-            )
+            ) from exc
         LLM_CALL_DURATION.labels(provider="anthropic", call_type="hypothesis").observe(
             time.monotonic() - _t0
         )
@@ -127,7 +129,9 @@ class AnthropicLLMAdapter(LLMReasoningPort):
             json.loads(cleaned)
         except json.JSONDecodeError:
             LLM_PARSE_FAILURES.labels(provider="anthropic").inc()
-            logger.warning("hypothesis_parse_failed", provider="anthropic", raw_content=content[:200])
+            logger.warning(
+                "hypothesis_parse_failed", provider="anthropic", raw_content=content[:200]
+            )
             return Hypothesis(
                 root_cause="Failed to parse LLM response.",
                 confidence=0.0,
@@ -141,6 +145,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
     ) -> ValidationResult:
         """Cross-validate a hypothesis using Claude."""
         self._ensure_client()
+        assert self._client is not None
 
         user_prompt = OpenAILLMAdapter._build_validation_prompt(request)
 
@@ -156,7 +161,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
                 ),
                 timeout=self._config.timeout_seconds,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError as exc:
             logger.error(
                 "llm_call_timeout",
                 provider="anthropic",
@@ -165,7 +170,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
             )
             raise TimeoutError(
                 f"Anthropic validation call timed out after {self._config.timeout_seconds}s"
-            )
+            ) from exc
         LLM_CALL_DURATION.labels(provider="anthropic", call_type="validation").observe(
             time.monotonic() - _t0
         )
@@ -199,7 +204,9 @@ class AnthropicLLMAdapter(LLMReasoningPort):
             json.loads(cleaned)
         except json.JSONDecodeError:
             LLM_PARSE_FAILURES.labels(provider="anthropic").inc()
-            logger.warning("validation_parse_failed", provider="anthropic", raw_content=content[:200])
+            logger.warning(
+                "validation_parse_failed", provider="anthropic", raw_content=content[:200]
+            )
             return ValidationResult(
                 agrees=False,
                 confidence=0.0,
@@ -219,6 +226,7 @@ class AnthropicLLMAdapter(LLMReasoningPort):
         """Verify Anthropic API connectivity."""
         try:
             self._ensure_client()
+            assert self._client is not None
             # Minimal API call to verify connectivity
             await self._client.messages.create(
                 model=self._config.model_name,

@@ -1,11 +1,11 @@
 """
 Unit tests for AWS Health Monitor.
 """
+
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -20,6 +20,7 @@ def _make_client(events=None, raise_subscription=False):
     if raise_subscription:
         # Simulate SubscriptionRequiredException
         from botocore.exceptions import ClientError
+
         paginator.paginate.side_effect = ClientError(
             error_response={
                 "Error": {
@@ -45,7 +46,7 @@ def _make_health_event(service="LAMBDA", code="OPERATIONAL_ISSUE", status="open"
         "eventTypeCategory": "issue",
         "region": "us-east-1",
         "statusCode": status,
-        "startTime": datetime(2024, 1, 1, tzinfo=timezone.utc),
+        "startTime": datetime(2024, 1, 1, tzinfo=UTC),
     }
 
 
@@ -58,6 +59,7 @@ def _make_monitor(client=None, interval=1, regions=None):
 
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_start_creates_task():
@@ -85,6 +87,7 @@ async def test_start_idempotent():
 
 
 # ── _poll_once() ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_poll_once_fetches_events():
@@ -132,6 +135,7 @@ async def test_poll_once_skips_when_subscription_unavailable():
 
 # ── get_active_events() ──────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_get_active_events_filter_by_service():
     events = [
@@ -166,6 +170,7 @@ def test_get_active_events_empty_initially():
 
 # ── Properties ────────────────────────────────────────────────────────────────
 
+
 def test_poll_count_starts_at_zero():
     monitor = _make_monitor()
     assert monitor.poll_count == 0
@@ -182,6 +187,7 @@ def test_subscription_available_true_initially():
 
 
 # ── Regions filter ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_regions_passed_to_api():

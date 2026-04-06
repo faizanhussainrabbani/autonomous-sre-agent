@@ -8,20 +8,19 @@ fallback consistency — LLM Integration Hardening.
 from __future__ import annotations
 
 import asyncio
+import builtins
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from sre_agent.adapters.llm.anthropic.adapter import AnthropicLLMAdapter
-from sre_agent.adapters.telemetry.metrics import LLM_PARSE_FAILURES
 from sre_agent.ports.llm import (
     Hypothesis,
     HypothesisRequest,
     LLMConfig,
     ValidationRequest,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -162,15 +161,104 @@ class TestAnthropicParseFailureFallback:
         adapter._client = mock_client
 
         # Record metric value before
-        before = REGISTRY.get_sample_value(
-            "sre_agent_llm_parse_failures_total",
-            {"provider": "anthropic"},
-        ) or 0.0
+        before = (
+            REGISTRY.get_sample_value(
+                "sre_agent_llm_parse_failures_total",
+                {"provider": "anthropic"},
+            )
+            or 0.0
+        )
 
         await adapter.validate_hypothesis(_make_validation_request())
 
-        after = REGISTRY.get_sample_value(
-            "sre_agent_llm_parse_failures_total",
-            {"provider": "anthropic"},
-        ) or 0.0
+        after = (
+            REGISTRY.get_sample_value(
+                "sre_agent_llm_parse_failures_total",
+                {"provider": "anthropic"},
+            )
+            or 0.0
+        )
         assert after > before, "LLM_PARSE_FAILURES should be incremented on parse failure"
+
+
+class TestAnthropicAdditionalCoverage:
+    """Additional branch and success-path coverage for Anthropic adapter."""
+
+    def test_ensure_client_raises_clear_error_when_anthropic_missing(self, monkeypatch):
+        adapter = AnthropicLLMAdapter()
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "anthropic":
+                raise ImportError("anthropic missing")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        with pytest.raises(ImportError, match="sre-agent\\[intelligence\\]"):
+            adapter._ensure_client()
+
+    async def test_generate_hypothesis_success_tracks_usage(self):
+        adapter = AnthropicLLMAdapter(config=_make_config(timeout=1.0))
+
+        async def create(**_kwargs):
+            return _mock_response(
+                '{"root_cause":"memory leak","confidence":0.81,"reasoning":"rss growth",'
+                '"evidence_citations":["runbook/oom.md"],"suggested_remediation":"restart pod"}',
+                input_tokens=12,
+                output_tokens=6,
+            )
+
+        mock_client = MagicMock()
+        mock_client.messages.create = create
+        adapter._client = mock_client
+
+        result = await adapter.generate_hypothesis(_make_request())
+
+        assert result.root_cause == "memory leak"
+        assert result.confidence == 0.81
+        usage = adapter.get_token_usage()
+        assert usage.prompt_tokens == 12
+        assert usage.completion_tokens == 6
+
+    async def test_validate_hypothesis_success_tracks_usage(self):
+        adapter = AnthropicLLMAdapter(config=_make_config(timeout=1.0))
+
+        async def create(**_kwargs):
+            return _mock_response(
+                '{"agrees": true, "confidence": 0.74, "reasoning": "consistent", '
+                '"contradictions": [], "corrected_root_cause": null, '
+                '"corrected_remediation": null}',
+                input_tokens=7,
+                output_tokens=4,
+            )
+
+        mock_client = MagicMock()
+        mock_client.messages.create = create
+        adapter._client = mock_client
+
+        result = await adapter.validate_hypothesis(_make_validation_request())
+
+        assert result.agrees is True
+        assert result.confidence == 0.74
+        usage = adapter.get_token_usage()
+        assert usage.prompt_tokens == 7
+        assert usage.completion_tokens == 4
+
+    async def test_health_check_true_when_ping_succeeds(self):
+        adapter = AnthropicLLMAdapter()
+        adapter._client = MagicMock()
+        adapter._client.messages.create = AsyncMock(return_value=_mock_response("{}"))
+
+        assert await adapter.health_check() is True
+
+    async def test_health_check_false_on_exception(self):
+        adapter = AnthropicLLMAdapter()
+        adapter._client = MagicMock()
+        adapter._client.messages.create = AsyncMock(side_effect=RuntimeError("down"))
+
+        assert await adapter.health_check() is False
+
+    def test_count_tokens_is_character_based_approximation(self):
+        adapter = AnthropicLLMAdapter()
+        assert adapter.count_tokens("abcdefgh") == 2

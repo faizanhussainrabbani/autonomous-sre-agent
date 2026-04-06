@@ -10,8 +10,8 @@ Validates: AC-2.5.1 through AC-2.5.5
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
@@ -32,6 +32,7 @@ class PipelineComponentStatus(Enum):
 @dataclass
 class ComponentHealth:
     """Health state for a single pipeline component."""
+
     name: str
     status: PipelineComponentStatus = PipelineComponentStatus.HEALTHY
     last_heartbeat: datetime | None = None
@@ -66,7 +67,7 @@ class PipelineHealthMonitor:
         """Register a pipeline component for monitoring."""
         self._components[name] = ComponentHealth(
             name=name,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
         )
 
     @property
@@ -88,7 +89,7 @@ class PipelineHealthMonitor:
         comp = self._components[component]
         was_degraded = comp.status != PipelineComponentStatus.HEALTHY
 
-        comp.last_heartbeat = datetime.now(timezone.utc)
+        comp.last_heartbeat = datetime.now(UTC)
         comp.consecutive_misses = 0
         comp.status = PipelineComponentStatus.HEALTHY
 
@@ -96,8 +97,7 @@ class PipelineHealthMonitor:
             logger.info("pipeline_component_recovered", component=component)
             # Clear degraded services that were affected by this component
             services_to_clear = [
-                svc for svc, reason in self._degraded_services.items()
-                if component in reason
+                svc for svc, reason in self._degraded_services.items() if component in reason
             ]
             for svc in services_to_clear:
                 del self._degraded_services[svc]
@@ -109,7 +109,7 @@ class PipelineHealthMonitor:
         Validates: AC-2.5.1 — failure detected within 60 seconds.
         """
         failed: list[str] = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         for name, comp in self._components.items():
             if comp.last_heartbeat is None:
@@ -250,8 +250,11 @@ class PipelineHealthMonitor:
             "degraded_services": dict(self._degraded_services),
             "late_data_count": self._late_data_count,
             "overall_status": (
-                "degraded" if self._degraded_services or
-                any(c.status != PipelineComponentStatus.HEALTHY for c in self._components.values())
+                "degraded"
+                if self._degraded_services
+                or any(
+                    c.status != PipelineComponentStatus.HEALTHY for c in self._components.values()
+                )
                 else "healthy"
             ),
         }

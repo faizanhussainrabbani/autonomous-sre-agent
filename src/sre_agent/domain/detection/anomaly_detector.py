@@ -11,9 +11,8 @@ Validates: AC-3.1.2 through AC-3.1.6, AC-3.3.1, AC-3.3.2, AC-3.4.1, AC-3.4.2
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
 
 import structlog
 
@@ -26,8 +25,8 @@ from sre_agent.domain.models.canonical import (
     EventTypes,
 )
 from sre_agent.domain.models.detection_config import DetectionConfig
-from sre_agent.ports.telemetry import BaselineQuery
 from sre_agent.ports.events import EventBus
+from sre_agent.ports.telemetry import BaselineQuery
 
 logger = structlog.get_logger(__name__)
 
@@ -35,6 +34,7 @@ logger = structlog.get_logger(__name__)
 @dataclass
 class DeploymentRecord:
     """Track recent deployments for deployment-aware detection."""
+
     service: str
     timestamp: datetime
     commit_sha: str = ""
@@ -45,6 +45,7 @@ class DeploymentRecord:
 @dataclass
 class DetectionResult:
     """Result of running detection rules on a set of metrics."""
+
     alerts: list[AnomalyAlert] = field(default_factory=list)
     suppressed_count: int = 0
     checked_count: int = 0
@@ -78,11 +79,13 @@ class AnomalyDetector:
 
         # Multi-dimensional correlation state (AC-3.2.3)
         # Tracks recent sub-threshold shifts per (service, dimension)
-        self._sub_threshold_shifts: dict[str, list[dict[str, Any]]] = {}  # "svc" → [{type, percent, ts}]
+        self._sub_threshold_shifts: dict[
+            str, list[dict[str, Any]]
+        ] = {}  # "svc" → [{type, percent, ts}]
 
         # Per-service / per-metric sensitivity overrides (AC-3.5.1, AC-3.5.2)
-        self._service_overrides: dict[str, dict[str, Any]] = {}   # service → {sigma, ...}
-        self._metric_overrides: dict[str, dict[str, Any]] = {}    # metric_pattern → {sigma, ...}
+        self._service_overrides: dict[str, dict[str, Any]] = {}  # service → {sigma, ...}
+        self._metric_overrides: dict[str, dict[str, Any]] = {}  # metric_pattern → {sigma, ...}
 
         # Phase 1.5: Cold-start tracking for serverless compute
         self._cold_start_init_times: dict[str, datetime] = {}  # service → first metric timestamp
@@ -129,7 +132,7 @@ class AnomalyDetector:
 
             # Set stage timing (AC-4.4) — must be before correlation check
             alert.detected_at = metric.timestamp
-            alert.alert_generated_at = datetime.now(timezone.utc)
+            alert.alert_generated_at = datetime.now(UTC)
 
             # Check deployment correlation (AC-3.3.1, AC-3.3.2)
             self._check_deployment_correlation(alert)
@@ -220,7 +223,10 @@ class AnomalyDetector:
         return self._detect_sigma_deviation(service, metric, namespace)
 
     def _detect_latency_spike(
-        self, service: str, metric: CanonicalMetric, namespace: str,
+        self,
+        service: str,
+        metric: CanonicalMetric,
+        namespace: str,
         compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES,
     ) -> AnomalyAlert | None:
         """AC-3.1.2: p99 > Nσ for >2 minutes → alert within 60s.
@@ -460,7 +466,7 @@ class AnomalyDetector:
         deployer: str = "",
     ) -> None:
         """Register a deployment for correlation and suppression."""
-        ts = timestamp or datetime.now(timezone.utc)
+        ts = timestamp or datetime.now(UTC)
         self._recent_deployments.append(
             DeploymentRecord(
                 service=service,
@@ -511,18 +517,14 @@ class AnomalyDetector:
     # Multi-dimensional correlation (AC-3.2.3)
     # -----------------------------------------------------------------------
 
-    def _track_sub_threshold(
-        self, service: str, metric: CanonicalMetric
-    ) -> None:
+    def _track_sub_threshold(self, service: str, metric: CanonicalMetric) -> None:
         """Track metrics that are elevated but below individual alert thresholds.
 
         Used for multi-dimensional correlation: combined latency +50%
         AND error rate +80% (both below individual thresholds) should
         still trigger an alert.
         """
-        baseline = self._baselines.get_baseline(
-            service, metric.name, metric.timestamp
-        )
+        baseline = self._baselines.get_baseline(service, metric.name, metric.timestamp)
         if baseline is None or not baseline.is_established:
             return
 
@@ -547,26 +549,25 @@ class AnomalyDetector:
         if service not in self._sub_threshold_shifts:
             self._sub_threshold_shifts[service] = []
 
-        self._sub_threshold_shifts[service].append({
-            "dimension": dimension,
-            "percent_increase": percent_increase,
-            "timestamp": metric.timestamp,
-            "metric_name": metric.name,
-            "value": metric.value,
-            "baseline_mean": baseline.mean,
-        })
+        self._sub_threshold_shifts[service].append(
+            {
+                "dimension": dimension,
+                "percent_increase": percent_increase,
+                "timestamp": metric.timestamp,
+                "metric_name": metric.name,
+                "value": metric.value,
+                "baseline_mean": baseline.mean,
+            }
+        )
 
         # Prune old entries beyond the window
         window = timedelta(minutes=self._config.multi_dim_window_minutes)
         cutoff = metric.timestamp - window
         self._sub_threshold_shifts[service] = [
-            s for s in self._sub_threshold_shifts[service]
-            if s["timestamp"] >= cutoff
+            s for s in self._sub_threshold_shifts[service] if s["timestamp"] >= cutoff
         ]
 
-    def _check_multi_dimensional(
-        self, service: str, namespace: str
-    ) -> AnomalyAlert | None:
+    def _check_multi_dimensional(self, service: str, namespace: str) -> AnomalyAlert | None:
         """AC-3.2.3: Detect combined sub-threshold anomalies.
 
         If latency is +50% AND error rate is +80% within a 5-min window,
@@ -578,12 +579,14 @@ class AnomalyDetector:
             return None
 
         latency_shifts = [
-            s for s in shifts
+            s
+            for s in shifts
             if s["dimension"] == "latency"
             and s["percent_increase"] >= self._config.multi_dim_latency_percent
         ]
         error_shifts = [
-            s for s in shifts
+            s
+            for s in shifts
             if s["dimension"] == "error_rate"
             and s["percent_increase"] >= self._config.multi_dim_error_percent
         ]
@@ -611,7 +614,7 @@ class AnomalyDetector:
                 f"within {self._config.multi_dim_window_minutes} min window"
             ),
             detected_at=max(latest_latency["timestamp"], latest_error["timestamp"]),
-            alert_generated_at=datetime.now(timezone.utc),
+            alert_generated_at=datetime.now(UTC),
         )
 
         logger.info(

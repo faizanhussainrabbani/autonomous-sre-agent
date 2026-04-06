@@ -24,13 +24,12 @@ Spec: docs/testing/localstack_e2e_live_specs.md §2 POD-001 and POD-002
 
 from __future__ import annotations
 
-import json
-import os
+import contextlib
 import shutil
 import subprocess
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -171,20 +170,15 @@ def _provision_oom_scenario_state(ecs_client) -> None:
     This replicates the state that the 'sre-agent/oom-scenario' Cloud Pod
     would restore, so assertions can run even when the pod is not available.
     """
-    try:
+    with contextlib.suppress(Exception):
         ecs_client.create_cluster(clusterName=_POD_OOM_CLUSTER)
-    except Exception:  # noqa: BLE001
-        pass  # Already exists
 
     task_def_arn = ""
-    try:
+    with contextlib.suppress(Exception):
         resp = ecs_client.register_task_definition(
-            family="dummy",
-            containerDefinitions=[{"name": "test", "image": "nginx", "memory": 128}]
+            family="dummy", containerDefinitions=[{"name": "test", "image": "nginx", "memory": 128}]
         )
         task_def_arn = resp["taskDefinition"]["taskDefinitionArn"]
-    except Exception:
-        pass
 
     try:
         ecs_client.create_service(
@@ -200,16 +194,14 @@ def _provision_oom_scenario_state(ecs_client) -> None:
                 }
             },
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         # Ensure desiredCount is 0 (pod state simulation)
-        try:
+        with contextlib.suppress(Exception):
             ecs_client.update_service(
                 cluster=_POD_OOM_CLUSTER,
                 service=_POD_OOM_SERVICE,
                 desiredCount=0,
             )
-        except Exception:
-            pass
 
 
 def _provision_cascade_scenario_state(ecs_client) -> None:
@@ -218,20 +210,16 @@ def _provision_cascade_scenario_state(ecs_client) -> None:
     Replicates the 'sre-agent/cascading-failure' Cloud Pod state when the
     pod cannot be loaded from LocalStack Cloud.
     """
-    try:
+    with contextlib.suppress(Exception):
         ecs_client.create_cluster(clusterName=_POD_CASCADE_CLUSTER)
-    except Exception:  # noqa: BLE001
-        pass
 
     task_def_arn = ""
-    try:
+    with contextlib.suppress(Exception):
         resp = ecs_client.register_task_definition(
             family="dummy-cascade",
-            containerDefinitions=[{"name": "test", "image": "nginx", "memory": 128}]
+            containerDefinitions=[{"name": "test", "image": "nginx", "memory": 128}],
         )
         task_def_arn = resp["taskDefinition"]["taskDefinitionArn"]
-    except Exception:
-        pass
 
     for svc_name in _CASCADE_SERVICES:
         try:
@@ -248,20 +236,19 @@ def _provision_cascade_scenario_state(ecs_client) -> None:
                     }
                 },
             )
-        except Exception:
-            try:
+        except Exception:  # noqa: BLE001
+            with contextlib.suppress(Exception):
                 ecs_client.update_service(
                     cluster=_POD_CASCADE_CLUSTER,
                     service=svc_name,
                     desiredCount=0,
                 )
-            except Exception:
-                pass
 
 
 # ---------------------------------------------------------------------------
 # Cascade topology for POD-002 (mirrors the pod's service graph)
 # ---------------------------------------------------------------------------
+
 
 def _build_cascade_service_graph() -> ServiceGraph:
     """Construct the static dependency graph for the cascading-failure pod.
@@ -388,9 +375,7 @@ async def test_pod_002_cascading_failure_pod_yields_single_correlated_incident(
         services=_CASCADE_SERVICES,
     )
     active_services = [
-        s["serviceName"]
-        for s in pre_resp.get("services", [])
-        if s.get("status") != "INACTIVE"
+        s["serviceName"] for s in pre_resp.get("services", []) if s.get("status") != "INACTIVE"
     ]
     assert set(active_services) == set(_CASCADE_SERVICES), (
         f"Pre-condition failed: expected services {_CASCADE_SERVICES} in "
@@ -408,7 +393,7 @@ async def test_pod_002_cascading_failure_pod_yields_single_correlated_incident(
 
     # Construct 3 AnomalyAlerts — one per service — in cascade order
     # checkout fires first (root), payment and db follow 5s apart
-    base_ts = datetime.now(timezone.utc)
+    base_ts = datetime.now(UTC)
 
     alert_checkout = AnomalyAlert(
         anomaly_type=AnomalyType.ERROR_RATE_SURGE,

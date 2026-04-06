@@ -6,9 +6,8 @@ Covers: config/logging.py — raising coverage from 0% to ~90%.
 
 from __future__ import annotations
 
+import builtins
 import logging
-
-import structlog
 
 
 def test_configure_logging_json_output():
@@ -49,3 +48,19 @@ def test_configure_logging_invalid_level_defaults():
     configure_logging(log_level="NONEXISTENT", json_output=True)
     root = logging.getLogger()
     assert root.level == logging.INFO
+
+
+def test_bind_alert_id_is_noop_when_observability_import_fails(monkeypatch):
+    from sre_agent.config.logging import _bind_alert_id
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "sre_agent.observability.metrics":
+            raise RuntimeError("import failure")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    event = {"message": "test"}
+    assert _bind_alert_id(None, "info", event) == {"message": "test"}

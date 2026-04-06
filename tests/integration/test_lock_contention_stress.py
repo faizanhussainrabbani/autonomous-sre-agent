@@ -21,7 +21,7 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         import etcd3
-except Exception:  # pragma: no cover
+except Exception:  # noqa: BLE001, pragma: no cover
     etcd3 = None
 
 try:
@@ -32,7 +32,9 @@ except ImportError:  # pragma: no cover
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.slow]
 
 
-def _request(resource_name: str, agent_id: str, priority: int, ttl_seconds: int = 15) -> LockRequest:
+def _request(
+    resource_name: str, agent_id: str, priority: int, ttl_seconds: int = 15
+) -> LockRequest:
     return LockRequest(
         agent_id=agent_id,
         resource_type="deployment",
@@ -131,7 +133,10 @@ async def test_etcd_contention_single_holder_denials_and_preemption(
     resource_name = f"checkout-{uuid4().hex[:8]}"
 
     initial_race = await asyncio.gather(
-        *(manager.acquire_lock(_request(resource_name, f"sre-{index}", priority=2)) for index in range(15))
+        *(
+            manager.acquire_lock(_request(resource_name, f"sre-{index}", priority=2))
+            for index in range(15)
+        )
     )
     initially_granted = [result for result in initial_race if result.granted]
 
@@ -140,13 +145,19 @@ async def test_etcd_contention_single_holder_denials_and_preemption(
     assert winner.fencing_token is not None
 
     denial_race = await asyncio.gather(
-        *(manager.acquire_lock(_request(resource_name, f"finops-{index}", priority=3)) for index in range(10))
+        *(
+            manager.acquire_lock(_request(resource_name, f"finops-{index}", priority=3))
+            for index in range(10)
+        )
     )
     assert all(not result.granted for result in denial_race)
 
     preemption_race = await asyncio.gather(
         manager.acquire_lock(_request(resource_name, "secops-agent", priority=1)),
-        *(manager.acquire_lock(_request(resource_name, f"finops-x-{index}", priority=3)) for index in range(8)),
+        *(
+            manager.acquire_lock(_request(resource_name, f"finops-x-{index}", priority=3))
+            for index in range(8)
+        ),
     )
     preempt_granted = [result for result in preemption_race if result.granted]
 
@@ -168,14 +179,20 @@ async def test_etcd_contention_fencing_tokens_monotonic_across_transitions(
     resource_name = f"checkout-{uuid4().hex[:8]}"
 
     round_one = await asyncio.gather(
-        *(manager.acquire_lock(_request(resource_name, f"sre-a-{index}", priority=2)) for index in range(10))
+        *(
+            manager.acquire_lock(_request(resource_name, f"sre-a-{index}", priority=2))
+            for index in range(10)
+        )
     )
     first_winner = [result for result in round_one if result.granted][0]
     assert first_winner.fencing_token is not None
 
     round_two = await asyncio.gather(
         manager.acquire_lock(_request(resource_name, "secops-agent", priority=1)),
-        *(manager.acquire_lock(_request(resource_name, f"finops-b-{index}", priority=3)) for index in range(10)),
+        *(
+            manager.acquire_lock(_request(resource_name, f"finops-b-{index}", priority=3))
+            for index in range(10)
+        ),
     )
     second_winner = [result for result in round_two if result.granted][0]
     assert second_winner.fencing_token is not None
@@ -189,7 +206,10 @@ async def test_etcd_contention_fencing_tokens_monotonic_across_transitions(
     assert released is True
 
     round_three = await asyncio.gather(
-        *(manager.acquire_lock(_request(resource_name, f"sre-c-{index}", priority=2)) for index in range(10))
+        *(
+            manager.acquire_lock(_request(resource_name, f"sre-c-{index}", priority=2))
+            for index in range(10)
+        )
     )
     third_winner = [result for result in round_three if result.granted][0]
 

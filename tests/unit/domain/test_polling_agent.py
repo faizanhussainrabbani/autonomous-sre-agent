@@ -1,11 +1,11 @@
 """
 Unit tests for MetricPollingAgent.
 """
+
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -49,6 +49,7 @@ def _make_agent(
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_start_creates_task():
     agent = _make_agent()
@@ -84,6 +85,7 @@ async def test_stop_when_not_running():
 
 # ── _poll_once() ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_poll_once_queries_metrics():
     metrics = _make_metrics_adapter()
@@ -101,7 +103,7 @@ async def test_poll_once_ingests_baseline():
     metric = CanonicalMetric(
         name="error_rate",
         value=5.0,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         labels=ServiceLabels(service="payment-processor"),
         provider_source="cloudwatch",
     )
@@ -137,6 +139,7 @@ async def test_poll_once_handles_adapter_error():
 
 # ── Properties ────────────────────────────────────────────────────────────────
 
+
 def test_poll_count_starts_at_zero():
     agent = _make_agent()
     assert agent.poll_count == 0
@@ -149,8 +152,10 @@ def test_is_running_false_initially():
 
 # ── Default watchlist ─────────────────────────────────────────────────────────
 
+
 def test_default_watchlist_has_entries():
     from sre_agent.domain.detection.polling_agent import DEFAULT_WATCHLIST
+
     assert len(DEFAULT_WATCHLIST) >= 1
     assert all("service" in entry for entry in DEFAULT_WATCHLIST)
     assert all("metric" in entry for entry in DEFAULT_WATCHLIST)

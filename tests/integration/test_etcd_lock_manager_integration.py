@@ -20,7 +20,7 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         import etcd3
-except Exception:  # pragma: no cover
+except Exception:  # noqa: BLE001, pragma: no cover
     etcd3 = None
 
 try:

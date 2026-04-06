@@ -37,6 +37,7 @@ Spec: docs/testing/localstack_e2e_live_specs.md §3 IAM-001 and IAM-002
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 
@@ -56,6 +57,9 @@ boto3 = pytest.importorskip("boto3")
 testcontainers_localstack = pytest.importorskip("testcontainers.localstack")
 LocalStackContainer = testcontainers_localstack.LocalStackContainer
 
+import botocore.config  # noqa: E402
+import botocore.exceptions  # noqa: E402
+
 from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator  # noqa: E402
 from sre_agent.adapters.cloud.aws.error_mapper import map_boto_error  # noqa: E402
 from sre_agent.adapters.cloud.resilience import (  # noqa: E402
@@ -64,9 +68,6 @@ from sre_agent.adapters.cloud.resilience import (  # noqa: E402
     CircuitState,
     RetryConfig,
 )
-
-import botocore.config  # noqa: E402
-import botocore.exceptions  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # IAM-scoped LocalStack fixture (module-level, separate from chaos tests)
@@ -154,10 +155,8 @@ def _provision_iam_user(
         Tuple of (AccessKeyId, SecretAccessKey) for the created user.
     """
     # Create user (idempotent in LocalStack)
-    try:
+    with contextlib.suppress(iam_client.exceptions.EntityAlreadyExistsException):
         iam_client.create_user(UserName=username)
-    except iam_client.exceptions.EntityAlreadyExistsException:
-        pass
 
     # Attach inline policy
     iam_client.put_user_policy(
@@ -239,10 +238,8 @@ def test_iam_001_out_of_scope_cluster_call_raises_authentication_error(
     assert "Statement" in policy_doc
 
     # Provision a staging cluster via admin (exists but out of policy scope)
-    try:
+    with contextlib.suppress(Exception):
         ecs_admin_client.create_cluster(clusterName="staging-cluster")
-    except Exception:  # noqa: BLE001
-        pass
 
     # ── When ───────────────────────────────────────────────────────────────
     # Construct the exact ClientError that real AWS returns for IAM denial.
@@ -284,6 +281,7 @@ def test_iam_001_out_of_scope_cluster_call_raises_authentication_error(
         start = time.monotonic()
         with pytest.raises(AuthenticationError) as exc_info:
             import asyncio
+
             asyncio.get_event_loop().run_until_complete(
                 operator.restart_compute_unit(
                     resource_id="task/iam001-staging-task",
@@ -296,7 +294,7 @@ def test_iam_001_out_of_scope_cluster_call_raises_authentication_error(
         assert isinstance(exc_info.value, AuthenticationError)
         # Non-retryable: should abort immediately without backoff
         assert elapsed < 0.5, (
-            f"AuthenticationError should not trigger retries, took {elapsed*1000:.1f}ms"
+            f"AuthenticationError should not trigger retries, took {elapsed * 1000:.1f}ms"
         )
         assert cb._failure_count == 1
         assert cb.state == CircuitState.CLOSED
@@ -370,12 +368,10 @@ def test_iam_002_non_whitelisted_action_raises_authentication_error(
 
     # Provision a cluster the restricted user could theoretically reach (if allowed)
     cluster_name = "iam002-test-cluster"
-    try:
+    with contextlib.suppress(Exception):
         ecs_admin_client.create_cluster(clusterName=cluster_name)
-    except Exception:  # noqa: BLE001
-        pass
 
-    config = RetryConfig(max_retries=0, base_delay_seconds=0.05)
+    RetryConfig(max_retries=0, base_delay_seconds=0.05)
     cb = CircuitBreaker(failure_threshold=5, name="iam-002")
 
     # ── When ───────────────────────────────────────────────────────────────

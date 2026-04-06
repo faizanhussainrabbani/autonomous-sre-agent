@@ -10,7 +10,7 @@ Phase 2: Intelligence Layer — Sprint 1 (Foundation & Dependency Injection)
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 
@@ -62,9 +62,9 @@ class DocumentIngestionPipeline:
 
         embeddings = await self._embedding.embed_batch(texts)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         documents: list[VectorDocument] = []
-        for i, (text, embedding) in enumerate(zip(texts, embeddings)):
+        for i, (text, embedding) in enumerate(zip(texts, embeddings, strict=False)):
             doc = VectorDocument(
                 doc_id=f"{source}::chunk-{i}",
                 content=text,

@@ -55,7 +55,9 @@ class TestSeverityClassifier:
         classifier = SeverityClassifier(service_tiers={})  # Empty map
         alert = _make_alert(service="unknown-service")
         severity, impact = classifier.classify(
-            alert, user_count_affected=5000, max_user_count=10000,
+            alert,
+            user_count_affected=5000,
+            max_user_count=10000,
         )
         # Tier 1 (default) gives highest tier_score, likely Sev 1 or 2
         assert impact.service_tier_score == pytest.approx(1.0)
@@ -65,7 +67,8 @@ class TestSeverityClassifier:
         classifier = SeverityClassifier(service_tiers=tiers)
         alert = _make_alert(service="batch-job", deviation_sigma=1.0)
         severity, impact = classifier.classify(
-            alert, user_count_affected=0,
+            alert,
+            user_count_affected=0,
         )
         assert impact.service_tier_score == pytest.approx(0.0)
         assert severity in (Severity.SEV3, Severity.SEV4)

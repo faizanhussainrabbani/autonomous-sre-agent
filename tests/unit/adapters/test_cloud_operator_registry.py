@@ -10,13 +10,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sre_agent.domain.models.canonical import ComputeMechanism
-from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
-from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
 from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator
+from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
 from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator
 from sre_agent.adapters.cloud.azure.app_service_operator import AppServiceOperator
 from sre_agent.adapters.cloud.azure.functions_operator import FunctionsOperator
+from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
+from sre_agent.domain.models.canonical import ComputeMechanism
 
 
 def _build_registry() -> CloudOperatorRegistry:
@@ -33,6 +33,7 @@ def _build_registry() -> CloudOperatorRegistry:
 # ---------------------------------------------------------------------------
 # Resolution tests
 # ---------------------------------------------------------------------------
+
 
 def test_container_instance_aws_returns_ecs():
     """Given CONTAINER_INSTANCE on AWS, registry returns ECSOperator."""

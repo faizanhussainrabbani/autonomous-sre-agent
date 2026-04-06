@@ -15,8 +15,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
 from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.models.canonical import (
@@ -31,7 +29,6 @@ from sre_agent.ports.diagnostics import DiagnosisRequest
 from sre_agent.ports.llm import Hypothesis, ValidationResult
 from sre_agent.ports.vector_store import SearchResult
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -42,15 +39,19 @@ def _make_pipeline(
     event_store: InMemoryEventStore,
     empty_results: bool = False,
 ) -> RAGDiagnosticPipeline:
-    results = [] if empty_results else [
-        SearchResult(
-            doc_id=f"doc-{i}",
-            content=f"Runbook step {i}: Memory leak remediation via pod restart.",
-            score=0.85 - i * 0.05,
-            source=f"runbook/oom-{i}.md",
-        )
-        for i in range(3)
-    ]
+    results = (
+        []
+        if empty_results
+        else [
+            SearchResult(
+                doc_id=f"doc-{i}",
+                content=f"Runbook step {i}: Memory leak remediation via pod restart.",
+                score=0.85 - i * 0.05,
+                source=f"runbook/oom-{i}.md",
+            )
+            for i in range(3)
+        ]
+    )
 
     mock_vs = MagicMock()
     mock_vs.search = AsyncMock(return_value=results)
@@ -246,6 +247,4 @@ class TestEventSourcingIntegration:
             assert isinstance(event.payload, dict), (
                 f"Event {event.event_type} payload must be a dict"
             )
-            assert len(event.payload) > 0, (
-                f"Event {event.event_type} must have non-empty payload"
-            )
+            assert len(event.payload) > 0, f"Event {event.event_type} must have non-empty payload"

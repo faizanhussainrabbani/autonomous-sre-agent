@@ -9,7 +9,7 @@ Validates: AC-1.3.3
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -90,9 +90,7 @@ class LokiLogAdapter(LogQuery):
             params["end"] = int(end_time.timestamp() * 1_000_000_000)
 
         try:
-            response = await self._client.get(
-                "/loki/api/v1/query_range", params=params
-            )
+            response = await self._client.get("/loki/api/v1/query_range", params=params)
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPError as exc:
@@ -157,17 +155,11 @@ class LokiLogAdapter(LogQuery):
 
             for timestamp_ns, message in stream.get("values", []):
                 try:
-                    ts = datetime.fromtimestamp(
-                        int(timestamp_ns) / 1_000_000_000, tz=timezone.utc
-                    )
+                    ts = datetime.fromtimestamp(int(timestamp_ns) / 1_000_000_000, tz=UTC)
 
                     # Extract trace correlation from structured log fields
-                    trace_id = stream_labels.get(
-                        "traceID", stream_labels.get("trace_id")
-                    )
-                    span_id = stream_labels.get(
-                        "spanID", stream_labels.get("span_id")
-                    )
+                    trace_id = stream_labels.get("traceID", stream_labels.get("trace_id"))
+                    span_id = stream_labels.get("spanID", stream_labels.get("span_id"))
                     severity = stream_labels.get(
                         "level", stream_labels.get("severity", "INFO")
                     ).upper()
@@ -182,7 +174,7 @@ class LokiLogAdapter(LogQuery):
                             span_id=span_id,
                             quality=DataQuality.HIGH,
                             provider_source="otel",
-                            ingestion_timestamp=datetime.now(timezone.utc),
+                            ingestion_timestamp=datetime.now(UTC),
                         )
                     )
                 except (ValueError, TypeError) as exc:
@@ -200,9 +192,20 @@ class LokiLogAdapter(LogQuery):
         node = stream_labels.get("node", stream_labels.get("node_name", ""))
 
         standard_keys = {
-            "service", "service_name", "app", "namespace",
-            "pod", "pod_name", "node", "node_name",
-            "level", "severity", "traceID", "trace_id", "spanID", "span_id",
+            "service",
+            "service_name",
+            "app",
+            "namespace",
+            "pod",
+            "pod_name",
+            "node",
+            "node_name",
+            "level",
+            "severity",
+            "traceID",
+            "trace_id",
+            "spanID",
+            "span_id",
         }
         extra = {k: v for k, v in stream_labels.items() if k not in standard_keys}
 

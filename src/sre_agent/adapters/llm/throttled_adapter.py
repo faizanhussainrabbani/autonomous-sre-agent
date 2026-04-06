@@ -17,7 +17,8 @@ import asyncio
 import contextlib
 import itertools
 import time
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar, cast
 
 import structlog
 
@@ -35,6 +36,15 @@ logger = structlog.get_logger(__name__)
 
 # Engineering Standards §5.3: max concurrent LLM calls
 _DEFAULT_MAX_CONCURRENT = 10
+_T = TypeVar("_T")
+_QueuedCall = tuple[
+    int,
+    int,
+    float,
+    asyncio.Future[Any],
+    Callable[..., Awaitable[Any]],
+    tuple[Any, ...],
+]
 
 
 class ThrottledLLMAdapter(LLMReasoningPort):
@@ -55,7 +65,7 @@ class ThrottledLLMAdapter(LLMReasoningPort):
         await throttled.close()  # on shutdown
     """
 
-    _seq_counter: itertools.count = itertools.count()
+    _seq_counter: itertools.count[int] = itertools.count()
 
     def __init__(
         self,
@@ -73,9 +83,7 @@ class ThrottledLLMAdapter(LLMReasoningPort):
 
         # Async primitives — lazily created inside a running event loop.
         self._semaphore: asyncio.Semaphore | None = None
-        self._queue: asyncio.PriorityQueue[  # type: ignore[type-arg]
-            tuple[int, int, float, asyncio.Future[Any], Any, tuple[Any, ...]]
-        ] | None = None
+        self._queue: asyncio.PriorityQueue[_QueuedCall] | None = None
         self._drain_task: asyncio.Task[None] | None = None
 
     # -------------------------------------------------------------------------
@@ -86,7 +94,7 @@ class ThrottledLLMAdapter(LLMReasoningPort):
         """Lazily initialise asyncio objects (must run inside an event loop)."""
         if self._semaphore is None:
             self._semaphore = asyncio.Semaphore(self._max_concurrent)
-            self._queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+            self._queue = asyncio.PriorityQueue()
             self._drain_task = asyncio.ensure_future(self._drain_loop())
 
     async def close(self) -> None:
@@ -135,7 +143,7 @@ class ThrottledLLMAdapter(LLMReasoningPort):
     async def _execute(
         self,
         fut: asyncio.Future[Any],
-        coro_func: Any,
+        coro_func: Callable[..., Awaitable[Any]],
         args: tuple[Any, ...],
     ) -> None:
         """Run the LLM call with the semaphore already acquired, then release it."""
@@ -154,9 +162,9 @@ class ThrottledLLMAdapter(LLMReasoningPort):
     async def _enqueue(
         self,
         priority: int,
-        coro_func: Any,
+        coro_func: Callable[..., Awaitable[_T]],
         *args: Any,
-    ) -> Any:
+    ) -> _T:
         """Submit a call to the priority queue and await its completion.
 
         Args:
@@ -169,11 +177,20 @@ class ThrottledLLMAdapter(LLMReasoningPort):
         """
         self._ensure_initialized()
         loop = asyncio.get_event_loop()
-        fut: asyncio.Future[Any] = loop.create_future()
+        fut: asyncio.Future[_T] = loop.create_future()
         seq = next(self._seq_counter)
         enqueued_at = time.monotonic()
         assert self._queue is not None
-        await self._queue.put((priority, seq, enqueued_at, fut, coro_func, args))
+        await self._queue.put(
+            (
+                priority,
+                seq,
+                enqueued_at,
+                cast(asyncio.Future[Any], fut),
+                cast(Callable[..., Awaitable[Any]], coro_func),
+                args,
+            )
+        )
         LLM_QUEUE_DEPTH.set(self._queue.qsize())
 
         logger.debug(

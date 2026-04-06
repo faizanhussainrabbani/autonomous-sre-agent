@@ -69,10 +69,7 @@ class ConfidenceScorer:
             val_component = (1.0 - w.VALIDATION_DISAGREEMENT_PENALTY) * w.validation_weight
 
         # Component 3: Average retrieval relevance
-        if retrieval_scores:
-            avg_retrieval = sum(retrieval_scores) / len(retrieval_scores)
-        else:
-            avg_retrieval = 0.0
+        avg_retrieval = sum(retrieval_scores) / len(retrieval_scores) if retrieval_scores else 0.0
         retrieval_component = avg_retrieval * w.retrieval_weight
 
         # Component 4: Evidence volume (normalized)

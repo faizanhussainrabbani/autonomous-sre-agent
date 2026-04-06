@@ -1,13 +1,13 @@
 """
 E2E test for enriched diagnosis flow.
 
-Verifies the complete path: enriched alert → diagnose router → 
+Verifies the complete path: enriched alert → diagnose router →
 RAG pipeline with correlated signals populated.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -18,18 +18,17 @@ from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
     CanonicalMetric,
     CorrelatedSignals,
-    DataQuality,
     ServiceLabels,
     Severity,
 )
 from sre_agent.ports.diagnostics import DiagnosisRequest
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _make_alert_with_signals() -> AnomalyAlert:
     """Create a realistic enriched alert with correlated signals."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     metrics = [
         CanonicalMetric(
@@ -84,6 +83,7 @@ def _make_alert_with_signals() -> AnomalyAlert:
 
 # ── DiagnosisRequest wiring ──────────────────────────────────────────────────
 
+
 def test_diagnosis_request_accepts_correlated_signals():
     """DiagnosisRequest should accept correlated_signals parameter."""
     alert = _make_alert_with_signals()
@@ -104,6 +104,7 @@ def test_diagnosis_request_correlated_signals_default_none():
 
 
 # ── Enriched alert structure ─────────────────────────────────────────────────
+
 
 def test_enriched_alert_has_correlated_signals():
     alert = _make_alert_with_signals()
@@ -129,6 +130,7 @@ def test_enriched_alert_provider_source():
 
 # ── End-to-end flow with mocked pipeline ─────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_enriched_diagnosis_flow():
     """Verify enriched alert passes through diagnosis with correlated signals."""
@@ -151,14 +153,14 @@ async def test_enriched_diagnosis_flow():
 async def test_enriched_events_from_eventbridge():
     """Events received via EventBridge should be stored and retrievable."""
     from sre_agent.api.rest.events_router import (
+        AWSEventPayload,
         _parse_event,
         _recent_events,
-        AWSEventPayload,
         get_correlated_events,
     )
 
     _recent_events.clear()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Simulate EventBridge event for a Lambda deployment
     payload = AWSEventPayload(
@@ -186,9 +188,11 @@ async def test_enriched_events_from_eventbridge():
 
 # ── Config integration ────────────────────────────────────────────────────────
 
+
 def test_config_has_cloudwatch_settings():
     """AgentConfig should have CloudWatch-related settings."""
     from sre_agent.config.settings import AgentConfig, CloudWatchConfig
+
     config = AgentConfig()
     assert hasattr(config, "cloudwatch")
     assert isinstance(config.cloudwatch, CloudWatchConfig)
@@ -197,6 +201,7 @@ def test_config_has_cloudwatch_settings():
 def test_config_feature_flags():
     """Feature flags for new adapters should exist."""
     from sre_agent.config.settings import FeatureFlags
+
     flags = FeatureFlags()
     assert hasattr(flags, "cloudwatch_adapter")
     assert hasattr(flags, "bridge_enrichment")

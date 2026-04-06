@@ -12,10 +12,9 @@ Validates: AC-2.3.1, AC-2.3.2
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
-from typing import Any, Awaitable, Callable, TypeVar
-
-T = TypeVar("T")
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta
+from typing import Any, TypeVar
 
 import structlog
 
@@ -26,7 +25,6 @@ from sre_agent.domain.models.canonical import (
     CanonicalTrace,
     ComputeMechanism,
     CorrelatedSignals,
-    DataQuality,
 )
 from sre_agent.ports.telemetry import (
     LogQuery,
@@ -34,6 +32,8 @@ from sre_agent.ports.telemetry import (
     TraceQuery,
     eBPFQuery,
 )
+
+T = TypeVar("T")
 
 logger = structlog.get_logger(__name__)
 
@@ -99,10 +99,7 @@ class SignalCorrelator:
         ]
 
         # Phase 1.5: Check eBPF support for the target compute mechanism
-        ebpf_supported = (
-            self._ebpf is not None
-            and self._ebpf.is_supported(compute_mechanism)
-        )
+        ebpf_supported = self._ebpf is not None and self._ebpf.is_supported(compute_mechanism)
         if not ebpf_supported and self._ebpf is not None:
             is_degraded = True
             degradation_reason = f"ebpf_unsupported_on_{compute_mechanism.value}"
@@ -162,12 +159,15 @@ class SignalCorrelator:
         primary_service = service or (trace.root_span.service if trace.root_span else "unknown")
 
         # Get logs correlated with this trace
-        logs = await self._safe_query(
-            self._logs.query_by_trace_id,
-            trace_id,
-            start_time=window_start,
-            end_time=window_end,
-        ) or []
+        logs = (
+            await self._safe_query(
+                self._logs.query_by_trace_id,
+                trace_id,
+                start_time=window_start,
+                end_time=window_end,
+            )
+            or []
+        )
 
         return CorrelatedSignals(
             service=primary_service,
@@ -204,13 +204,16 @@ class SignalCorrelator:
         end_time: datetime,
     ) -> list[CanonicalTrace]:
         """Fetch traces for a service."""
-        return await self._safe_query(
-            self._traces.query_traces,
-            service,
-            start_time,
-            end_time,
-            limit=50,
-        ) or []
+        return (
+            await self._safe_query(
+                self._traces.query_traces,
+                service,
+                start_time,
+                end_time,
+                limit=50,
+            )
+            or []
+        )
 
     async def _fetch_logs(
         self,
@@ -219,12 +222,15 @@ class SignalCorrelator:
         end_time: datetime,
     ) -> list[CanonicalLogEntry]:
         """Fetch logs for a service."""
-        return await self._safe_query(
-            self._logs.query_logs,
-            service,
-            start_time,
-            end_time,
-        ) or []
+        return (
+            await self._safe_query(
+                self._logs.query_logs,
+                service,
+                start_time,
+                end_time,
+            )
+            or []
+        )
 
     async def _safe_query(
         self,
@@ -235,7 +241,7 @@ class SignalCorrelator:
         """Execute a query with error isolation — never crashes the correlator."""
         try:
             return await query_fn(*args, **kwargs)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "signal_correlation_query_failed",
                 function=query_fn.__name__,
@@ -259,7 +265,10 @@ class SignalCorrelator:
         # Syscall activity
         syscalls = await self._safe_query(
             self._ebpf.get_syscall_activity,
-            service, namespace, start_time, end_time,
+            service,
+            namespace,
+            start_time,
+            end_time,
         )
         if syscalls:
             events.extend(syscalls)
@@ -267,7 +276,10 @@ class SignalCorrelator:
         # Network flows
         flows = await self._safe_query(
             self._ebpf.get_network_flows,
-            service, namespace, start_time, end_time,
+            service,
+            namespace,
+            start_time,
+            end_time,
         )
         if flows:
             events.extend(flows)

@@ -1,44 +1,42 @@
 """
 E2E Integration Test — Phase 1.5 Full Pipeline Validation.
 
-Tests the complete pipeline using REAL (LocalStack Pro) external mocks: 
-Ingest → Correlate (degraded) → Detect (cold-start suppressed) → 
+Tests the complete pipeline using REAL (LocalStack Pro) external mocks:
+Ingest → Correlate (degraded) → Detect (cold-start suppressed) →
 Registry Resolve → Operator Execute → LocalStack Assertion.
 """
 
 from __future__ import annotations
 
+import asyncio
 import io
 import zipfile
-import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
+from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator
+from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
+from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator
+from sre_agent.adapters.cloud.azure.app_service_operator import AppServiceOperator
+from sre_agent.adapters.cloud.azure.functions_operator import FunctionsOperator
+from sre_agent.adapters.cloud.resilience import RetryConfig
+from sre_agent.domain.detection.anomaly_detector import AnomalyDetector
+from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
 from sre_agent.domain.models.canonical import (
-    AnomalyType,
     CanonicalMetric,
     ComputeMechanism,
     ServiceLabels,
 )
 from sre_agent.domain.models.detection_config import DetectionConfig
-from sre_agent.domain.detection.anomaly_detector import AnomalyDetector
-from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
-from sre_agent.ports.telemetry import BaselineQuery, eBPFQuery
-
-from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
-from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator
-from sre_agent.adapters.cloud.azure.app_service_operator import AppServiceOperator
-from sre_agent.adapters.cloud.azure.functions_operator import FunctionsOperator
-from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator
-from sre_agent.adapters.cloud.resilience import RetryConfig
-
+from sre_agent.ports.telemetry import BaselineQuery
 
 # ---------------------------------------------------------------------------
 # Test Doubles (Domain level)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class MockBaseline:
@@ -66,16 +64,18 @@ class MockBaselineService(BaselineQuery):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _create_dummy_lambda_zip() -> bytes:
     zip_output = io.BytesIO()
-    with zipfile.ZipFile(zip_output, 'w') as zip_file:
-        zip_file.writestr('lambda_function.py', 'def handler(event, context): return "OK"\n')
+    with zipfile.ZipFile(zip_output, "w") as zip_file:
+        zip_file.writestr("lambda_function.py", 'def handler(event, context): return "OK"\n')
     return zip_output.getvalue()
 
 
 # ---------------------------------------------------------------------------
 # E2E Pipeline: Serverless Lambda (cold start → detect → remediate)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_e2e_serverless_pipeline(lambda_client):
@@ -93,7 +93,7 @@ async def test_e2e_serverless_pipeline(lambda_client):
         Code={"ZipFile": _create_dummy_lambda_zip()},
     )
     func_arn = resp["FunctionArn"]
-    
+
     # Assert base concurrency is absent
     conc_base = lambda_client.get_function_concurrency(FunctionName=func_name)
     assert "ReservedConcurrentExecutions" not in conc_base
@@ -110,13 +110,13 @@ async def test_e2e_serverless_pipeline(lambda_client):
     registry = CloudOperatorRegistry()
     registry.register(LambdaOperator(lambda_client=lambda_client, retry_config=fast_retry))
 
-    init_time = datetime.now(timezone.utc)
+    datetime.now(UTC)
 
     # 2. Cold-start suppression check
     metric_cold = CanonicalMetric(
         name="http_request_duration_seconds",
         value=8.5,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         labels=ServiceLabels(
             service=func_name,
             compute_mechanism=ComputeMechanism.SERVERLESS,
@@ -124,22 +124,24 @@ async def test_e2e_serverless_pipeline(lambda_client):
         ),
     )
     result_cold = await detector.detect(
-        func_name, [metric_cold],
+        func_name,
+        [metric_cold],
         compute_mechanism=ComputeMechanism.SERVERLESS,
     )
     assert len(result_cold.alerts) == 0, "Cold-start should suppress"
 
     # 3. Post-window latency triggers alert
     await asyncio.sleep(0.6)  # physically wait out the 0.5s cold-start window
-    
+
     metric_post1 = CanonicalMetric(
         name="http_request_duration_seconds",
         value=8.5,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         labels=metric_cold.labels,
     )
     result1 = await detector.detect(
-        func_name, [metric_post1],
+        func_name,
+        [metric_post1],
         compute_mechanism=ComputeMechanism.SERVERLESS,
     )
     print(f"DEBUG: result1 alerts = {result1.alerts}")
@@ -147,11 +149,12 @@ async def test_e2e_serverless_pipeline(lambda_client):
     metric_post2 = CanonicalMetric(
         name="http_request_duration_seconds",
         value=8.5,
-        timestamp=datetime.now(timezone.utc) + timedelta(seconds=1),
+        timestamp=datetime.now(UTC) + timedelta(seconds=1),
         labels=metric_cold.labels,
     )
     result_fire = await detector.detect(
-        func_name, [metric_post2],
+        func_name,
+        [metric_post2],
         compute_mechanism=ComputeMechanism.SERVERLESS,
     )
     print(f"DEBUG: result_fire alerts = {result_fire.alerts}")
@@ -168,7 +171,7 @@ async def test_e2e_serverless_pipeline(lambda_client):
     )
     assert result["action"] == "put_function_concurrency"
 
-    # 6. Verify State in LocalStack 
+    # 6. Verify State in LocalStack
     conc_resp = lambda_client.get_function_concurrency(FunctionName=func_name)
     assert conc_resp["ReservedConcurrentExecutions"] == 10
 
@@ -176,6 +179,7 @@ async def test_e2e_serverless_pipeline(lambda_client):
 # ---------------------------------------------------------------------------
 # E2E Pipeline: ECS Container Instance (OOM exempt → error surge)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_e2e_container_instance_pipeline(ecs_client):
@@ -189,18 +193,16 @@ async def test_e2e_container_instance_pipeline(ecs_client):
         family="order-processor-task",
         containerDefinitions=[{"name": "worker", "image": "nginx", "memory": 128}],
         cpu="256",
-        memory="512"
+        memory="512",
     )
-    
-    # We must create a subnet/vpc in localstack or just use EC2 launch type instead of FARGATE 
-    # to avoid needing subnets and security groups for run_task. So let's stick to simple EC2 compat.
+
+    # We must create a subnet/vpc in localstack or just use EC2 launch type instead of FARGATE
+    # to avoid needing subnets and security groups for run_task.
+    # So let's stick to simple EC2 compatibility.
     # For simple localstack EC2 tasks, we can just run it
-    run_resp = ecs_client.run_task(
-        cluster=cluster_name,
-        taskDefinition="order-processor-task"
-    )
+    run_resp = ecs_client.run_task(cluster=cluster_name, taskDefinition="order-processor-task")
     task_arn = run_resp["tasks"][0]["taskArn"]
-    
+
     # 1. Setup Agent Engine
     baseline_svc = MockBaselineService(sigma=5.0, mean=10.0)
     config = DetectionConfig()
@@ -214,7 +216,7 @@ async def test_e2e_container_instance_pipeline(ecs_client):
     metric = CanonicalMetric(
         name="invocation_error_count",
         value=35.0,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         labels=ServiceLabels(
             service="order-processor",
             compute_mechanism=ComputeMechanism.CONTAINER_INSTANCE,
@@ -222,7 +224,8 @@ async def test_e2e_container_instance_pipeline(ecs_client):
         ),
     )
     result = await detector.detect(
-        "order-processor", [metric],
+        "order-processor",
+        [metric],
         compute_mechanism=ComputeMechanism.CONTAINER_INSTANCE,
     )
     assert len(result.alerts) >= 1
@@ -243,8 +246,9 @@ async def test_e2e_container_instance_pipeline(ecs_client):
 
 
 # ---------------------------------------------------------------------------
-# E2E: Registry Integration 
+# E2E: Registry Integration
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_e2e_multi_provider_registry_resolution():
@@ -258,10 +262,16 @@ async def test_e2e_multi_provider_registry_resolution():
     registry.register(AppServiceOperator(MagicMock(), retry_config=fast_retry))
     registry.register(FunctionsOperator(MagicMock(), retry_config=fast_retry))
 
-    assert isinstance(registry.get_operator("aws", ComputeMechanism.CONTAINER_INSTANCE), ECSOperator)
-    assert isinstance(registry.get_operator("aws", ComputeMechanism.VIRTUAL_MACHINE), EC2ASGOperator)
+    assert isinstance(
+        registry.get_operator("aws", ComputeMechanism.CONTAINER_INSTANCE), ECSOperator
+    )
+    assert isinstance(
+        registry.get_operator("aws", ComputeMechanism.VIRTUAL_MACHINE), EC2ASGOperator
+    )
     assert isinstance(registry.get_operator("aws", ComputeMechanism.SERVERLESS), LambdaOperator)
-    assert isinstance(registry.get_operator("azure", ComputeMechanism.SERVERLESS), FunctionsOperator)
+    assert isinstance(
+        registry.get_operator("azure", ComputeMechanism.SERVERLESS), FunctionsOperator
+    )
 
     # Unknown combos return None
     assert registry.get_operator("gcp", ComputeMechanism.KUBERNETES) is None

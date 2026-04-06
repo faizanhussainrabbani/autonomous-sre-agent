@@ -1,7 +1,7 @@
 ---
 title: Changelog
 description: Historical record of notable project changes with references to plans, criteria, and verification artifacts.
-ms.date: 2026-04-05
+ms.date: 2026-04-06
 ms.topic: reference
 author: SRE Agent Engineering Team
 ---
@@ -13,6 +13,92 @@ All notable changes to the Autonomous SRE Agent project are documented here.
 Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by Phase.
 
 ---
+
+## [2026-04-06] Lint, Type Safety, and Test Gate Stabilization
+
+Closed the remaining quality-gate debt by driving Ruff and mypy to clean state,
+repairing compatibility regressions discovered during unit execution, and
+revalidating integration behavior end-to-end.
+
+### What changed and why
+
+* Added strict typing and optional-client guards across adapters, ports, API,
+  and domain services to eliminate mypy errors and reduce runtime ambiguity.
+* Restored backward compatibility for CloudWatch logs adapter symbol exports
+  used by existing tests while preserving the shared resolver architecture.
+* Hardened embedding and RAG pipeline conversion paths to support both
+  production objects and lightweight test doubles without behavior drift.
+* Re-ran and stabilized all core quality gates after fixes to ensure no
+  regressions from type-hardening and lint remediations.
+
+### Key files affected
+
+* `src/sre_agent/ports/llm.py`
+* `src/sre_agent/ports/reranker.py`
+* `src/sre_agent/adapters/llm/openai/adapter.py`
+* `src/sre_agent/adapters/llm/anthropic/adapter.py`
+* `src/sre_agent/adapters/llm/throttled_adapter.py`
+* `src/sre_agent/adapters/embedding/sentence_transformers_adapter.py`
+* `src/sre_agent/adapters/vectordb/chroma/adapter.py`
+* `src/sre_agent/domain/diagnostics/rag_pipeline.py`
+* `src/sre_agent/adapters/telemetry/cloudwatch/logs_adapter.py`
+* `src/sre_agent/adapters/cloud/kubernetes/operator.py`
+* `src/sre_agent/adapters/cloud/resilience.py`
+* `src/sre_agent/observability/metrics.py`
+* `src/sre_agent/config/logging.py`
+* `tests/unit/adapters/test_sentence_transformers_adapter.py`
+* `tests/unit/domain/test_token_optimization.py`
+
+### Validation outcomes
+
+* `bash scripts/dev/run.sh lint`: pass (Ruff clean, mypy clean across 127 files)
+* `bash scripts/dev/run.sh test:unit`: pass (733 passed)
+* `bash scripts/dev/run.sh test:integ`: pass (57 passed)
+
+## [2026-04-06] Phase 2.9 Coverage Closure and OpenSpec Reconciliation
+
+Completed the follow-on coverage uplift and documentation reconciliation for
+Phase 2.9 closure. This update closes the global coverage gate and aligns
+OpenSpec status artifacts with current validation evidence.
+
+### What changed and why
+
+* **Global coverage gate closure:** Completed targeted branch and contract test
+  additions across adapters, domain services, API routers, config modules, and
+  port abstractions. Repository coverage now passes fail-under at `90.02%`
+  (`857 passed`).
+
+* **Hexagonal boundary guard closure:** Removed direct domain import dependency
+  on adapter-scoped metrics by introducing a shared observability metrics
+  module and updating import call sites.
+
+* **OpenSpec artifact reconciliation:** Updated the Phase 2.9 task checklist and
+  completion-state review to reflect the current passing coverage gate,
+  completed boundary invariant work, and remaining lint debt.
+
+### Key files affected
+
+* `src/sre_agent/observability/metrics.py` [NEW]
+* `src/sre_agent/observability/__init__.py` [NEW]
+* `src/sre_agent/adapters/telemetry/metrics.py`
+* `src/sre_agent/domain/diagnostics/rag_pipeline.py`
+* `src/sre_agent/config/logging.py`
+* `tests/unit/adapters/test_intelligence_bootstrap.py` [NEW]
+* `tests/unit/adapters/test_sentence_transformers_adapter.py` [NEW]
+* `tests/unit/ports/test_port_abstract_methods.py` [NEW]
+* `tests/unit/domain/test_hexagonal_boundaries.py` [NEW]
+* `tests/unit/domain/test_remediation_logic.py` [NEW]
+* `tests/unit/domain/test_signal_correlator.py` [NEW]
+* `tests/unit/config/test_plugin.py` [NEW]
+* `tests/unit/adapters/test_openai_llm_adapter.py`
+* `tests/unit/adapters/test_anthropic_llm_adapter.py`
+* `tests/unit/adapters/test_bootstrap.py`
+* `tests/unit/api/test_diagnose_router.py`
+* `tests/unit/adapters/test_metrics.py`
+* `tests/unit/domain/test_timeline_constructor.py`
+* `openspec/changes/phase-2-9-log-fetching-gap-closure/tasks.md`
+* `openspec/changes/phase-2-9-log-fetching-gap-closure/completion-state-report.md`
+* `CHANGELOG.md`
 
 ## [2026-04-05] Secret Detection Hardening and Placeholder Normalization
 

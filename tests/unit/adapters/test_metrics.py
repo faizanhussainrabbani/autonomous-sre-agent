@@ -11,37 +11,24 @@ Acceptance criteria verified:
 
 from __future__ import annotations
 
-import pytest
 from prometheus_client import REGISTRY
-
 
 # ---------------------------------------------------------------------------
 # AC-1.1 — Import cleanly, no side effects
 # ---------------------------------------------------------------------------
 
+
 def test_metrics_module_imports_without_side_effects():
     """Importing metrics must not start an HTTP server or raise."""
     import sre_agent.adapters.telemetry.metrics as m  # noqa: F401
+
     # No exception = import is clean.  Verify contextvar default is empty str.
     assert m._current_alert_id.get("") == ""
 
 
 def test_all_metric_names_registered():
     """All 12 defined metrics must appear in the Prometheus default registry."""
-    from sre_agent.adapters.telemetry.metrics import (
-        CIRCUIT_BREAKER_STATE,
-        DIAGNOSIS_DURATION,
-        DIAGNOSIS_ERRORS,
-        EMBEDDING_COLD_START,
-        EMBEDDING_DURATION,
-        EVIDENCE_RELEVANCE,
-        LLM_CALL_DURATION,
-        LLM_PARSE_FAILURES,
-        LLM_QUEUE_DEPTH,
-        LLM_QUEUE_WAIT,
-        LLM_TOKENS_USED,
-        SEVERITY_ASSIGNED,
-    )
+
     names = REGISTRY._names_to_collectors  # type: ignore[attr-defined]
     expected = [
         "sre_agent_diagnosis_duration_seconds",
@@ -65,9 +52,10 @@ def test_all_metric_names_registered():
 # AC-5.x — Circuit breaker gauge values
 # ---------------------------------------------------------------------------
 
+
 def test_circuit_breaker_gauge_closed():
     """CIRCUIT_BREAKER_STATE gauge == 0 after record_success (CLOSED)."""
-    from sre_agent.adapters.cloud.resilience import CircuitBreaker, CircuitState
+    from sre_agent.adapters.cloud.resilience import CircuitBreaker
     from sre_agent.adapters.telemetry.metrics import CIRCUIT_BREAKER_STATE
 
     cb = CircuitBreaker(name="test-closed", failure_threshold=2)
@@ -95,10 +83,13 @@ def test_circuit_breaker_gauge_open():
 def test_circuit_breaker_gauge_half_open():
     """CIRCUIT_BREAKER_STATE gauge == 1 when OPEN transitions to HALF_OPEN."""
     import time as _time
+
     from sre_agent.adapters.cloud.resilience import CircuitBreaker, CircuitState
     from sre_agent.adapters.telemetry.metrics import CIRCUIT_BREAKER_STATE
 
-    cb = CircuitBreaker(name="test-half-open-3", failure_threshold=2, recovery_timeout_seconds=0.001)
+    cb = CircuitBreaker(
+        name="test-half-open-3", failure_threshold=2, recovery_timeout_seconds=0.001
+    )
     cb.record_failure()
     cb.record_failure()
     assert cb._state == CircuitState.OPEN
@@ -110,3 +101,32 @@ def test_circuit_breaker_gauge_half_open():
 
     gauge = CIRCUIT_BREAKER_STATE.labels(provider="cloud", resource_type="test-half-open-3")
     assert gauge._value.get() == 1.0  # type: ignore[attr-defined]
+
+
+def test_observability_get_or_create_creates_metric_for_new_name():
+    """_get_or_create should create and register unknown metric names."""
+    from uuid import uuid4
+
+    from prometheus_client import Counter
+
+    from sre_agent.observability.metrics import _get_or_create
+
+    name = f"sre_agent_test_counter_{uuid4().hex}"
+    metric = _get_or_create(Counter, name, "test counter")
+
+    assert metric is REGISTRY._names_to_collectors[name]  # type: ignore[attr-defined]
+
+
+def test_observability_get_or_create_reuses_existing_metric():
+    """_get_or_create should return existing collector when name is already registered."""
+    from uuid import uuid4
+
+    from prometheus_client import Counter
+
+    from sre_agent.observability.metrics import _get_or_create
+
+    name = f"sre_agent_test_counter_reuse_{uuid4().hex}"
+    first = _get_or_create(Counter, name, "first")
+    second = _get_or_create(Counter, name, "second")
+
+    assert first is second

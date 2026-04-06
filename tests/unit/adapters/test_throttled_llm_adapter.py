@@ -53,7 +53,9 @@ def _make_inner(
     inner.validate_hypothesis = AsyncMock(return_value=validation or _make_validation())
     inner.health_check = AsyncMock(return_value=healthy)
     inner.count_tokens = MagicMock(side_effect=lambda t: len(t) // 4)
-    inner.get_token_usage = MagicMock(return_value=TokenUsage(prompt_tokens=100, completion_tokens=50))
+    inner.get_token_usage = MagicMock(
+        return_value=TokenUsage(prompt_tokens=100, completion_tokens=50)
+    )
     return inner
 
 
@@ -153,9 +155,7 @@ class TestThrottledLLMAdapterConcurrency:
         adapter = ThrottledLLMAdapter(inner, max_concurrent=10)
 
         requests = [_make_request() for _ in range(5)]
-        results = await asyncio.gather(
-            *[adapter.generate_hypothesis(r) for r in requests]
-        )
+        results = await asyncio.gather(*[adapter.generate_hypothesis(r) for r in requests])
 
         assert len(results) == 5
         assert all(r.root_cause == "memory leak" for r in results)
@@ -372,8 +372,7 @@ class TestThrottledLLMAdapterQueueMetrics:
 
         # Submit 3 tasks with cap=1 to create contention
         tasks = [
-            asyncio.create_task(adapter.generate_hypothesis(_make_request()))
-            for _ in range(3)
+            asyncio.create_task(adapter.generate_hypothesis(_make_request())) for _ in range(3)
         ]
         await asyncio.sleep(0.05)  # Let tasks enqueue
 

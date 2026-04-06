@@ -14,8 +14,8 @@ from sre_agent.domain.safety.blast_radius import BlastRadiusCalculator
 from sre_agent.domain.safety.cooldown import CooldownEnforcer
 from sre_agent.domain.safety.guardrails import GuardrailOrchestrator
 from sre_agent.domain.safety.kill_switch import KillSwitch
-from sre_agent.ports.lock_manager import DistributedLockManagerPort, LockResult
 from sre_agent.ports.cloud_operator import CloudOperatorPort
+from sre_agent.ports.lock_manager import DistributedLockManagerPort, LockResult
 
 
 class FakeOperator(CloudOperatorPort):
@@ -60,7 +60,9 @@ class FakeLockManager(DistributedLockManagerPort):
         )
         return self.last_result
 
-    async def release_lock(self, lock_key: str, agent_id: str, fencing_token: int | None = None) -> bool:
+    async def release_lock(
+        self, lock_key: str, agent_id: str, fencing_token: int | None = None
+    ) -> bool:
         self.released += 1
         return True
 
@@ -68,7 +70,9 @@ class FakeLockManager(DistributedLockManagerPort):
         return True
 
 
-def _make_plan(provider: str = "kubernetes", mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES) -> RemediationPlan:
+def _make_plan(
+    provider: str = "kubernetes", mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
+) -> RemediationPlan:
     action = RemediationAction(
         action_type=RemediationStrategy.RESTART,
         target_resource="deployment/checkout",
@@ -83,7 +87,9 @@ def _make_plan(provider: str = "kubernetes", mechanism: ComputeMechanism = Compu
         compute_mechanism=mechanism,
         provider=provider,
         approval_state=ApprovalState.APPROVED,
-        blast_radius_estimate=BlastRadiusEstimate(affected_pods_count=2, affected_pods_percentage=10.0),
+        blast_radius_estimate=BlastRadiusEstimate(
+            affected_pods_count=2, affected_pods_percentage=10.0
+        ),
         actions=[action],
     )
 

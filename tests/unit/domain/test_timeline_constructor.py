@@ -6,14 +6,17 @@ Tests chronological ordering, max events, and formatted output.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sre_agent.domain.diagnostics.timeline import TimelineConstructor
 from sre_agent.domain.models.canonical import (
+    CanonicalEvent,
     CanonicalLogEntry,
     CanonicalMetric,
+    CanonicalTrace,
     CorrelatedSignals,
     ServiceLabels,
+    TraceSpan,
 )
 
 
@@ -22,7 +25,7 @@ def _make_signals(
     n_logs: int = 0,
 ) -> CorrelatedSignals:
     """Helper to create CorrelatedSignals with N metrics and N logs."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     labels = ServiceLabels(service="test-svc")
     metrics = [
         CanonicalMetric(
@@ -64,7 +67,7 @@ class TestTimelineConstructor:
         timeline = TimelineConstructor()
         signals = _make_signals(n_metrics=3, n_logs=2)
         result = timeline.build(signals)
-        lines = [l for l in result.split("\n") if "|" in l and "---" not in l]
+        lines = [line for line in result.split("\n") if "|" in line and "---" not in line]
         # All lines should be in chronological order
         assert len(lines) == 5
 
@@ -72,7 +75,7 @@ class TestTimelineConstructor:
         timeline = TimelineConstructor(max_events=3)
         signals = _make_signals(n_metrics=5)
         result = timeline.build(signals)
-        lines = [l for l in result.split("\n") if "|" in l and "---" not in l]
+        lines = [line for line in result.split("\n") if "|" in line and "---" not in line]
         assert len(lines) == 3
 
     def test_metric_format(self):
@@ -110,7 +113,7 @@ class TestTimelineConstructor:
         """
         from sre_agent.domain.models.canonical import ComputeMechanism, DataQuality
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         enrichment_logs = [
             CanonicalLogEntry(
                 timestamp=now,
@@ -140,3 +143,65 @@ class TestTimelineConstructor:
         assert "[LOG:ERROR]" in result
         assert "payment-handler" in result
 
+    def test_filter_fallback_collects_all_signal_types_when_empty(self):
+        """Filtering fallback keeps all signal types.
+
+        This applies when relevance filtering would otherwise remove all entries.
+        """
+        now = datetime.now(UTC)
+        labels = ServiceLabels(service="test-svc")
+
+        signals = CorrelatedSignals(
+            service="test-svc",
+            time_window_start=now,
+            time_window_end=now + timedelta(minutes=10),
+            metrics=[
+                CanonicalMetric(
+                    name="http_requests_total",
+                    value=120.0,
+                    timestamp=now,
+                    labels=labels,
+                ),
+            ],
+            logs=[
+                CanonicalLogEntry(
+                    timestamp=now + timedelta(seconds=1),
+                    message="routine health check passed",
+                    severity="INFO",
+                    labels=labels,
+                ),
+            ],
+            events=[
+                CanonicalEvent(
+                    event_type="deployment",
+                    source="argocd",
+                    timestamp=now + timedelta(seconds=2),
+                    metadata={"status": "completed"},
+                    labels=labels,
+                ),
+            ],
+            traces=[
+                CanonicalTrace(
+                    trace_id="trace-1",
+                    spans=[
+                        TraceSpan(
+                            span_id="span-1",
+                            parent_span_id=None,
+                            service="test-svc",
+                            operation="checkout",
+                            duration_ms=42.0,
+                            start_time=now + timedelta(seconds=3),
+                            end_time=now + timedelta(seconds=3, milliseconds=42),
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        result = TimelineConstructor().build(signals, anomaly_type="OOM_KILL")
+
+        assert "[METRIC]" in result
+        assert "[LOG:INFO]" in result
+        assert "[EVENT:deployment]" in result
+        assert "[TRACE]" in result
+        assert "4 events" in result

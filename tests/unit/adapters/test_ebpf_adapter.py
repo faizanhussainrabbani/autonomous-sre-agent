@@ -7,22 +7,21 @@ Validates: AC-2.2.1 (syscall), AC-2.2.3 (network), AC-2.2.4 (uninstrumented)
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 
 from sre_agent.adapters.telemetry.ebpf.pixie_adapter import (
-    MAX_CPU_OVERHEAD_PERCENT,
     PixieAdapter,
 )
 from sre_agent.domain.models.canonical import CanonicalEvent
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def adapter() -> PixieAdapter:
@@ -46,6 +45,7 @@ def mock_pxl_response(results: list[dict]) -> httpx.Response:
 # AC-2.2.1: Syscall Activity
 # ===========================================================================
 
+
 class TestSyscallActivity:
     """AC-2.2.1: Capture syscall activity per pod."""
 
@@ -67,7 +67,7 @@ class TestSyscallActivity:
 
         with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_pxl_response(mock_results)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             events = await adapter.get_syscall_activity(
                 pod="svc-a-abc123",
                 namespace="default",
@@ -87,9 +87,10 @@ class TestSyscallActivity:
         with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = httpx.ConnectError("connection refused")
             events = await adapter.get_syscall_activity(
-                pod="svc-a", namespace="default",
-                start_time=datetime.now(timezone.utc) - timedelta(minutes=5),
-                end_time=datetime.now(timezone.utc),
+                pod="svc-a",
+                namespace="default",
+                start_time=datetime.now(UTC) - timedelta(minutes=5),
+                end_time=datetime.now(UTC),
             )
 
         assert events == []
@@ -98,6 +99,7 @@ class TestSyscallActivity:
 # ===========================================================================
 # AC-2.2.3: Network Flows
 # ===========================================================================
+
 
 class TestNetworkFlows:
     """AC-2.2.3: Network flow data within service mesh."""
@@ -120,9 +122,10 @@ class TestNetworkFlows:
         with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_pxl_response(mock_results)
             events = await adapter.get_network_flows(
-                service="svc-a", namespace="default",
-                start_time=datetime.now(timezone.utc) - timedelta(minutes=5),
-                end_time=datetime.now(timezone.utc),
+                service="svc-a",
+                namespace="default",
+                start_time=datetime.now(UTC) - timedelta(minutes=5),
+                end_time=datetime.now(UTC),
             )
 
         assert len(events) == 1
@@ -134,6 +137,7 @@ class TestNetworkFlows:
 # ===========================================================================
 # AC-2.2.2: CPU Overhead Check
 # ===========================================================================
+
 
 class TestNodeStatus:
     """AC-2.2.2: eBPF overhead SHALL NOT exceed 2% CPU."""
@@ -168,6 +172,7 @@ class TestNodeStatus:
 # ===========================================================================
 # Health Check
 # ===========================================================================
+
 
 class TestHealthCheck:
     """Pixie connectivity verification."""

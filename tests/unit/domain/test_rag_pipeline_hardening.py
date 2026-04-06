@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
@@ -30,7 +30,9 @@ def _make_pipeline() -> RAGDiagnosticPipeline:
         ),
     )
     mock_llm.validate_hypothesis = AsyncMock(
-        return_value=ValidationResult(agrees=True, confidence=0.8, reasoning="ok", contradictions=[]),
+        return_value=ValidationResult(
+            agrees=True, confidence=0.8, reasoning="ok", contradictions=[]
+        ),
     )
     mock_llm.count_tokens = MagicMock(return_value=10)
     mock_llm.health_check = AsyncMock(return_value=True)
@@ -55,8 +57,8 @@ def test_sanitize_prompt_text_removes_injection_patterns() -> None:
 
 def test_freshness_penalty_applies_to_stale_docs() -> None:
     pipeline = _make_pipeline()
-    old_ts = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
-    fresh_ts = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+    old_ts = (datetime.now(UTC) - timedelta(days=180)).isoformat()
+    fresh_ts = (datetime.now(UTC) - timedelta(days=10)).isoformat()
 
     results = [
         SearchResult(

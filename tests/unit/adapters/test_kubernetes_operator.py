@@ -69,7 +69,9 @@ async def test_unsupported_scale_target_raises_value_error() -> None:
     operator = _operator()
 
     with pytest.raises(ValueError, match="unsupported_kubernetes_scale_target"):
-        await operator.scale_capacity("pod/checkout-0", desired_count=2, metadata={"namespace": "prod"})
+        await operator.scale_capacity(
+            "pod/checkout-0", desired_count=2, metadata={"namespace": "prod"}
+        )
 
 
 @pytest.mark.asyncio

@@ -70,7 +70,9 @@ class SecondOpinionValidator:
 
         if self._strategy == ValidationStrategy.CROSS_CHECK:
             return await self._cross_check_validate(
-                hypothesis, alert_description, evidence=_evidence,
+                hypothesis,
+                alert_description,
+                evidence=_evidence,
             )
 
         # BOTH strategy: rule-based runs first as a fast sanity check.
@@ -82,7 +84,9 @@ class SecondOpinionValidator:
 
         if self._llm is not None:
             return await self._cross_check_validate(
-                hypothesis, alert_description, evidence=_evidence,
+                hypothesis,
+                alert_description,
+                evidence=_evidence,
             )
         return rule_result
 
@@ -101,9 +105,7 @@ class SecondOpinionValidator:
         contradictions: list[str] = []
 
         if not hypothesis.evidence_citations and evidence_count > 0:
-            contradictions.append(
-                "Hypothesis cites no evidence despite available evidence."
-            )
+            contradictions.append("Hypothesis cites no evidence despite available evidence.")
 
         if hypothesis.confidence <= 0.0:
             contradictions.append("Confidence is zero or negative.")
@@ -115,7 +117,8 @@ class SecondOpinionValidator:
         return ValidationResult(
             agrees=agrees,
             confidence=hypothesis.confidence if agrees else 0.0,
-            reasoning="Rule-based validation passed." if agrees
+            reasoning="Rule-based validation passed."
+            if agrees
             else f"Validation failed: {'; '.join(contradictions)}",
             contradictions=contradictions,
         )

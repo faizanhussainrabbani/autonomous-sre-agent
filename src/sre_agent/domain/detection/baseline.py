@@ -11,9 +11,8 @@ Validates: AC-3.1.1
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import structlog
 
@@ -27,10 +26,11 @@ logger = structlog.get_logger(__name__)
 @dataclass
 class BaselineWindow:
     """A time-segmented baseline for a specific metric and service."""
+
     service: str
     metric: str
-    hour_of_day: int        # 0-23 for time-of-day adjustment
-    day_of_week: int        # 0-6 (Mon-Sun) for day-of-week adjustment
+    hour_of_day: int  # 0-23 for time-of-day adjustment
+    day_of_week: int  # 0-6 (Mon-Sun) for day-of-week adjustment
 
     # Statistics
     mean: float = 0.0
@@ -65,7 +65,7 @@ class BaselineWindow:
 
         self.min_value = min(self.min_value, value)
         self.max_value = max(self.max_value, value)
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = datetime.now(UTC)
 
     def compute_deviation(self, value: float) -> float:
         """Compute how many standard deviations a value is from the mean.
@@ -82,6 +82,7 @@ class BaselineWindow:
 @dataclass
 class BaselineKey:
     """Key for looking up a baseline window."""
+
     service: str
     metric: str
     hour_of_day: int
@@ -132,7 +133,7 @@ class BaselineService(BaselineQuery):
         Returns:
             The BaselineWindow if it exists, None otherwise.
         """
-        ts = timestamp or datetime.now(timezone.utc)
+        ts = timestamp or datetime.now(UTC)
         key = BaselineKey(
             service=service,
             metric=metric,
@@ -232,7 +233,4 @@ class BaselineService(BaselineQuery):
 
     def get_all_baselines_for_service(self, service: str) -> list[BaselineWindow]:
         """Get all established baselines for a service."""
-        return [
-            b for b in self._baselines.values()
-            if b.service == service and b.is_established
-        ]
+        return [b for b in self._baselines.values() if b.service == service and b.is_established]

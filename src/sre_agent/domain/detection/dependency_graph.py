@@ -11,7 +11,7 @@ Validates: AC-2.4.1, AC-2.4.2, AC-2.4.3
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -23,8 +23,8 @@ from sre_agent.domain.models.canonical import (
     ServiceGraph,
     ServiceNode,
 )
-from sre_agent.ports.telemetry import DependencyGraphQuery, TraceQuery
 from sre_agent.ports.events import EventBus
+from sre_agent.ports.telemetry import DependencyGraphQuery, TraceQuery
 
 logger = structlog.get_logger(__name__)
 
@@ -70,7 +70,7 @@ class DependencyGraphService:
         """True if graph hasn't been refreshed within the interval."""
         if self._last_refresh is None:
             return True
-        age = (datetime.now(timezone.utc) - self._last_refresh).total_seconds()
+        age = (datetime.now(UTC) - self._last_refresh).total_seconds()
         return age > self._refresh_interval
 
     async def refresh(self) -> ServiceGraph:
@@ -80,7 +80,7 @@ class DependencyGraphService:
         """
         try:
             new_graph = await self._dep_graph_query.get_graph()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.error("dependency_graph_refresh_failed", error=str(exc))
             return self._graph  # Return stale graph rather than empty
 
@@ -104,21 +104,17 @@ class DependencyGraphService:
                     DomainEvent(
                         event_type=EventTypes.DEPENDENCY_GRAPH_UPDATED,
                         payload={
-                            "added_edges": [
-                                {"source": s, "target": t} for s, t in added_edges
-                            ],
-                            "removed_edges": [
-                                {"source": s, "target": t} for s, t in removed_edges
-                            ],
+                            "added_edges": [{"source": s, "target": t} for s, t in added_edges],
+                            "removed_edges": [{"source": s, "target": t} for s, t in removed_edges],
                             "total_nodes": len(new_graph.nodes),
                             "total_edges": len(new_graph.edges),
                         },
                     )
                 )
 
-        new_graph.last_updated = datetime.now(timezone.utc)
+        new_graph.last_updated = datetime.now(UTC)
         self._graph = new_graph
-        self._last_refresh = datetime.now(timezone.utc)
+        self._last_refresh = datetime.now(UTC)
 
         return self._graph
 
@@ -158,7 +154,7 @@ class DependencyGraphService:
             health = await self._dep_graph_query.get_service_health(service)
             self._service_health_cache[service] = health
             return health
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "service_health_query_failed",
                 service=service,
@@ -189,12 +185,11 @@ class DependencyGraphService:
                 end_time=end_time,
                 limit=50,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("trace_enrichment_failed", service=service, error=str(exc))
             return
 
         for trace in traces:
-            services = trace.services_involved
             for span in trace.spans:
                 if span.parent_span_id:
                     # Find parent span's service to establish edge

@@ -13,7 +13,8 @@ Requires:
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from tests.localstack_pro_standard import (
@@ -34,12 +35,14 @@ boto3 = pytest.importorskip("boto3")
 testcontainers_localstack = pytest.importorskip("testcontainers.localstack")
 LocalStackContainer = testcontainers_localstack.LocalStackContainer
 
-from sre_agent.adapters.telemetry.cloudwatch.metrics_adapter import CloudWatchMetricsAdapter
-
+from sre_agent.adapters.telemetry.cloudwatch.metrics_adapter import (  # noqa: E402
+    CloudWatchMetricsAdapter,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def localstack():
@@ -47,6 +50,7 @@ def localstack():
     container = build_localstack_pro_container(LocalStackContainer)
     with container as c:
         yield c
+
 
 @pytest.fixture(scope="module")
 def cloudwatch_client(localstack):
@@ -58,9 +62,11 @@ def cloudwatch_client(localstack):
         aws_secret_access_key="test",
     )
 
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_cloudwatch_metrics_end_to_end(cloudwatch_client):
@@ -79,25 +85,22 @@ async def test_cloudwatch_metrics_end_to_end(cloudwatch_client):
     namespace = "AWS/Lambda"
     metric_name = "Errors"
     value = 42.0
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Note: AWS/Lambda uses 'FunctionName' as dimension for service name in our adapter
     cloudwatch_client.put_metric_data(
         Namespace=namespace,
         MetricData=[
             {
-                'MetricName': metric_name,
-                'Dimensions': [
-                    {
-                        'Name': 'FunctionName',
-                        'Value': service_name
-                    },
+                "MetricName": metric_name,
+                "Dimensions": [
+                    {"Name": "FunctionName", "Value": service_name},
                 ],
-                'Timestamp': now,
-                'Value': value,
-                'Unit': 'Count'
+                "Timestamp": now,
+                "Value": value,
+                "Unit": "Count",
             },
-        ]
+        ],
     )
 
     # Localstack is usually instant, but let's give it a tiny sleep to be safe
@@ -106,7 +109,7 @@ async def test_cloudwatch_metrics_end_to_end(cloudwatch_client):
     # 3. Query the metric via the adapter
     window_start = now - timedelta(minutes=5)
     window_end = now + timedelta(minutes=5)
-    
+
     # query expects the canonical name for our mapped metrics
     # "lambda_errors" maps to AWS/Lambda -> Errors
     metrics_result = await adapter.query(
@@ -118,14 +121,16 @@ async def test_cloudwatch_metrics_end_to_end(cloudwatch_client):
 
     # 4. Verify results
     assert len(metrics_result) >= 1, "Expected to retrieve the published metric."
-    
+
     # Expect the one relating to our mapping
     found_metric = None
     for m in metrics_result:
         if m.name == "lambda_errors" and m.labels.service == service_name:
             found_metric = m
             break
-            
-    assert found_metric is not None, "Did not find the canonical metric mapped back from CloudWatch."
+
+    assert found_metric is not None, (
+        "Did not find the canonical metric mapped back from CloudWatch."
+    )
     assert found_metric.provider_source == "cloudwatch"
     assert found_metric.value == value

@@ -11,8 +11,8 @@ Validates: AC-CW-8.1 through AC-CW-8.4
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 import structlog
@@ -29,7 +29,7 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/events", tags=["Events"])
 
 # In-memory event store for correlation (Phase 2 will use EventStore port)
-_recent_events: List[CanonicalEvent] = []
+_recent_events: list[CanonicalEvent] = []
 _MAX_EVENTS = 1000
 
 # Supported event sources and their detail-type mappings
@@ -69,14 +69,14 @@ class AWSEventPayload(BaseModel):
     account: str = ""
     time: str = ""
     region: str = ""
-    resources: List[str] = Field(default_factory=list)
-    detail: Dict[str, Any] = Field(default_factory=dict)
+    resources: list[str] = Field(default_factory=list)
+    detail: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}
 
 
 @router.post("/aws", status_code=200)
-async def receive_aws_event(payload: AWSEventPayload) -> Dict[str, Any]:
+async def receive_aws_event(payload: AWSEventPayload) -> dict[str, Any]:
     """Receive an AWS EventBridge event and store for correlation.
 
     Accepts events from aws.lambda, aws.ecs, aws.rds, aws.iam,
@@ -121,7 +121,7 @@ async def get_recent_events(
     source: str | None = None,
     service: str | None = None,
     limit: int = 50,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieve recent AWS events for correlation.
 
     Optional filters by source and service name.
@@ -131,9 +131,7 @@ async def get_recent_events(
     if source:
         events = [e for e in events if e.source == source]
     if service:
-        events = [
-            e for e in events if e.labels and e.labels.service == service
-        ]
+        events = [e for e in events if e.labels and e.labels.service == service]
 
     return {
         "count": len(events),
@@ -161,9 +159,7 @@ def get_correlated_events(
     return [
         e
         for e in _recent_events
-        if e.labels
-        and e.labels.service == service
-        and window_start <= e.timestamp <= window_end
+        if e.labels and e.labels.service == service and window_start <= e.timestamp <= window_end
     ]
 
 
@@ -177,11 +173,13 @@ def _parse_event(payload: AWSEventPayload) -> CanonicalEvent:
 
     # Parse timestamp
     try:
-        timestamp = datetime.fromisoformat(
-            payload.time.replace("Z", "+00:00")
-        ) if payload.time else datetime.now(timezone.utc)
+        timestamp = (
+            datetime.fromisoformat(payload.time.replace("Z", "+00:00"))
+            if payload.time
+            else datetime.now(UTC)
+        )
     except (ValueError, AttributeError):
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
 
     return CanonicalEvent(
         event_type=event_type,
@@ -251,19 +249,19 @@ def _extract_service(payload: AWSEventPayload) -> str:
     # Try detail fields
     detail = payload.detail
     if "functionName" in detail:
-        return detail["functionName"]
+        return str(detail["functionName"])
     if "group" in detail:
-        group = detail["group"]
+        group = str(detail["group"])
         # ECS group names are like "service:my-service" — strip the prefix
         if ":" in group:
             return group.split(":", maxsplit=1)[-1]
         return group.split("/")[-1]
     if "serviceName" in detail:
-        return detail["serviceName"]
+        return str(detail["serviceName"])
 
     # Try request parameters in CloudTrail events
     request_params = detail.get("requestParameters", {})
-    if "functionName" in request_params:
-        return request_params["functionName"]
+    if isinstance(request_params, dict) and "functionName" in request_params:
+        return str(request_params["functionName"])
 
     return ""

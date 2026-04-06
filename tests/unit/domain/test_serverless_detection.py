@@ -7,24 +7,24 @@ Validates: AC-1.5.3 (cold-start suppression), AC-1.5.4 (OOM exemption)
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from sre_agent.domain.detection.anomaly_detector import AnomalyDetector
 from sre_agent.domain.models.canonical import (
     AnomalyType,
     CanonicalMetric,
     ComputeMechanism,
     ServiceLabels,
 )
-from sre_agent.domain.detection.anomaly_detector import AnomalyDetector
 from sre_agent.domain.models.detection_config import DetectionConfig
 from sre_agent.ports.telemetry import BaselineQuery
-
 
 # ---------------------------------------------------------------------------
 # Mock baseline that returns controllable deviations
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class MockBaseline:
@@ -54,6 +54,7 @@ class MockBaselineService(BaselineQuery):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _serverless_labels(service: str = "payment-handler") -> ServiceLabels:
     return ServiceLabels(
         service=service,
@@ -73,6 +74,7 @@ def _k8s_labels(service: str = "checkout") -> ServiceLabels:
 # Test: Cold-start suppression — AC-1.5.3
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_cold_start_suppression_lambda():
     """AC-1.5.3.1: Latency spikes within 15s of init are suppressed."""
@@ -80,7 +82,7 @@ async def test_cold_start_suppression_lambda():
     config = DetectionConfig(cold_start_suppression_window_seconds=15)
     detector = AnomalyDetector(baseline_service=baseline_svc, config=config)
 
-    init_time = datetime.now(timezone.utc)
+    init_time = datetime.now(UTC)
 
     # Metric at T+5s (within cold-start window) — should be suppressed
     metric = CanonicalMetric(
@@ -110,7 +112,7 @@ async def test_latency_fires_after_cold_start_window():
     )
     detector = AnomalyDetector(baseline_service=baseline_svc, config=config)
 
-    init_time = datetime.now(timezone.utc)
+    init_time = datetime.now(UTC)
 
     # First call at T=0 to register the init time
     metric_init = CanonicalMetric(
@@ -161,6 +163,7 @@ async def test_latency_fires_after_cold_start_window():
 # Test: Memory pressure exemption — AC-1.5.4
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_memory_pressure_exempted_for_serverless():
     """AC-1.5.4.1: Memory pressure alerts do NOT fire for SERVERLESS."""
@@ -171,7 +174,7 @@ async def test_memory_pressure_exempted_for_serverless():
     metric = CanonicalMetric(
         name="process_resident_memory_bytes",
         value=0.92,  # 92% — normally triggers alert
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         labels=_serverless_labels(),
     )
 
@@ -193,7 +196,7 @@ async def test_memory_pressure_fires_for_kubernetes():
     detector = AnomalyDetector(baseline_service=baseline_svc, config=config)
 
     # Send two metrics to satisfy duration requirement
-    t0 = datetime.now(timezone.utc) - timedelta(minutes=10)
+    t0 = datetime.now(UTC) - timedelta(minutes=10)
     metric1 = CanonicalMetric(
         name="process_resident_memory_bytes",
         value=0.92,
@@ -221,6 +224,7 @@ async def test_memory_pressure_fires_for_kubernetes():
 # Test: InvocationError surge — AC-1.5.4.2
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_invocation_error_surge_detected_for_serverless():
     """AC-1.5.4.2: InvocationError surges are detected as OOM replacement."""
@@ -231,7 +235,7 @@ async def test_invocation_error_surge_detected_for_serverless():
     metric = CanonicalMetric(
         name="invocation_error_count",
         value=35.0,  # 250% increase over baseline of 10
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         labels=_serverless_labels(),
     )
 
@@ -241,6 +245,8 @@ async def test_invocation_error_surge_detected_for_serverless():
         compute_mechanism=ComputeMechanism.SERVERLESS,
     )
 
-    error_alerts = [a for a in result.alerts if a.anomaly_type == AnomalyType.INVOCATION_ERROR_SURGE]
+    error_alerts = [
+        a for a in result.alerts if a.anomaly_type == AnomalyType.INVOCATION_ERROR_SURGE
+    ]
     assert len(error_alerts) >= 1
     assert "InvocationError" in error_alerts[0].description

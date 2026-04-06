@@ -14,8 +14,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
 from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.models.canonical import AnomalyAlert, AnomalyType, EventTypes
@@ -44,7 +42,9 @@ def _make_pipeline(
     search_results: list[SearchResult] | None = None,
 ) -> RAGDiagnosticPipeline:
     mock_vs = MagicMock()
-    mock_vs.search = AsyncMock(return_value=search_results if search_results is not None else _make_search_results())
+    mock_vs.search = AsyncMock(
+        return_value=search_results if search_results is not None else _make_search_results()
+    )
     mock_vs.health_check = AsyncMock(return_value=True)
 
     mock_emb = MagicMock()
@@ -226,8 +226,7 @@ class TestRAGPipelineEventEmission:
         await pipeline.diagnose(DiagnosisRequest(alert=alert))
 
         detected = next(
-            e for e in bus.published_events
-            if e.event_type == EventTypes.INCIDENT_DETECTED
+            e for e in bus.published_events if e.event_type == EventTypes.INCIDENT_DETECTED
         )
         assert detected.payload["service"] == "checkout-service"
         assert "anomaly_type" in detected.payload
@@ -240,8 +239,7 @@ class TestRAGPipelineEventEmission:
         await pipeline.diagnose(DiagnosisRequest(alert=_make_alert()))
 
         assigned = next(
-            e for e in bus.published_events
-            if e.event_type == EventTypes.SEVERITY_ASSIGNED
+            e for e in bus.published_events if e.event_type == EventTypes.SEVERITY_ASSIGNED
         )
         assert "severity" in assigned.payload
         assert assigned.payload["severity"] in ("SEV1", "SEV2", "SEV3", "SEV4")

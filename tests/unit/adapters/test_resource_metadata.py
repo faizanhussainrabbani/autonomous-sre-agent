@@ -1,6 +1,7 @@
 """
 Unit tests for AWS Resource Metadata Fetcher.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -19,6 +20,7 @@ def _client_error(code="ResourceNotFoundException"):
 
 
 # ── fetch_lambda_context() ───────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_fetch_lambda_context_success():
@@ -81,6 +83,7 @@ async def test_fetch_lambda_context_no_client():
 
 # ── fetch_ecs_context() ──────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_fetch_ecs_context_success():
     client = MagicMock()
@@ -120,6 +123,7 @@ async def test_fetch_ecs_context_no_services():
 
 
 # ── fetch_ec2_asg_context() ──────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_fetch_ec2_asg_context_success():

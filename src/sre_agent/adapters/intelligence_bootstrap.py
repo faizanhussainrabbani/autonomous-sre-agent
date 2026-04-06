@@ -13,6 +13,7 @@ import os
 
 import structlog
 
+from sre_agent.adapters.llm.throttled_adapter import ThrottledLLMAdapter
 from sre_agent.domain.diagnostics.confidence import ConfidenceScorer
 from sre_agent.domain.diagnostics.ingestion import DocumentIngestionPipeline
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
@@ -20,7 +21,6 @@ from sre_agent.domain.diagnostics.severity import SeverityClassifier
 from sre_agent.domain.diagnostics.timeline import TimelineConstructor
 from sre_agent.domain.diagnostics.validator import SecondOpinionValidator, ValidationStrategy
 from sre_agent.domain.models.diagnosis import ServiceTier
-from sre_agent.adapters.llm.throttled_adapter import ThrottledLLMAdapter
 from sre_agent.ports.embedding import EmbeddingPort
 from sre_agent.ports.llm import LLMConfig, LLMProvider, LLMReasoningPort
 from sre_agent.ports.vector_store import VectorStorePort
@@ -42,6 +42,7 @@ def create_vector_store(
         A configured VectorStorePort implementation.
     """
     from sre_agent.adapters.vectordb.chroma.adapter import ChromaVectorStoreAdapter
+
     return ChromaVectorStoreAdapter(
         collection_name=collection_name,
         persist_directory=persist_directory,
@@ -57,6 +58,7 @@ def create_embedding() -> EmbeddingPort:
     from sre_agent.adapters.embedding.sentence_transformers_adapter import (
         SentenceTransformersEmbeddingAdapter,
     )
+
     return SentenceTransformersEmbeddingAdapter()
 
 
@@ -85,10 +87,12 @@ def create_llm(config: LLMConfig | None = None) -> LLMReasoningPort:
 
     if provider == LLMProvider.ANTHROPIC:
         from sre_agent.adapters.llm.anthropic.adapter import AnthropicLLMAdapter
+
         logger.info("llm_adapter_created", provider="anthropic")
         return AnthropicLLMAdapter(config)
 
     from sre_agent.adapters.llm.openai.adapter import OpenAILLMAdapter
+
     logger.info("llm_adapter_created", provider="openai")
     return OpenAILLMAdapter(config)
 
@@ -118,9 +122,7 @@ def create_diagnostic_pipeline(
     # with priority ordering by severity.
     raw_llm = llm or create_llm()
     llm_adapter: LLMReasoningPort = (
-        raw_llm
-        if isinstance(raw_llm, ThrottledLLMAdapter)
-        else ThrottledLLMAdapter(raw_llm)
+        raw_llm if isinstance(raw_llm, ThrottledLLMAdapter) else ThrottledLLMAdapter(raw_llm)
     )
 
     severity_classifier = SeverityClassifier(service_tiers=service_tiers)

@@ -14,10 +14,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-
 RULES_FILE = (
     Path(__file__).parent.parent.parent.parent
-    / "infra" / "prometheus" / "rules" / "sre_agent_slo.yaml"
+    / "infra"
+    / "prometheus"
+    / "rules"
+    / "sre_agent_slo.yaml"
 )
 
 EXPECTED_ALERT_NAMES = {
@@ -44,6 +46,7 @@ def rules_doc():
 # AC-6.1 — Valid YAML
 # ---------------------------------------------------------------------------
 
+
 def test_rules_yaml_is_valid(rules_doc):
     """The rules file must be non-empty valid YAML."""
     assert rules_doc is not None
@@ -59,6 +62,7 @@ def test_rules_has_groups(rules_doc):
 # ---------------------------------------------------------------------------
 # AC-6.3 — Recording rule present
 # ---------------------------------------------------------------------------
+
 
 def test_recording_rule_present(rules_doc):
     """Recording rule sre_agent:diagnosis_latency:p99 must be defined."""
@@ -76,6 +80,7 @@ def test_recording_rule_present(rules_doc):
 # ---------------------------------------------------------------------------
 # AC-6.2 — All 8 alert rules present with severity labels
 # ---------------------------------------------------------------------------
+
 
 def test_all_8_alert_rules_present(rules_doc):
     """All 8 named alert rules must be defined in the rules file."""
@@ -97,9 +102,7 @@ def test_all_alerts_have_severity_label(rules_doc):
             if "alert" not in rule:
                 continue
             labels = rule.get("labels", {})
-            assert "severity" in labels, (
-                f"Alert '{rule['alert']}' is missing a 'severity' label."
-            )
+            assert "severity" in labels, f"Alert '{rule['alert']}' is missing a 'severity' label."
             assert labels["severity"] in valid_severities, (
                 f"Alert '{rule['alert']}' has invalid severity '{labels['severity']}'."
             )

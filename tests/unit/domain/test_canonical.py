@@ -4,7 +4,7 @@ Tests for the canonical data model — Task 13.1.
 Validates: AC-1.1.1 through AC-1.1.5
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sre_agent.domain.models.canonical import (
@@ -14,7 +14,6 @@ from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
     CanonicalMetric,
     CanonicalTrace,
-    CorrelatedSignals,
     DataQuality,
     DomainEvent,
     EventTypes,
@@ -25,7 +24,6 @@ from sre_agent.domain.models.canonical import (
     ServiceLabels,
     ServiceNode,
     Severity,
-    SignalType,
     TraceSpan,
 )
 
@@ -49,7 +47,7 @@ class TestServiceLabels:
         labels = ServiceLabels(service="svc", namespace="ns")
         try:
             labels.service = "other"  # type: ignore
-            assert False, "Should raise FrozenInstanceError"
+            raise AssertionError("Should raise FrozenInstanceError")
         except AttributeError:
             pass  # Expected: frozen=True
 
@@ -66,7 +64,7 @@ class TestCanonicalMetric:
     """AC-1.1.1: Canonical metric format."""
 
     def test_create_metric(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         metric = CanonicalMetric(
             name="http_request_duration_seconds",
             value=0.250,
@@ -86,7 +84,7 @@ class TestCanonicalMetric:
         metric = CanonicalMetric(
             name="test",
             value=1.0,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             labels=ServiceLabels(service="unknown", namespace=""),
             quality=DataQuality.LOW,
         )
@@ -96,7 +94,7 @@ class TestCanonicalMetric:
         metric = CanonicalMetric(
             name="cpu_usage",
             value=0.75,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             labels=ServiceLabels(service="svc", namespace="ns"),
             provider_source="otel",
         )
@@ -136,7 +134,11 @@ class TestCanonicalTrace:
     def test_incomplete_trace(self):
         trace = CanonicalTrace(
             trace_id="trace-xyz",
-            spans=[TraceSpan(span_id="s1", parent_span_id=None, service="a", operation="op", duration_ms=10)],
+            spans=[
+                TraceSpan(
+                    span_id="s1", parent_span_id=None, service="a", operation="op", duration_ms=10
+                )
+            ],
             is_complete=False,
             missing_services=["service-b", "service-c"],
             quality=DataQuality.INCOMPLETE,
@@ -156,7 +158,7 @@ class TestCanonicalLogEntry:
 
     def test_create_log_with_trace_correlation(self):
         log = CanonicalLogEntry(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             message="Request failed: connection timeout",
             severity="ERROR",
             labels=ServiceLabels(service="payment-service", namespace="prod"),
@@ -175,7 +177,7 @@ class TestCanonicalEvent:
         event = CanonicalEvent(
             event_type="oom_kill",
             source="ebpf",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             metadata={"pid": 12345, "comm": "java", "oom_score": 850},
             labels=ServiceLabels(service="heap-heavy", namespace="prod"),
         )
@@ -187,7 +189,7 @@ class TestCanonicalEvent:
         event = CanonicalEvent(
             event_type="deployment",
             source="kubernetes",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             metadata={
                 "commit_sha": "abc123",
                 "deployer": "ci-bot",
@@ -294,8 +296,12 @@ class TestEnums:
         assert len(IncidentPhase) == 11
 
     def test_operational_phases(self):
-        phases = [OperationalPhase.OBSERVE, OperationalPhase.ASSIST,
-                  OperationalPhase.AUTONOMOUS, OperationalPhase.PREDICTIVE]
+        phases = [
+            OperationalPhase.OBSERVE,
+            OperationalPhase.ASSIST,
+            OperationalPhase.AUTONOMOUS,
+            OperationalPhase.PREDICTIVE,
+        ]
         assert len(phases) == 4
 
     def test_anomaly_types(self):

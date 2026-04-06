@@ -61,7 +61,7 @@ class Hypothesis:
     root_cause: str
     confidence: float
     reasoning: str
-    evidence_citations: list[str] = field(default_factory=tuple)  # type: ignore[assignment]
+    evidence_citations: list[str] = field(default_factory=list)
     suggested_remediation: str = ""
 
 
@@ -81,7 +81,7 @@ class ValidationResult:
     agrees: bool
     confidence: float
     reasoning: str
-    contradictions: list[str] = field(default_factory=tuple)  # type: ignore[assignment]
+    contradictions: list[str] = field(default_factory=list)
     corrected_root_cause: str | None = None
     corrected_remediation: str | None = None
 

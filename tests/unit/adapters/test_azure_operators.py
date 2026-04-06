@@ -13,10 +13,10 @@ import pytest
 from sre_agent.adapters.cloud.azure.app_service_operator import AppServiceOperator
 from sre_agent.adapters.cloud.azure.functions_operator import FunctionsOperator
 
-
 # ---------------------------------------------------------------------------
 # App Service Operator — AC-1.5.7.1, AC-1.5.7.2
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_app_service_restart():
@@ -72,6 +72,7 @@ async def test_app_service_scale():
 # ---------------------------------------------------------------------------
 # Functions Operator — AC-1.5.7.3
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_functions_restart():

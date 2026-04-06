@@ -8,19 +8,22 @@ prompt inclusion — LLM Integration Hardening.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+import builtins
+import sys
+import types
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from sre_agent.adapters.llm.openai.adapter import OpenAILLMAdapter
 from sre_agent.ports.llm import (
     EvidenceContext,
+    Hypothesis,
     HypothesisRequest,
     LLMConfig,
     ValidationRequest,
-    Hypothesis,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -46,6 +49,20 @@ def _make_request(system_context: str = "") -> HypothesisRequest:
         ],
         system_context=system_context,
     )
+
+
+def _mock_chat_response(
+    content: str,
+    prompt_tokens: int = 100,
+    completion_tokens: int = 40,
+):
+    usage = SimpleNamespace(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+    )
+    message = SimpleNamespace(content=content)
+    choice = SimpleNamespace(message=message)
+    return SimpleNamespace(usage=usage, choices=[choice])
 
 
 # ---------------------------------------------------------------------------
@@ -141,3 +158,141 @@ class TestBuildHypothesisPromptSystemContext:
         prompt = OpenAILLMAdapter._build_hypothesis_prompt(request)
 
         assert "## System Context" not in prompt
+
+
+class TestOpenAILLMAdapterAdditionalCoverage:
+    """Additional branch and success-path coverage for OpenAI adapter."""
+
+    def test_ensure_client_raises_clear_error_when_openai_missing(self, monkeypatch):
+        adapter = OpenAILLMAdapter()
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "openai":
+                raise ImportError("openai missing")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        with pytest.raises(ImportError, match="sre-agent\\[intelligence\\]"):
+            adapter._ensure_client()
+
+    def test_count_tokens_raises_clear_error_when_tiktoken_missing(self, monkeypatch):
+        adapter = OpenAILLMAdapter()
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "tiktoken":
+                raise ImportError("tiktoken missing")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        with pytest.raises(ImportError, match="sre-agent\\[intelligence\\]"):
+            adapter.count_tokens("hello world")
+
+    def test_count_tokens_falls_back_to_cl100k_for_unknown_model(self, monkeypatch):
+        class FakeTokenizer:
+            def encode(self, text: str):
+                return text.split()
+
+        module = types.ModuleType("tiktoken")
+
+        def encoding_for_model(_model_name: str):
+            raise KeyError("unknown model")
+
+        module.encoding_for_model = encoding_for_model
+        module.get_encoding = lambda _name: FakeTokenizer()
+        monkeypatch.setitem(sys.modules, "tiktoken", module)
+
+        adapter = OpenAILLMAdapter(config=LLMConfig(model_name="custom-model"))
+        assert adapter.count_tokens("alpha beta gamma") == 3
+
+    async def test_generate_hypothesis_success_parses_and_tracks_usage(self):
+        adapter = OpenAILLMAdapter(config=LLMConfig(timeout_seconds=1.0))
+
+        async def create(**_kwargs):
+            return _mock_chat_response(
+                """```json
+                {"root_cause":"memory leak","confidence":0.88,
+                 "reasoning":["RSS increased","OOM events observed"],
+                 "evidence_citations":["runbook/oom.md"],
+                 "suggested_remediation":"restart pod"}
+                ```""",
+                prompt_tokens=11,
+                completion_tokens=7,
+            )
+
+        adapter._client = MagicMock()
+        adapter._client.chat.completions.create = create
+
+        result = await adapter.generate_hypothesis(_make_request())
+
+        assert result.root_cause == "memory leak"
+        assert result.confidence == 0.88
+        assert "1. RSS increased" in result.reasoning
+        assert result.evidence_citations == ["runbook/oom.md"]
+        assert result.suggested_remediation == "restart pod"
+        usage = adapter.get_token_usage()
+        assert usage.prompt_tokens == 11
+        assert usage.completion_tokens == 7
+
+    async def test_validate_hypothesis_success_parses_and_tracks_usage(self):
+        adapter = OpenAILLMAdapter(config=LLMConfig(timeout_seconds=1.0))
+
+        async def create(**_kwargs):
+            return _mock_chat_response(
+                '{"agrees": true, "confidence": 0.73, "reasoning": "consistent", '
+                '"contradictions": [], "corrected_root_cause": null, '
+                '"corrected_remediation": null}',
+                prompt_tokens=5,
+                completion_tokens=3,
+            )
+
+        adapter._client = MagicMock()
+        adapter._client.chat.completions.create = create
+
+        request = ValidationRequest(
+            hypothesis=Hypothesis(
+                root_cause="Memory leak",
+                confidence=0.8,
+                reasoning="RSS growth",
+            ),
+            original_evidence=[],
+            alert_description="OOM kill",
+        )
+
+        result = await adapter.validate_hypothesis(request)
+
+        assert result.agrees is True
+        assert result.confidence == 0.73
+        assert result.reasoning == "consistent"
+        usage = adapter.get_token_usage()
+        assert usage.prompt_tokens == 5
+        assert usage.completion_tokens == 3
+
+    async def test_health_check_returns_true_when_models_list_succeeds(self):
+        adapter = OpenAILLMAdapter()
+        adapter._client = MagicMock()
+        adapter._client.models.list = AsyncMock(return_value=[])
+
+        assert await adapter.health_check() is True
+
+    async def test_health_check_returns_false_on_exception(self):
+        adapter = OpenAILLMAdapter()
+        adapter._client = MagicMock()
+        adapter._client.models.list = AsyncMock(side_effect=RuntimeError("down"))
+
+        assert await adapter.health_check() is False
+
+    def test_parse_hypothesis_returns_fallback_on_invalid_json(self):
+        parsed = OpenAILLMAdapter._parse_hypothesis("not-json")
+
+        assert parsed.root_cause == "Failed to parse LLM response."
+        assert parsed.confidence == 0.0
+
+    def test_parse_validation_returns_fallback_on_invalid_json(self):
+        parsed = OpenAILLMAdapter._parse_validation("not-json")
+
+        assert parsed.agrees is False
+        assert parsed.confidence == 0.0

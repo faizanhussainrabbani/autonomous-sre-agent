@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 
 from sre_agent.domain.models.canonical import (
     AnomalyAlert,
+    ComputeMechanism,
     DomainEvent,
     EventTypes,
     ServiceGraph,
@@ -72,9 +73,11 @@ class RemediationPlanner:
             requires_human_approval=requires_human_approval,
         )
 
-        approval_state = ApprovalState.PENDING if requires_human_approval else ApprovalState.APPROVED
+        approval_state = (
+            ApprovalState.PENDING if requires_human_approval else ApprovalState.APPROVED
+        )
         approved_by = "" if requires_human_approval else "autonomous"
-        approved_at = None if requires_human_approval else datetime.now(timezone.utc)
+        approved_at = None if requires_human_approval else datetime.now(UTC)
 
         desired_count: int | None = None
         if strategy == RemediationStrategy.SCALE_UP:
@@ -141,7 +144,7 @@ class RemediationPlanner:
             await self._event_bus.publish(event)
 
 
-def _provider_from_compute(compute_mechanism) -> str:
+def _provider_from_compute(compute_mechanism: ComputeMechanism) -> str:
     if compute_mechanism.value == "kubernetes":
         return "kubernetes"
     return "aws"

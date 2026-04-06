@@ -10,6 +10,8 @@ Phase 2.2: Token Optimization
 
 from __future__ import annotations
 
+from typing import Any
+
 import structlog
 
 from sre_agent.ports.reranker import RankedDocument, RerankerPort
@@ -31,7 +33,7 @@ class CrossEncoderReranker(RerankerPort):
 
     def __init__(self, model_name: str = _DEFAULT_MODEL) -> None:
         self._model_name = model_name
-        self._model = None
+        self._model: Any | None = None
         self._available = False
         self._init_attempted = False
 
@@ -43,10 +45,11 @@ class CrossEncoderReranker(RerankerPort):
         self._init_attempted = True
         try:
             from sentence_transformers import CrossEncoder
+
             self._model = CrossEncoder(self._model_name)
             self._available = True
             logger.info("cross_encoder_reranker_initialized", model=self._model_name)
-        except (ImportError, Exception) as exc:
+        except (ImportError, Exception) as exc:  # noqa: BLE001
             logger.warning(
                 "cross_encoder_unavailable_using_passthrough",
                 error=str(exc),
@@ -57,7 +60,7 @@ class CrossEncoderReranker(RerankerPort):
     def rerank(
         self,
         query: str,
-        documents: list[dict],
+        documents: list[dict[str, Any]],
         top_k: int = 5,
     ) -> list[RankedDocument]:
         """Rerank documents by cross-encoder relevance score."""
@@ -72,10 +75,11 @@ class CrossEncoderReranker(RerankerPort):
     def _rerank_cross_encoder(
         self,
         query: str,
-        documents: list[dict],
+        documents: list[dict[str, Any]],
         top_k: int,
     ) -> list[RankedDocument]:
         """Rerank using cross-encoder model."""
+        assert self._model is not None
         pairs = [(query, doc["content"]) for doc in documents]
         scores = self._model.predict(pairs)
 
@@ -87,7 +91,7 @@ class CrossEncoderReranker(RerankerPort):
                 rerank_score=float(score),
                 doc_id=doc.get("doc_id", ""),
             )
-            for doc, score in zip(documents, scores)
+            for doc, score in zip(documents, scores, strict=False)
         ]
 
         ranked.sort(key=lambda r: r.rerank_score, reverse=True)
@@ -103,7 +107,7 @@ class CrossEncoderReranker(RerankerPort):
 
     def _rerank_passthrough(
         self,
-        documents: list[dict],
+        documents: list[dict[str, Any]],
         top_k: int,
     ) -> list[RankedDocument]:
         """Fallback: sort by original cosine score if cross-encoder unavailable."""

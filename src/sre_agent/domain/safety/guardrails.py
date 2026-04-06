@@ -39,7 +39,10 @@ class GuardrailOrchestrator:
         if self._kill_switch.is_active:
             return GuardrailResult(allowed=False, reason="kill_switch_active")
 
-        if plan.safety_constraints.requires_human_approval and plan.approval_state != ApprovalState.APPROVED:
+        if (
+            plan.safety_constraints.requires_human_approval
+            and plan.approval_state != ApprovalState.APPROVED
+        ):
             return GuardrailResult(allowed=False, reason="approval_required")
 
         blast_ok, blast_reason = self._blast_radius.validate(plan)

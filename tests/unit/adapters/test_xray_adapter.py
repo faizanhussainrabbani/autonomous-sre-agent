@@ -1,9 +1,10 @@
 """
 Unit tests for X-Ray Trace Adapter.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -30,25 +31,29 @@ def _make_adapter(client=None):
 def _make_xray_trace(trace_id="1-abc-def", segments=None):
     """Create a minimal X-Ray trace response."""
     import json
+
     if segments is None:
         segments = [
             {
                 "Id": "seg-1",
-                "Document": json.dumps({
-                    "name": "payment-handler",
-                    "id": "seg-1",
-                    "trace_id": trace_id,
-                    "start_time": 1704067200.0,
-                    "end_time": 1704067200.5,
-                    "http": {"response": {"status": 200}},
-                    "subsegments": [],
-                }),
+                "Document": json.dumps(
+                    {
+                        "name": "payment-handler",
+                        "id": "seg-1",
+                        "trace_id": trace_id,
+                        "start_time": 1704067200.0,
+                        "end_time": 1704067200.5,
+                        "http": {"response": {"status": 200}},
+                        "subsegments": [],
+                    }
+                ),
             }
         ]
     return {"Id": trace_id, "Duration": 0.5, "Segments": segments}
 
 
 # ── get_trace() ──────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_get_trace_returns_canonical_trace():
@@ -90,6 +95,7 @@ async def test_get_trace_handles_api_error():
 
 # ── query_traces() ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_query_traces_uses_filter_expression():
     """query_traces() should build filter expression from parameters."""
@@ -99,7 +105,7 @@ async def test_query_traces_uses_filter_expression():
         batch_result=[trace],
     )
     adapter = _make_adapter(client)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     results = await adapter.query_traces(
         service="payment-handler",
@@ -115,7 +121,7 @@ async def test_query_traces_empty_summaries():
     """query_traces() returns empty list when no summaries found."""
     client = _make_client(summaries_result=[])
     adapter = _make_adapter(client)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     results = await adapter.query_traces(service="svc", start_time=now, end_time=now)
     assert results == []
@@ -123,9 +129,10 @@ async def test_query_traces_empty_summaries():
 
 # ── _parse_segment() ─────────────────────────────────────────────────────────
 
+
 def test_parse_segment_fault_status():
     """Segment with fault=True should map to 500 status."""
-    import json
+
     adapter = _make_adapter()
     doc = {
         "name": "svc",
@@ -157,6 +164,7 @@ def test_parse_segment_throttle_status():
 
 
 # ── health_check() ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_health_check_ok():

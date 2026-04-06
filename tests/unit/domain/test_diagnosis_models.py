@@ -8,7 +8,6 @@ ImpactDimensions, Diagnosis, AuditEntry.
 from __future__ import annotations
 
 import pytest
-from uuid import uuid4
 
 from sre_agent.domain.models.canonical import Severity
 from sre_agent.domain.models.diagnosis import (
@@ -21,10 +20,10 @@ from sre_agent.domain.models.diagnosis import (
     ServiceTier,
 )
 
-
 # ---------------------------------------------------------------------------
 # ServiceTier
 # ---------------------------------------------------------------------------
+
 
 class TestServiceTier:
     """Tests for ServiceTier enum."""
@@ -46,6 +45,7 @@ class TestServiceTier:
 # ---------------------------------------------------------------------------
 # ConfidenceLevel
 # ---------------------------------------------------------------------------
+
 
 class TestConfidenceLevel:
     """Tests for ConfidenceLevel routing classification."""
@@ -78,6 +78,7 @@ class TestConfidenceLevel:
 # EvidenceCitation
 # ---------------------------------------------------------------------------
 
+
 class TestEvidenceCitation:
     """Tests for EvidenceCitation validation."""
 
@@ -94,13 +95,17 @@ class TestEvidenceCitation:
     def test_score_below_zero_raises(self):
         with pytest.raises(ValueError, match="relevance_score must be in"):
             EvidenceCitation(
-                source="test", content_snippet="x", relevance_score=-0.1,
+                source="test",
+                content_snippet="x",
+                relevance_score=-0.1,
             )
 
     def test_score_above_one_raises(self):
         with pytest.raises(ValueError, match="relevance_score must be in"):
             EvidenceCitation(
-                source="test", content_snippet="x", relevance_score=1.1,
+                source="test",
+                content_snippet="x",
+                relevance_score=1.1,
             )
 
     def test_boundary_scores(self):
@@ -109,7 +114,9 @@ class TestEvidenceCitation:
 
     def test_frozen_immutability(self):
         citation = EvidenceCitation(
-            source="test", content_snippet="x", relevance_score=0.5,
+            source="test",
+            content_snippet="x",
+            relevance_score=0.5,
         )
         with pytest.raises(AttributeError):
             citation.source = "modified"  # type: ignore[misc]
@@ -118,6 +125,7 @@ class TestEvidenceCitation:
 # ---------------------------------------------------------------------------
 # ImpactDimensions
 # ---------------------------------------------------------------------------
+
 
 class TestImpactDimensions:
     """Tests for ImpactDimensions scoring formula."""
@@ -197,6 +205,7 @@ class TestImpactDimensions:
 # Diagnosis
 # ---------------------------------------------------------------------------
 
+
 class TestDiagnosis:
     """Tests for Diagnosis entity."""
 
@@ -233,6 +242,7 @@ class TestDiagnosis:
 # ---------------------------------------------------------------------------
 # AuditEntry
 # ---------------------------------------------------------------------------
+
 
 class TestAuditEntry:
     """Tests for AuditEntry immutability."""

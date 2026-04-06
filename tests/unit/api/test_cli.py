@@ -7,10 +7,10 @@ status command, and run command using ``CliRunner``.
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from sre_agent.api.cli import cli
@@ -26,11 +26,7 @@ def runner() -> CliRunner:
 def valid_config_path(tmp_path: Path) -> Path:
     """Write a minimal valid agent.yaml to a temp directory."""
     config_file = tmp_path / "agent.yaml"
-    config_file.write_text(
-        "telemetry_provider: otel\n"
-        "cloud_provider: none\n"
-        "log_level: INFO\n"
-    )
+    config_file.write_text("telemetry_provider: otel\ncloud_provider: none\nlog_level: INFO\n")
     return config_file
 
 

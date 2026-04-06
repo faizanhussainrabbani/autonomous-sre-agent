@@ -33,14 +33,14 @@ Requires:
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
-import math
 import time
 import urllib.error
 import urllib.request
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from random import uniform
 
 import pytest
@@ -70,7 +70,6 @@ from sre_agent.adapters.cloud.resilience import (  # noqa: E402
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,
-    RateLimitError,
     ResourceNotFoundError,
     RetryConfig,
     TransientError,
@@ -98,6 +97,7 @@ def _inject_chaos_rules(localstack_url: str, rules: list[dict]) -> None:
         localstack_url: Base URL of the LocalStack instance, e.g. http://localhost:4566.
         rules: List of chaos rule dicts (service, operation, error, probability / latency).
     """
+
     def _post(payload: dict | list[dict]) -> int:
         req = urllib.request.Request(
             f"{localstack_url}{_CHAOS_ENDPOINT}",
@@ -124,10 +124,8 @@ def _clear_chaos_rules(localstack_url: str) -> None:
         f"{localstack_url}{_CHAOS_ENDPOINT}",
         method="DELETE",
     )
-    try:
+    with contextlib.suppress(Exception):
         urllib.request.urlopen(req, timeout=5)
-    except Exception:  # noqa: BLE001
-        pass
 
 
 # ---------------------------------------------------------------------------
@@ -203,12 +201,10 @@ def _provision_ecs_resources(ecs_client, cluster_name="chx-cluster"):
     Returns:
         dict with keys: cluster, task_arn, service
     """
-    try:
+    with contextlib.suppress(Exception):
         ecs_client.create_cluster(clusterName=cluster_name)
-    except Exception:  # noqa: BLE001
-        pass  # Cluster may already exist
 
-    try:
+    with contextlib.suppress(Exception):
         ecs_client.register_task_definition(
             family="chx-task-def",
             containerDefinitions=[
@@ -219,21 +215,17 @@ def _provision_ecs_resources(ecs_client, cluster_name="chx-cluster"):
                 }
             ],
         )
-    except Exception:  # noqa: BLE001
-        pass  # Task definition may already exist
 
     resp = ecs_client.run_task(cluster=cluster_name, taskDefinition="chx-task-def")
     task_arn = resp["tasks"][0]["taskArn"] if resp.get("tasks") else ""
 
-    try:
+    with contextlib.suppress(Exception):
         ecs_client.create_service(
             cluster=cluster_name,
             serviceName="chx-service",
             taskDefinition="chx-task-def",
             desiredCount=1,
         )
-    except Exception:  # noqa: BLE001
-        pass  # Service may already exist
 
     return {"cluster": cluster_name, "task_arn": task_arn, "service": "chx-service"}
 
@@ -244,7 +236,7 @@ def _provision_lambda_function(lambda_client, function_name="chx-lambda"):
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("handler.py", "def handler(event, context): return 'ok'")
     buf.seek(0)
-    try:
+    with contextlib.suppress(Exception):
         lambda_client.create_function(
             FunctionName=function_name,
             Runtime="python3.11",
@@ -252,22 +244,18 @@ def _provision_lambda_function(lambda_client, function_name="chx-lambda"):
             Handler="handler.handler",
             Code={"ZipFile": buf.read()},
         )
-    except Exception:  # noqa: BLE001
-        pass  # Function may already exist
     return function_name
 
 
 def _provision_asg(asg_client, asg_name="chx-asg"):
     """Create a launch configuration and Auto Scaling Group."""
-    try:
+    with contextlib.suppress(Exception):
         asg_client.create_launch_configuration(
             LaunchConfigurationName="chx-launch-config",
             ImageId="ami-12345678",
             InstanceType="t2.micro",
         )
-    except Exception:  # noqa: BLE001
-        pass
-    try:
+    with contextlib.suppress(Exception):
         asg_client.create_auto_scaling_group(
             AutoScalingGroupName=asg_name,
             LaunchConfigurationName="chx-launch-config",
@@ -276,8 +264,6 @@ def _provision_asg(asg_client, asg_name="chx-asg"):
             DesiredCapacity=1,
             AvailabilityZones=["us-east-1a"],
         )
-    except Exception:  # noqa: BLE001
-        pass
     return asg_name
 
 
@@ -319,18 +305,21 @@ async def test_chx_001_throttling_exception_triggers_ratelimit_and_retry(
     # ── Given ──────────────────────────────────────────────────────────────
     _clear_chaos_rules(localstack_url)
 
-    _inject_chaos_rules(localstack_url, [
-        {
-            "service": "ecs",
-            "operation": "StopTask",
-            "error": {"code": "ThrottlingException"},
-        }
-    ])
+    _inject_chaos_rules(
+        localstack_url,
+        [
+            {
+                "service": "ecs",
+                "operation": "StopTask",
+                "error": {"code": "ThrottlingException"},
+            }
+        ],
+    )
 
     max_retries = 3
     base_delay = 0.05  # seconds (fast delays for test performance)
     # Expected cumulative sleep: base*(2^0) + base*(2^1) + base*(2^2) = 0.05+0.10+0.20 = 0.35s
-    expected_min_elapsed = sum(base_delay * (2 ** i) for i in range(max_retries))
+    expected_min_elapsed = sum(base_delay * (2**i) for i in range(max_retries))
 
     config = RetryConfig(
         max_retries=max_retries,
@@ -413,7 +402,7 @@ async def test_chx_002_resource_not_found_aborts_immediately_no_retry(
     # ── Then ───────────────────────────────────────────────────────────────
     # Must abort without sleeping between retries
     assert elapsed < 0.5, (
-        f"ResourceNotFoundError should be immediate (<500ms), got {elapsed*1000:.1f}ms — "
+        f"ResourceNotFoundError should be immediate (<500ms), got {elapsed * 1000:.1f}ms — "
         "possible unintended retry"
     )
     # Circuit breaker records exactly one failure (the single non-retryable attempt)
@@ -470,7 +459,7 @@ async def test_chx_003_access_denied_aborts_immediately_no_retry(
     # ── Then ───────────────────────────────────────────────────────────────
     # Must abort without sleeping between retries
     assert elapsed < 0.5, (
-        f"AuthenticationError should be immediate (<500ms), got {elapsed*1000:.1f}ms — "
+        f"AuthenticationError should be immediate (<500ms), got {elapsed * 1000:.1f}ms — "
         "possible unintended retry"
     )
     # AuthenticationError is non-retryable -> circuit records one failure, still CLOSED
@@ -499,13 +488,16 @@ async def test_chx_004_circuit_breaker_trips_on_sustained_500_errors(
     _clear_chaos_rules(localstack_url)
 
     # 100% probability of 500 error for UpdateService calls
-    _inject_chaos_rules(localstack_url, [
-        {
-            "service": "ecs",
-            "operation": "UpdateService",
-            "error": {"code": "InternalError"},
-        }
-    ])
+    _inject_chaos_rules(
+        localstack_url,
+        [
+            {
+                "service": "ecs",
+                "operation": "UpdateService",
+                "error": {"code": "InternalError"},
+            }
+        ],
+    )
 
     # max_retries=0 -> each scale_capacity call = exactly one SDK attempt = one circuit failure
     config = RetryConfig(max_retries=0, base_delay_seconds=0.05)
@@ -552,7 +544,7 @@ async def test_chx_004_circuit_breaker_trips_on_sustained_500_errors(
     )
     # Circuit breaker rejection is instantaneous, no network round trip
     assert rejection_elapsed < 0.05, (
-        f"CircuitOpenError should be raised in <50ms, took {rejection_elapsed*1000:.1f}ms"
+        f"CircuitOpenError should be raised in <50ms, took {rejection_elapsed * 1000:.1f}ms"
     )
 
 
@@ -578,7 +570,7 @@ async def test_chx_005_injected_network_latency_fires_latency_spike_alert(
     # ── Given ──────────────────────────────────────────────────────────────
     # Build baseline: 35 data points ≈ 50ms with small natural variation
     # Anchored to minute=30 to avoid hour-bucket boundary during the test.
-    now = datetime.now(timezone.utc).replace(minute=30, second=0, microsecond=0)
+    now = datetime.now(UTC).replace(minute=30, second=0, microsecond=0)
 
     baseline = BaselineService()
     config = DetectionConfig(
@@ -614,7 +606,7 @@ async def test_chx_005_injected_network_latency_fires_latency_spike_alert(
 
     # The observed latency must be at least 800ms for the test to be valid
     assert observed_latency_s >= 0.75, (
-        f"Expected injected latency >= 750ms, got {observed_latency_s*1000:.0f}ms. "
+        f"Expected injected latency >= 750ms, got {observed_latency_s * 1000:.0f}ms. "
         "Chaos latency injection may not have applied."
     )
 
@@ -645,6 +637,7 @@ async def test_chx_005_injected_network_latency_fires_latency_spike_alert(
 
     alert = latency_alerts[0]
     assert alert.deviation_sigma > 10.0, (
-        f"Expected sigma > 10 for 800ms spike against 50ms baseline, got {alert.deviation_sigma:.1f}σ"
+        "Expected sigma > 10 for 800ms spike against 50ms baseline, "
+        f"got {alert.deviation_sigma:.1f}σ"
     )
     assert alert.service == "lambda-svc"

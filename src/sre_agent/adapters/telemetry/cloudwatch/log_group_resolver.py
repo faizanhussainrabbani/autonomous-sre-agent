@@ -65,7 +65,9 @@ class CloudWatchLogGroupResolver:
 
             groups = response.get("logGroups", [])
             if groups:
-                resolved = groups[0]["logGroupName"]
+                resolved = str(groups[0].get("logGroupName", ""))
+                if not resolved:
+                    continue
                 self._resolved_groups[service] = resolved
                 return resolved
 

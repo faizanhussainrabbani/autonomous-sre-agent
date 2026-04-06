@@ -10,15 +10,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sre_agent.domain.models.canonical import ComputeMechanism
-from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
 from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator
+from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
 from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator
-
+from sre_agent.domain.models.canonical import ComputeMechanism
 
 # ---------------------------------------------------------------------------
 # ECS Operator — AC-1.5.6.1, AC-1.5.6.2
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_ecs_restart_calls_stop_task():
@@ -53,13 +53,16 @@ async def test_ecs_scale_calls_update_service():
     )
 
     mock_ecs.update_service.assert_called_once_with(
-        cluster="prod-cluster", service="my-service", desiredCount=5,
+        cluster="prod-cluster",
+        service="my-service",
+        desiredCount=5,
     )
 
 
 # ---------------------------------------------------------------------------
 # EC2 ASG Operator — AC-1.5.6.3
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_ec2_asg_scale_calls_set_desired_capacity():
@@ -70,7 +73,8 @@ async def test_ec2_asg_scale_calls_set_desired_capacity():
     await op.scale_capacity(resource_id="my-asg", desired_count=3)
 
     mock_asg.set_desired_capacity.assert_called_once_with(
-        AutoScalingGroupName="my-asg", DesiredCapacity=3,
+        AutoScalingGroupName="my-asg",
+        DesiredCapacity=3,
     )
 
 
@@ -87,6 +91,7 @@ async def test_ec2_asg_restart_raises():
 # ---------------------------------------------------------------------------
 # Lambda Operator — AC-1.5.6.4
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_lambda_scale_calls_put_concurrency():

@@ -13,7 +13,7 @@ Validates: AC-CW-3.1 through AC-CW-3.6
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -47,7 +47,7 @@ class XRayTraceAdapter(TraceQuery):
         """Retrieve a complete distributed trace by ID from X-Ray."""
         try:
             response = self._client.batch_get_traces(TraceIds=[trace_id])
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.error("xray_get_trace_failed", trace_id=trace_id, error=str(exc))
             return None
 
@@ -70,11 +70,9 @@ class XRayTraceAdapter(TraceQuery):
         end: datetime | None = None,
     ) -> list[CanonicalTrace]:
         """Query X-Ray for traces involving a service within a time range."""
-        effective_start = start_time or start or datetime.now(timezone.utc)
-        effective_end = end_time or end or datetime.now(timezone.utc)
-        filter_expr = self._build_filter_expression(
-            service, min_duration_ms, status_code
-        )
+        effective_start = start_time or start or datetime.now(UTC)
+        effective_end = end_time or end or datetime.now(UTC)
+        filter_expr = self._build_filter_expression(service, min_duration_ms, status_code)
 
         try:
             response = self._client.get_trace_summaries(
@@ -83,7 +81,7 @@ class XRayTraceAdapter(TraceQuery):
                 Sampling=False,
                 FilterExpression=filter_expr,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.error(
                 "xray_query_traces_failed",
                 service=service,
@@ -105,7 +103,7 @@ class XRayTraceAdapter(TraceQuery):
                 batch_response = self._client.batch_get_traces(TraceIds=batch)
                 for trace_data in batch_response.get("Traces", []):
                     canonical_traces.append(self._parse_xray_trace(trace_data))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "xray_batch_get_failed",
                     batch_size=len(batch),
@@ -117,7 +115,7 @@ class XRayTraceAdapter(TraceQuery):
     async def health_check(self) -> bool:
         """Check X-Ray is reachable by querying recent trace summaries."""
         try:
-            end = datetime.now(timezone.utc)
+            end = datetime.now(UTC)
             start = end - timedelta(minutes=1)
             self._client.get_trace_summaries(
                 StartTime=start,
@@ -125,7 +123,7 @@ class XRayTraceAdapter(TraceQuery):
                 Sampling=True,
             )
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("xray_health_check_failed", error=str(exc))
             return False
 
@@ -185,9 +183,7 @@ class XRayTraceAdapter(TraceQuery):
 
             # Parse subsegments recursively
             for subsegment in doc.get("subsegments", []):
-                child_spans = self._parse_subsegments(
-                    subsegment, parent_span_id=root_span.span_id
-                )
+                child_spans = self._parse_subsegments(subsegment, parent_span_id=root_span.span_id)
                 spans.extend(child_spans)
 
         # Assess completeness
@@ -198,9 +194,7 @@ class XRayTraceAdapter(TraceQuery):
         for s in spans:
             if s.parent_span_id and s.parent_span_id not in span_ids:
                 is_complete = False
-                missing_services.append(
-                    f"unknown (parent_span={s.parent_span_id})"
-                )
+                missing_services.append(f"unknown (parent_span={s.parent_span_id})")
 
         return CanonicalTrace(
             trace_id=trace_id,
@@ -209,7 +203,7 @@ class XRayTraceAdapter(TraceQuery):
             missing_services=missing_services,
             quality=DataQuality.HIGH if is_complete else DataQuality.INCOMPLETE,
             provider_source="cloudwatch",
-            ingestion_timestamp=datetime.now(timezone.utc),
+            ingestion_timestamp=datetime.now(UTC),
         )
 
     def _parse_segment(
@@ -260,12 +254,8 @@ class XRayTraceAdapter(TraceQuery):
             status_code=status_code,
             error=error_msg,
             attributes=attributes,
-            start_time=datetime.fromtimestamp(start_time, tz=timezone.utc)
-            if start_time
-            else None,
-            end_time=datetime.fromtimestamp(end_time, tz=timezone.utc)
-            if end_time
-            else None,
+            start_time=datetime.fromtimestamp(start_time, tz=UTC) if start_time else None,
+            end_time=datetime.fromtimestamp(end_time, tz=UTC) if end_time else None,
         )
 
     def _parse_subsegments(

@@ -22,7 +22,9 @@ async def test_planner_selects_restart_for_oom() -> None:
 
 async def test_planner_requires_hitl_for_sev1() -> None:
     planner = RemediationPlanner()
-    diagnosis = Diagnosis(root_cause="Deployment regression", confidence=0.95, severity=Severity.SEV1)
+    diagnosis = Diagnosis(
+        root_cause="Deployment regression", confidence=0.95, severity=Severity.SEV1
+    )
     alert = AnomalyAlert(
         anomaly_type=AnomalyType.DEPLOYMENT_INDUCED,
         service="checkout",

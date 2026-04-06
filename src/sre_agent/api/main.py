@@ -13,41 +13,48 @@ Phase 2 will add:
   POST /api/v1/incidents/{id}/approve  — Human HITL approval for pending actions
   POST /api/v1/incidents/{id}/reject   — Human rejection
 """
+
 from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 try:
     from fastapi import FastAPI, HTTPException, Request, Response, status
     from fastapi.responses import JSONResponse
     from pydantic import BaseModel
+
     _FASTAPI_AVAILABLE = True
 except ImportError:
     _FASTAPI_AVAILABLE = False
 
 try:
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
     _PROMETHEUS_AVAILABLE = False
 
 try:
     from sre_agent.api.rest.severity_override_router import router as _severity_override_router
+
     _OVERRIDE_ROUTER_AVAILABLE = True
 except ImportError:
     _OVERRIDE_ROUTER_AVAILABLE = False
 
 try:
     from sre_agent.api.rest.diagnose_router import router as _diagnose_router
+
     _DIAGNOSE_ROUTER_AVAILABLE = True
 except ImportError:
     _DIAGNOSE_ROUTER_AVAILABLE = False
 
 try:
     from sre_agent.api.rest.events_router import router as _events_router
+
     _EVENTS_ROUTER_AVAILABLE = True
 except ImportError:
     _EVENTS_ROUTER_AVAILABLE = False
@@ -55,6 +62,7 @@ except ImportError:
 
 # ── Request models (module-scope for FastAPI body parsing) ────────────────────
 if _FASTAPI_AVAILABLE:
+
     class HaltRequest(BaseModel):
         reason: str
         requested_by: str
@@ -75,6 +83,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         )
 
     import structlog as _structlog
+
     _log = _structlog.get_logger(__name__)
 
     app = FastAPI(
@@ -87,7 +96,10 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
 
     # ── Request logging middleware (OBS-004) ─────────────────────────────────
     @app.middleware("http")
-    async def log_requests(request: Request, call_next):
+    async def log_requests(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         """Emit structured logs for every HTTP request with a correlation ID."""
         request_id = str(uuid.uuid4())
         _log.info(
@@ -113,15 +125,20 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
     # Register routers
     if _OVERRIDE_ROUTER_AVAILABLE:
         app.include_router(_severity_override_router)
-        
+
     if _DIAGNOSE_ROUTER_AVAILABLE:
         app.include_router(_diagnose_router)
 
     if _EVENTS_ROUTER_AVAILABLE:
         app.include_router(_events_router)
 
-    _agent_start_time = datetime.now(timezone.utc)
-    _halt_state: dict[str, Any] = {"halted": False, "reason": None, "requested_by": None, "halted_at": None}
+    _agent_start_time = datetime.now(UTC)
+    _halt_state: dict[str, Any] = {
+        "halted": False,
+        "reason": None,
+        "requested_by": None,
+        "halted_at": None,
+    }
 
     # ── Liveness probe ────────────────────────────────────────────────────────
     @app.get("/health", tags=["Observability"])
@@ -143,7 +160,10 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
 
         # Vector store — check the adapter module is importable
         try:
-            from sre_agent.adapters.vectordb.chroma.adapter import ChromaVectorStoreAdapter  # noqa: F401
+            from sre_agent.adapters.vectordb.chroma.adapter import (
+                ChromaVectorStoreAdapter,  # noqa: F401
+            )
+
             checks["vector_store"] = "ok"
         except Exception as exc:  # noqa: BLE001
             checks["vector_store"] = f"error: {exc}"
@@ -154,6 +174,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
             from sre_agent.adapters.embedding.sentence_transformers_adapter import (  # noqa: F401
                 SentenceTransformersEmbeddingAdapter,
             )
+
             checks["embedding"] = "ok"
         except Exception as exc:  # noqa: BLE001
             checks["embedding"] = f"error: {exc}"
@@ -162,10 +183,14 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         # LLM — check at least one adapter module is importable
         try:
             from sre_agent.adapters.llm.openai.adapter import OpenAILLMAdapter  # noqa: F401
+
             checks["llm"] = "ok"
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             try:
-                from sre_agent.adapters.llm.anthropic.adapter import AnthropicLLMAdapter  # noqa: F401
+                from sre_agent.adapters.llm.anthropic.adapter import (
+                    AnthropicLLMAdapter,  # noqa: F401
+                )
+
                 checks["llm"] = "ok"
             except Exception as exc2:  # noqa: BLE001
                 checks["llm"] = f"error: {exc2}"
@@ -195,7 +220,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         Returns agent uptime, halt state, and Phase 1.5 version.
         Phase 2 will include ML baseline convergence status.
         """
-        uptime_seconds = (datetime.now(timezone.utc) - _agent_start_time).total_seconds()
+        uptime_seconds = (datetime.now(UTC) - _agent_start_time).total_seconds()
         return {
             "version": "0.1.0",
             "phase": "1.5",
@@ -215,13 +240,15 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
 
         Requires GlobalAdmin or IncidentCommander RBAC (Phase 2 enforcement).
         """
-        _halt_state.update({
-            "halted": True,
-            "reason": request.reason,
-            "requested_by": request.requested_by,
-            "halted_at": datetime.now(timezone.utc).isoformat(),
-            "mode": request.mode,
-        })
+        _halt_state.update(
+            {
+                "halted": True,
+                "reason": request.reason,
+                "requested_by": request.requested_by,
+                "halted_at": datetime.now(UTC).isoformat(),
+                "mode": request.mode,
+            }
+        )
         return {
             "status": "halted",
             "timestamp": _halt_state["halted_at"],
@@ -241,10 +268,12 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Agent is not in halted state.",
             )
-        _halt_state.update({"halted": False, "reason": None, "requested_by": None, "halted_at": None})
+        _halt_state.update(
+            {"halted": False, "reason": None, "requested_by": None, "halted_at": None}
+        )
         return {
             "status": "resumed",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "resumed_by": request.primary_approver,
         }
 
@@ -253,4 +282,3 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
 
 # Module-level app instance (for uvicorn: sre_agent.api.main:app)
 app = create_app() if _FASTAPI_AVAILABLE else None
-

@@ -46,9 +46,7 @@ class AWSResourceMetadataFetcher:
             return {}
 
         try:
-            config = self._lambda.get_function_configuration(
-                FunctionName=function_name
-            )
+            config = self._lambda.get_function_configuration(FunctionName=function_name)
             return {
                 "memory_mb": config.get("MemorySize", 0),
                 "timeout_s": config.get("Timeout", 0),
@@ -57,11 +55,9 @@ class AWSResourceMetadataFetcher:
                 "code_size_bytes": config.get("CodeSize", 0),
                 "last_modified": config.get("LastModified", ""),
                 "reserved_concurrency": self._get_lambda_concurrency(function_name),
-                "layers": [
-                    layer.get("Arn", "") for layer in config.get("Layers", [])
-                ],
+                "layers": [layer.get("Arn", "") for layer in config.get("Layers", [])],
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "resource_metadata_lambda_failed",
                 function=function_name,
@@ -69,9 +65,7 @@ class AWSResourceMetadataFetcher:
             )
             return {}
 
-    async def fetch_ecs_context(
-        self, cluster: str, service: str
-    ) -> dict[str, Any]:
+    async def fetch_ecs_context(self, cluster: str, service: str) -> dict[str, Any]:
         """Fetch ECS service configuration.
 
         Returns:
@@ -82,9 +76,7 @@ class AWSResourceMetadataFetcher:
             return {}
 
         try:
-            response = self._ecs.describe_services(
-                cluster=cluster, services=[service]
-            )
+            response = self._ecs.describe_services(cluster=cluster, services=[service])
             services = response.get("services", [])
             if not services:
                 return {}
@@ -100,12 +92,10 @@ class AWSResourceMetadataFetcher:
                 "task_definition": svc.get("taskDefinition", ""),
                 "launch_type": svc.get("launchType", ""),
                 "deployment_status": primary_deployment.get("status", ""),
-                "deployment_rollout_state": primary_deployment.get(
-                    "rolloutState", ""
-                ),
+                "deployment_rollout_state": primary_deployment.get("rolloutState", ""),
                 "service_status": svc.get("status", ""),
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "resource_metadata_ecs_failed",
                 cluster=cluster,
@@ -141,21 +131,15 @@ class AWSResourceMetadataFetcher:
                 "max_size": asg.get("MaxSize", 0),
                 "instance_count": len(instances),
                 "healthy_count": sum(
-                    1
-                    for i in instances
-                    if i.get("HealthStatus", "").upper() == "HEALTHY"
+                    1 for i in instances if i.get("HealthStatus", "").upper() == "HEALTHY"
                 ),
                 "unhealthy_count": sum(
-                    1
-                    for i in instances
-                    if i.get("HealthStatus", "").upper() != "HEALTHY"
+                    1 for i in instances if i.get("HealthStatus", "").upper() != "HEALTHY"
                 ),
                 "availability_zones": asg.get("AvailabilityZones", []),
-                "launch_template": asg.get("LaunchTemplate", {}).get(
-                    "LaunchTemplateName", ""
-                ),
+                "launch_template": asg.get("LaunchTemplate", {}).get("LaunchTemplateName", ""),
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "resource_metadata_asg_failed",
                 asg_name=asg_name,
@@ -165,10 +149,13 @@ class AWSResourceMetadataFetcher:
 
     def _get_lambda_concurrency(self, function_name: str) -> int | None:
         """Get reserved concurrency for a Lambda function."""
+        if self._lambda is None:
+            return None
         try:
-            response = self._lambda.get_function_concurrency(
-                FunctionName=function_name
-            )
-            return response.get("ReservedConcurrentExecutions")
-        except Exception:
+            response = self._lambda.get_function_concurrency(FunctionName=function_name)
+            reserved = response.get("ReservedConcurrentExecutions")
+            if reserved is None:
+                return None
+            return int(reserved)
+        except Exception:  # noqa: BLE001
             return None

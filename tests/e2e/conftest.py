@@ -5,20 +5,25 @@ E2E specific shared fixtures for testing against LocalStack Pro pipelines.
 import os
 import shutil
 import subprocess
+
 import pytest
 
 # ---------------------------------------------------------------------------
 # Environment helpers
 # ---------------------------------------------------------------------------
 
+
 def _is_docker_daemon_running() -> bool:
     if not shutil.which("docker"):
         return False
     try:
-        subprocess.run(["docker", "info"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(
+            ["docker", "info"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         return True
     except subprocess.CalledProcessError:
         return False
+
 
 _AUTH_TOKEN = (os.environ.get("LOCALSTACK_AUTH_TOKEN") or "").strip()
 
@@ -36,6 +41,7 @@ LocalStackContainer = testcontainers_localstack.LocalStackContainer
 # LocalStack Pro Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def localstack():
     """Start a LocalStack Pro container with autoscaling, ecs, and lambda services."""
@@ -50,6 +56,7 @@ def localstack():
     with container as c:
         yield c
 
+
 @pytest.fixture(scope="module")
 def asg_client(localstack):
     return boto3.client(
@@ -60,6 +67,7 @@ def asg_client(localstack):
         aws_secret_access_key="test",
     )
 
+
 @pytest.fixture(scope="module")
 def ecs_client(localstack):
     return boto3.client(
@@ -69,6 +77,7 @@ def ecs_client(localstack):
         aws_access_key_id="test",
         aws_secret_access_key="test",
     )
+
 
 @pytest.fixture(scope="module")
 def lambda_client(localstack):

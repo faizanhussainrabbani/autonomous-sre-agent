@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import time
+from typing import Any
 
 import structlog
 
@@ -11,6 +12,7 @@ from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegi
 from sre_agent.domain.models.canonical import DomainEvent, EventTypes
 from sre_agent.domain.remediation.models import (
     ActionStatus,
+    RemediationAction,
     RemediationPlan,
     RemediationResult,
     RemediationStrategy,
@@ -122,7 +124,9 @@ class RemediationEngine:
                 payload={
                     "plan_id": str(plan.plan_id),
                     "strategy": plan.strategy.value,
-                    "lock_fencing_token": lock_result.fencing_token if lock_result is not None else None,
+                    "lock_fencing_token": lock_result.fencing_token
+                    if lock_result is not None
+                    else None,
                 },
             ),
         )
@@ -153,7 +157,9 @@ class RemediationEngine:
 
             metrics_after = {"latency": 1.0, "error_rate": 0.0, "throughput": 1.0}
             baseline = {"latency": 1.0, "error_rate": 0.0, "throughput": 1.0}
-            verification = self._verifier.verify_metrics(metrics_after=metrics_after, baseline=baseline)
+            verification = self._verifier.verify_metrics(
+                metrics_after=metrics_after, baseline=baseline
+            )
 
             cooldown_key = self._cooldown.record_action(
                 resource_id=plan.target_resource,
@@ -171,7 +177,9 @@ class RemediationEngine:
                         "plan_id": str(plan.plan_id),
                         "verification": verification.value,
                         "cooldown_key": cooldown_key,
-                        "lock_fencing_token": lock_result.fencing_token if lock_result is not None else None,
+                        "lock_fencing_token": lock_result.fencing_token
+                        if lock_result is not None
+                        else None,
                     },
                 ),
             )
@@ -206,7 +214,12 @@ class RemediationEngine:
                     fencing_token=token,
                 )
 
-    async def _execute_action(self, operator, action, canary_size: int) -> None:
+    async def _execute_action(
+        self,
+        operator: Any,
+        action: RemediationAction,
+        canary_size: int,
+    ) -> None:
         if action.action_type in {
             RemediationStrategy.RESTART,
             RemediationStrategy.GITOPS_REVERT,
@@ -261,5 +274,6 @@ def _namespace_for(plan: RemediationPlan) -> str:
 
 def _split_resource(resource_id: str) -> tuple[str, str]:
     if "/" in resource_id:
-        return resource_id.split("/", 1)
+        resource_type, resource_name = resource_id.split("/", 1)
+        return resource_type, resource_name
     return "resource", resource_id

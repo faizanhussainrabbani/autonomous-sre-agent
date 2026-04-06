@@ -11,7 +11,7 @@ Validates: AC-1.5.3, AC-1.5.4 (internal alert + degraded mode)
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -25,9 +25,10 @@ logger = structlog.get_logger(__name__)
 
 class CircuitState(Enum):
     """Circuit breaker states per Engineering Standards §3.2."""
-    CLOSED = "closed"       # Normal operation
-    OPEN = "open"           # Failures exceeded threshold — provider considered down
-    HALF_OPEN = "half_open" # Testing if provider has recovered
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failures exceeded threshold — provider considered down
+    HALF_OPEN = "half_open"  # Testing if provider has recovered
 
 
 class ProviderHealthMonitor:
@@ -87,11 +88,13 @@ class ProviderHealthMonitor:
         self._consecutive_failures[component] = 0
         self._circuits[component] = CircuitState.CLOSED
 
-        self._health_history.append({
-            "component": component,
-            "status": "success",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        self._health_history.append(
+            {
+                "component": component,
+                "status": "success",
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         if previous_state != CircuitState.CLOSED:
             logger.info(
@@ -113,20 +116,20 @@ class ProviderHealthMonitor:
 
     async def record_failure(self, component: str, error: str = "") -> None:
         """Record a failed health check. Opens circuit after threshold."""
-        self._consecutive_failures[component] = (
-            self._consecutive_failures.get(component, 0) + 1
-        )
-        self._last_failure_time[component] = datetime.now(timezone.utc)
+        self._consecutive_failures[component] = self._consecutive_failures.get(component, 0) + 1
+        self._last_failure_time[component] = datetime.now(UTC)
 
         failures = self._consecutive_failures[component]
 
-        self._health_history.append({
-            "component": component,
-            "status": "failure",
-            "error": error,
-            "consecutive_failures": failures,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        self._health_history.append(
+            {
+                "component": component,
+                "status": "failure",
+                "error": error,
+                "consecutive_failures": failures,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         if failures >= self._failure_threshold:
             previous_state = self._circuits.get(component, CircuitState.CLOSED)

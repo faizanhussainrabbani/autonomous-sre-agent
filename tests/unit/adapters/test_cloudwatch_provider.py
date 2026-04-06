@@ -1,9 +1,10 @@
 """
 Unit tests for CloudWatch Telemetry Provider.
 """
+
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -27,6 +28,7 @@ def _make_provider():
 
 # ── Provider properties ──────────────────────────────────────────────────────
 
+
 def test_provider_name():
     provider = _make_provider()
     assert provider.name == "cloudwatch"
@@ -48,6 +50,7 @@ def test_provider_has_traces_adapter():
 
 
 # ── health_check() ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_health_check_all_healthy():
@@ -75,6 +78,7 @@ async def test_health_check_partial_failure():
 
 
 # ── close() ──────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_close_does_not_raise():

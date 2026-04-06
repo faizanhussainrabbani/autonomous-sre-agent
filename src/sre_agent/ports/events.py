@@ -10,11 +10,9 @@ Implements: Engineering Standards §1.5 (Event Sourcing)
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Awaitable
-from typing import Any
+from collections.abc import Awaitable, Callable
 
 from sre_agent.domain.models.canonical import DomainEvent
-
 
 # Type alias for event handlers
 EventHandler = Callable[[DomainEvent], Awaitable[None]]

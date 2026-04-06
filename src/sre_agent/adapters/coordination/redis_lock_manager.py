@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-try:
-    import redis.asyncio as redis_async
-    from redis.exceptions import WatchError
-except ImportError:  # pragma: no cover
-    redis_async = None
-    WatchError = RuntimeError
+from typing import Any
 
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.lock_manager import DistributedLockManagerPort, LockRequest, LockResult
+
+redis_async: Any
+RedisWatchError: type[Exception]
+
+try:
+    import redis.asyncio as redis_async
+    from redis.exceptions import WatchError as RedisWatchError
+except ImportError:  # pragma: no cover
+    redis_async = None
+    RedisWatchError = RuntimeError
 
 
 @dataclass(frozen=True)
@@ -26,7 +30,7 @@ class RedisDistributedLockManager(DistributedLockManagerPort):
 
     def __init__(
         self,
-        client=None,
+        client: Any | None = None,
         config: RedisLockConfig | None = None,
     ) -> None:
         self._config = config or RedisLockConfig()
@@ -100,7 +104,7 @@ class RedisDistributedLockManager(DistributedLockManagerPort):
                         holder_agent_id=holder_agent,
                         reason="lock_held_by_higher_or_equal_priority",
                     )
-            except WatchError:
+            except RedisWatchError:
                 continue
 
     async def release_lock(
@@ -132,7 +136,7 @@ class RedisDistributedLockManager(DistributedLockManagerPort):
             return False
         if int(payload.get("fencing_token", "0")) != fencing_token:
             return False
-        ttl_ms = await self._client.pttl(lock_key)
+        ttl_ms = int(await self._client.pttl(lock_key))
         return ttl_ms > 0
 
     def _lock_key(self, request: LockRequest) -> str:

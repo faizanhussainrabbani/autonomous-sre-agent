@@ -7,23 +7,25 @@ Includes retry with exponential backoff and circuit breaker.
 
 from __future__ import annotations
 
-import structlog
 from typing import Any
+
+import structlog
 
 try:
     from botocore.exceptions import ClientError as _BotoCoreClientError
+
     _AWS_ERRORS = (_BotoCoreClientError, ConnectionError, TimeoutError)
 except ImportError:
     _AWS_ERRORS = (Exception,)  # type: ignore[assignment]
 
-from sre_agent.domain.models.canonical import ComputeMechanism
-from sre_agent.ports.cloud_operator import CloudOperatorPort
 from sre_agent.adapters.cloud.aws.error_mapper import map_boto_error
 from sre_agent.adapters.cloud.resilience import (
     CircuitBreaker,
     RetryConfig,
     retry_with_backoff,
 )
+from sre_agent.domain.models.canonical import ComputeMechanism
+from sre_agent.ports.cloud_operator import CloudOperatorPort
 
 logger = structlog.get_logger(__name__)
 
@@ -55,7 +57,9 @@ class LambdaOperator(CloudOperatorPort):
         return super().is_action_supported(action, compute_mechanism)
 
     async def restart_compute_unit(
-        self, resource_id: str, metadata: dict[str, Any] | None = None,
+        self,
+        resource_id: str,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         raise NotImplementedError(
             "Lambda functions cannot be restarted. "
@@ -63,12 +67,14 @@ class LambdaOperator(CloudOperatorPort):
         )
 
     async def scale_capacity(
-        self, resource_id: str, desired_count: int,
+        self,
+        resource_id: str,
+        desired_count: int,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Adjust reserved concurrency for a Lambda function."""
 
-        async def _do_scale():
+        async def _do_scale() -> dict[str, Any]:
             logger.info("lambda_put_concurrency", function=resource_id, concurrency=desired_count)
             try:
                 response = self._lambda.put_function_concurrency(
@@ -77,7 +83,12 @@ class LambdaOperator(CloudOperatorPort):
                 )
             except _AWS_ERRORS as exc:
                 raise map_boto_error(exc) from exc
-            return {"action": "put_function_concurrency", "function": resource_id, "concurrency": desired_count, "response": response}
+            return {
+                "action": "put_function_concurrency",
+                "function": resource_id,
+                "concurrency": desired_count,
+                "response": response,
+            }
 
         return await retry_with_backoff(
             _do_scale,

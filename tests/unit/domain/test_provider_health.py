@@ -34,7 +34,9 @@ class TestProviderHealthRegistration:
         """Newly registered component starts in CLOSED (healthy) state."""
         assert monitor.get_circuit_state("prometheus") == CircuitState.CLOSED
 
-    def test_unregistered_component_defaults_to_closed(self, monitor: ProviderHealthMonitor) -> None:
+    def test_unregistered_component_defaults_to_closed(
+        self, monitor: ProviderHealthMonitor
+    ) -> None:
         """Unregistered component returns CLOSED by default."""
         assert monitor.get_circuit_state("unknown") == CircuitState.CLOSED
 

@@ -23,11 +23,11 @@ from sre_agent.domain.models.canonical import (
     ServiceGraph,
 )
 
-
 # ---------------------------------------------------------------------------
 # Baseline Query Port (M-2 — domain services depend on abstraction, not
 # concrete BaselineService)
 # ---------------------------------------------------------------------------
+
 
 class BaselineQuery(ABC):
     """Port for querying computed baselines.
@@ -71,6 +71,7 @@ class BaselineQuery(ABC):
     ) -> Any:
         """Ingest a data point into the baseline."""
         ...
+
 
 class MetricsQuery(ABC):
     """Port for querying metric data from any telemetry backend.
@@ -287,7 +288,8 @@ class DependencyGraphQuery(ABC):
 # eBPF Query Port (AC-2.2.1 through AC-2.2.4)
 # ---------------------------------------------------------------------------
 
-class eBPFQuery(ABC):
+
+class eBPFQuery(ABC):  # noqa: N801
     """Port for querying eBPF kernel-level telemetry data.
 
     eBPF programs capture syscall activity, network flows, and process

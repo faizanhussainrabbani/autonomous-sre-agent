@@ -8,29 +8,30 @@ Validates: AC-1.4.1 through AC-1.4.4
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 
 from sre_agent.adapters.telemetry.newrelic.provider import (
     NerdGraphClient,
-    NewRelicMetricsAdapter,
-    NewRelicTraceAdapter,
-    NewRelicLogAdapter,
     NewRelicDependencyGraphAdapter,
+    NewRelicLogAdapter,
+    NewRelicMetricsAdapter,
     NewRelicProvider,
+    NewRelicTraceAdapter,
 )
 from sre_agent.config.settings import NewRelicConfig
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def mock_transport(response_data: dict, status_code: int = 200) -> httpx.MockTransport:
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(status_code, json=response_data)
+
     return httpx.MockTransport(handler)
 
 
@@ -49,8 +50,8 @@ def make_nerdgraph_client(response_data: dict) -> NerdGraphClient:
 # NerdGraph Client Tests
 # ---------------------------------------------------------------------------
 
-class TestNerdGraphClient:
 
+class TestNerdGraphClient:
     @pytest.mark.asyncio
     async def test_query_returns_results(self):
         nerdgraph_response = {
@@ -58,9 +59,7 @@ class TestNerdGraphClient:
                 "actor": {
                     "account": {
                         "nrql": {
-                            "results": [
-                                {"average.duration": 0.125, "beginTimeSeconds": 1700000000}
-                            ]
+                            "results": [{"average.duration": 0.125, "beginTimeSeconds": 1700000000}]
                         }
                     }
                 }
@@ -89,6 +88,7 @@ class TestNerdGraphClient:
     async def test_query_http_error(self):
         def raise_error(request):
             raise httpx.RequestError("con error", request=request)
+
         client = NerdGraphClient.__new__(NerdGraphClient)
         client._account_id = "123"
         client._client = httpx.AsyncClient(transport=httpx.MockTransport(raise_error))
@@ -105,6 +105,7 @@ class TestNerdGraphClient:
     async def test_graphql_http_error(self):
         def raise_error(request):
             raise httpx.RequestError("con error", request=request)
+
         client = NerdGraphClient.__new__(NerdGraphClient)
         client._client = httpx.AsyncClient(transport=httpx.MockTransport(raise_error))
         results = await client.graphql("{ actor { user } }", variables={"x": "y"})
@@ -115,8 +116,8 @@ class TestNerdGraphClient:
 # Metrics Adapter Tests (AC-1.4.1)
 # ---------------------------------------------------------------------------
 
-class TestNewRelicMetricsAdapter:
 
+class TestNewRelicMetricsAdapter:
     @pytest.mark.asyncio
     async def test_query_returns_canonical_metrics(self):
         nerdgraph_response = {
@@ -136,7 +137,7 @@ class TestNewRelicMetricsAdapter:
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicMetricsAdapter(client)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         metrics = await adapter.query("api-gateway", "cpu_usage", now - timedelta(minutes=5), now)
 
         assert len(metrics) == 2
@@ -150,15 +151,7 @@ class TestNewRelicMetricsAdapter:
     @pytest.mark.asyncio
     async def test_query_instant(self):
         nerdgraph_response = {
-            "data": {
-                "actor": {
-                    "account": {
-                        "nrql": {
-                            "results": [{"latest.cpu_usage": 0.65}]
-                        }
-                    }
-                }
-            }
+            "data": {"actor": {"account": {"nrql": {"results": [{"latest.cpu_usage": 0.65}]}}}}
         }
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicMetricsAdapter(client)
@@ -179,7 +172,13 @@ class TestNewRelicMetricsAdapter:
 
     @pytest.mark.asyncio
     async def test_list_metrics(self):
-        nerdgraph_response = {"data": {"actor": {"account": {"nrql": {"results": [{"uniques.metricName": ["cpu", "mem"]}]}}}}}
+        nerdgraph_response = {
+            "data": {
+                "actor": {
+                    "account": {"nrql": {"results": [{"uniques.metricName": ["cpu", "mem"]}]}}
+                }
+            }
+        }
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicMetricsAdapter(client)
         results = await adapter.list_metrics("svc")
@@ -191,8 +190,8 @@ class TestNewRelicMetricsAdapter:
 # Trace Adapter Tests (AC-1.4.2)
 # ---------------------------------------------------------------------------
 
-class TestNewRelicTraceAdapter:
 
+class TestNewRelicTraceAdapter:
     @pytest.mark.asyncio
     async def test_get_trace_returns_canonical_trace(self):
         nerdgraph_response = {
@@ -246,9 +245,13 @@ class TestNewRelicTraceAdapter:
 
     @pytest.mark.asyncio
     async def test_query_traces(self):
-        query_response = {"data": {"actor": {"account": {"nrql": {"results": [{"uniques.trace.id": ["t1"]}]}}}}}
-        trace_response = {"data": {"actor": {"account": {"nrql": {"results": [{"id": "s1", "trace.id": "t1"}]}}}}}
-        
+        query_response = {
+            "data": {"actor": {"account": {"nrql": {"results": [{"uniques.trace.id": ["t1"]}]}}}}
+        }
+        trace_response = {
+            "data": {"actor": {"account": {"nrql": {"results": [{"id": "s1", "trace.id": "t1"}]}}}}
+        }
+
         # We need a custom transport to return different responses based on the query string
         async def handler(request: httpx.Request) -> httpx.Response:
             content = request.content.decode("utf-8")
@@ -259,11 +262,15 @@ class TestNewRelicTraceAdapter:
 
         client = NerdGraphClient.__new__(NerdGraphClient)
         client._account_id = "123"
-        client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://api.newrelic.com")
+        client._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="https://api.newrelic.com"
+        )
         adapter = NewRelicTraceAdapter(client)
 
-        now = datetime.now(timezone.utc)
-        traces = await adapter.query_traces("svc", now - timedelta(hours=1), now, min_duration_ms=10.0, status_code=500)
+        now = datetime.now(UTC)
+        traces = await adapter.query_traces(
+            "svc", now - timedelta(hours=1), now, min_duration_ms=10.0, status_code=500
+        )
         assert len(traces) == 1
         assert traces[0].trace_id == "t1"
         assert len(traces[0].spans) == 1
@@ -273,8 +280,8 @@ class TestNewRelicTraceAdapter:
 # Log Adapter Tests (AC-1.4.3)
 # ---------------------------------------------------------------------------
 
-class TestNewRelicLogAdapter:
 
+class TestNewRelicLogAdapter:
     @pytest.mark.asyncio
     async def test_query_logs_returns_canonical_entries(self):
         nerdgraph_response = {
@@ -300,7 +307,7 @@ class TestNewRelicLogAdapter:
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicLogAdapter(client)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         logs = await adapter.query_logs("payment-svc", now - timedelta(hours=1), now)
 
         assert len(logs) == 1
@@ -314,16 +321,24 @@ class TestNewRelicLogAdapter:
 
     @pytest.mark.asyncio
     async def test_query_logs_with_all_filters(self):
-        nerdgraph_response = {"data": {"actor": {"account": {"nrql": {"results": [{"message": "foo"}]}}}}}
+        nerdgraph_response = {
+            "data": {"actor": {"account": {"nrql": {"results": [{"message": "foo"}]}}}}
+        }
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicLogAdapter(client)
-        now = datetime.now(timezone.utc)
-        logs = await adapter.query_logs("payment-svc", now, now, severity="ERROR", trace_id="123", search_text="foo")
+        now = datetime.now(UTC)
+        logs = await adapter.query_logs(
+            "payment-svc", now, now, severity="ERROR", trace_id="123", search_text="foo"
+        )
         assert len(logs) == 1
 
     @pytest.mark.asyncio
     async def test_query_by_trace_id(self):
-        nerdgraph_response = {"data": {"actor": {"account": {"nrql": {"results": [{"message": "foo", "level": "error"}]}}}}}
+        nerdgraph_response = {
+            "data": {
+                "actor": {"account": {"nrql": {"results": [{"message": "foo", "level": "error"}]}}}
+            }
+        }
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicLogAdapter(client)
         logs = await adapter.query_by_trace_id("123")
@@ -332,7 +347,15 @@ class TestNewRelicLogAdapter:
 
     @pytest.mark.asyncio
     async def test_parse_logs_invalid_timestamp(self):
-        nerdgraph_response = {"data": {"actor": {"account": {"nrql": {"results": [{"timestamp": "not_a_number", "message": "foo"}]}}}}}
+        nerdgraph_response = {
+            "data": {
+                "actor": {
+                    "account": {
+                        "nrql": {"results": [{"timestamp": "not_a_number", "message": "foo"}]}
+                    }
+                }
+            }
+        }
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicLogAdapter(client)
         now = datetime.now()
@@ -345,8 +368,8 @@ class TestNewRelicLogAdapter:
 # Dependency Graph Tests (AC-1.4.4)
 # ---------------------------------------------------------------------------
 
-class TestNewRelicDependencyGraphAdapter:
 
+class TestNewRelicDependencyGraphAdapter:
     @pytest.mark.asyncio
     async def test_get_graph_returns_service_graph(self):
         nerdgraph_response = {
@@ -402,31 +425,52 @@ class TestNewRelicDependencyGraphAdapter:
     @pytest.mark.asyncio
     async def test_get_service_dependencies(self):
         nerdgraph_response = {
-            "data": {"actor": {"entitySearch": {"results": {"entities": [
-                {"name": "A", "relationships": [{"target": {"entity": {"name": "B"}}, "type": "CALLS"}]},
-                {"name": "B", "relationships": [{"target": {"entity": {"name": "C"}}, "type": "CALLS"}]},
-                {"name": "C", "relationships": []}
-            ]}}}}
+            "data": {
+                "actor": {
+                    "entitySearch": {
+                        "results": {
+                            "entities": [
+                                {
+                                    "name": "A",
+                                    "relationships": [
+                                        {"target": {"entity": {"name": "B"}}, "type": "CALLS"}
+                                    ],
+                                },
+                                {
+                                    "name": "B",
+                                    "relationships": [
+                                        {"target": {"entity": {"name": "C"}}, "type": "CALLS"}
+                                    ],
+                                },
+                                {"name": "C", "relationships": []},
+                            ]
+                        }
+                    }
+                }
+            }
         }
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicDependencyGraphAdapter(client)
-        
+
         # Test direct downstream
         graph = await adapter.get_service_dependencies("A", include_transitive=False)
         assert "A" in graph.nodes
         assert "B" in graph.nodes
         assert "C" not in graph.nodes
-        
-        # Test transitive downstream (graph structure makes this fail dynamically in real life, but we mock static graph)
+
+        # Test transitive downstream.
+        # Graph structure can fail dynamically in real life, but we mock static graph here.
         graph = await adapter.get_service_dependencies("A", include_transitive=True)
         assert "C" in graph.nodes
 
     @pytest.mark.asyncio
     async def test_get_service_health(self):
         nerdgraph_response = {
-            "data": {"actor": {"account": {"nrql": {"results": [
-                {"average.duration": 0.5, "percentage": 2.5}
-            ]}}}}
+            "data": {
+                "actor": {
+                    "account": {"nrql": {"results": [{"average.duration": 0.5, "percentage": 2.5}]}}
+                }
+            }
         }
         client = make_nerdgraph_client(nerdgraph_response)
         adapter = NewRelicDependencyGraphAdapter(client)
@@ -440,8 +484,8 @@ class TestNewRelicDependencyGraphAdapter:
 # NewRelic Provider Composite Tests
 # ---------------------------------------------------------------------------
 
-class TestNewRelicProvider:
 
+class TestNewRelicProvider:
     def test_provider_name(self):
         config = NewRelicConfig(account_id="12345")
         provider = NewRelicProvider(config, api_key="test-key")
@@ -460,10 +504,13 @@ class TestNewRelicProvider:
         config = NewRelicConfig(account_id="12345")
         provider = NewRelicProvider(config, api_key="test-key")
         import unittest.mock
+
         with unittest.mock.patch.object(provider._client, "health_check", return_value=True) as h:
             assert await provider.health_check() is True
             h.assert_called_once()
-            
-        with unittest.mock.patch.object(provider._client, "close", new_callable=unittest.mock.AsyncMock) as c:
+
+        with unittest.mock.patch.object(
+            provider._client, "close", new_callable=unittest.mock.AsyncMock
+        ) as c:
             await provider.close()
             c.assert_called_once()

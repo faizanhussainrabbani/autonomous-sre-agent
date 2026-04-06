@@ -11,7 +11,7 @@ Validates: AC-1.5.5
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
 
 import structlog
 
@@ -83,7 +83,5 @@ class ProviderPlugin:
         factory = cls._factories.get(name)
         if factory is None:
             available = ", ".join(cls._factories.keys()) or "(none)"
-            raise ValueError(
-                f"Provider '{name}' not registered. Available: {available}"
-            )
+            raise ValueError(f"Provider '{name}' not registered. Available: {available}")
         return factory(config)

@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from dotenv import load_dotenv
 
 # Load .env file if present.
@@ -25,6 +25,7 @@ load_dotenv(override=True)
 
 class TelemetryProviderType(Enum):
     """Supported telemetry providers."""
+
     OTEL = "otel"
     NEWRELIC = "newrelic"
     CLOUDWATCH = "cloudwatch"
@@ -32,6 +33,7 @@ class TelemetryProviderType(Enum):
 
 class CloudProviderType(Enum):
     """Supported cloud providers."""
+
     AWS = "aws"
     AZURE = "azure"
     NONE = "none"  # Self-managed / no cloud provider
@@ -48,6 +50,7 @@ class LockBackendType(Enum):
 @dataclass
 class OTelConfig:
     """Configuration for the OTel/Prometheus/Jaeger/Loki adapter."""
+
     prometheus_url: str = "http://prometheus:9090"
     jaeger_url: str = "http://jaeger:16686"
     loki_url: str = "http://loki:3100"
@@ -57,6 +60,7 @@ class OTelConfig:
 @dataclass
 class NewRelicConfig:
     """Configuration for the New Relic NerdGraph adapter."""
+
     account_id: str = ""
     api_key_secret_name: str = "newrelic-api-key"  # Retrieved from secrets manager
     region: str = "US"  # US or EU
@@ -66,6 +70,7 @@ class NewRelicConfig:
 @dataclass
 class CloudWatchConfig:
     """CloudWatch telemetry collection configuration."""
+
     region: str = "us-east-1"
     metric_poll_interval_seconds: int = 60
     log_fetch_window_minutes: int = 30
@@ -77,6 +82,7 @@ class CloudWatchConfig:
 @dataclass
 class EnrichmentConfig:
     """Bridge enrichment feature toggles."""
+
     fetch_metrics: bool = True
     fetch_logs: bool = True
     fetch_traces: bool = False  # Enable when XRayTraceAdapter is built
@@ -86,6 +92,7 @@ class EnrichmentConfig:
 @dataclass
 class AWSHealthConfig:
     """AWS Health API polling configuration."""
+
     enabled: bool = False
     poll_interval_seconds: int = 300
     regions: list[str] | None = None
@@ -94,6 +101,7 @@ class AWSHealthConfig:
 @dataclass
 class AWSConfig:
     """AWS-specific configuration."""
+
     region: str = "us-east-1"
     eks_cluster_name: str = ""
     s3_bucket: str = ""
@@ -104,6 +112,7 @@ class AWSConfig:
 @dataclass
 class AzureConfig:
     """Azure-specific configuration."""
+
     subscription_id: str = ""
     resource_group: str = ""
     aks_cluster_name: str = ""
@@ -131,6 +140,7 @@ from sre_agent.domain.models.detection_config import DetectionConfig  # noqa: F4
 @dataclass
 class PerformanceConfig:
     """Performance SLO targets."""
+
     alert_latency_seconds: int = 60
     error_alert_latency_seconds: int = 30
     proactive_alert_latency_seconds: int = 120
@@ -145,10 +155,11 @@ class FeatureFlags:
 
     See Engineering Standards §5.4 — capabilities start disabled.
     """
+
     ebpf_enabled: bool = True
     multi_dimensional_correlation: bool = True
     deployment_aware_detection: bool = True
-    proactive_scaling: bool = False        # Phase 4
+    proactive_scaling: bool = False  # Phase 4
     architectural_recommendations: bool = False  # Phase 4
     new_relic_adapter: bool = False
     otel_adapter: bool = True
@@ -190,7 +201,7 @@ class AgentConfig:
     environment: str = "development"
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "AgentConfig":
+    def from_yaml(cls, path: str | Path) -> AgentConfig:
         """Load configuration from a YAML file.
 
         Args:
@@ -204,12 +215,12 @@ class AgentConfig:
         return cls._from_dict(raw)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AgentConfig":
+    def from_dict(cls, data: dict[str, Any]) -> AgentConfig:
         """Load configuration from a dictionary."""
         return cls._from_dict(data)
 
     @classmethod
-    def _from_dict(cls, data: dict[str, Any]) -> "AgentConfig":
+    def _from_dict(cls, data: dict[str, Any]) -> AgentConfig:
         """Internal helper to construct config from dict."""
         config = cls()
 
@@ -237,9 +248,6 @@ class AgentConfig:
             config.enrichment = EnrichmentConfig(**data["enrichment"])
         if "aws_health" in data:
             raw_health = dict(data["aws_health"])
-            # Convert regions from YAML list to Python list if needed
-            if "regions" in raw_health and raw_health["regions"] is None:
-                raw_health["regions"] = None
             config.aws_health = AWSHealthConfig(**raw_health)
         if "detection" in data:
             config.detection = DetectionConfig(**data["detection"])
@@ -265,9 +273,11 @@ class AgentConfig:
         if self.telemetry_provider == TelemetryProviderType.OTEL:
             if not self.otel.prometheus_url:
                 errors.append("OTel: prometheus_url is required")
-        elif self.telemetry_provider == TelemetryProviderType.NEWRELIC:
-            if not self.newrelic.account_id:
-                errors.append("New Relic: account_id is required")
+        elif (
+            self.telemetry_provider == TelemetryProviderType.NEWRELIC
+            and not self.newrelic.account_id
+        ):
+            errors.append("New Relic: account_id is required")
 
         # Validate cloud provider config
         if self.cloud_provider == CloudProviderType.AWS:

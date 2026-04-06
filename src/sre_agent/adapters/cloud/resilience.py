@@ -13,9 +13,10 @@ from __future__ import annotations
 import asyncio
 import functools
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 import structlog
 
@@ -24,11 +25,14 @@ from sre_agent.adapters.telemetry.metrics import CIRCUIT_BREAKER_STATE
 logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 # ---------------------------------------------------------------------------
 # Custom exceptions for cloud operator errors
 # ---------------------------------------------------------------------------
+
 
 class CloudOperatorError(Exception):
     """Base exception for cloud operator failures."""
@@ -54,9 +58,10 @@ class TransientError(CloudOperatorError):
 # Circuit Breaker
 # ---------------------------------------------------------------------------
 
+
 class CircuitState(Enum):
-    CLOSED = "closed"        # Normal operation
-    OPEN = "open"            # Failing — reject requests immediately
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing — reject requests immediately
     HALF_OPEN = "half_open"  # Testing — allow one request to probe
 
 
@@ -138,6 +143,7 @@ class CircuitOpenError(CloudOperatorError):
 # Retry with exponential backoff
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RetryConfig:
     """Configuration for retry behavior."""
@@ -159,12 +165,12 @@ class RetryConfig:
 
 
 async def retry_with_backoff(
-    func: Callable[..., Any],
+    func: Callable[..., Awaitable[T]],
     *args: Any,
     config: RetryConfig | None = None,
     circuit_breaker: CircuitBreaker | None = None,
     **kwargs: Any,
-) -> Any:
+) -> T:
     """Execute an async function with retry, backoff, and optional circuit breaker.
 
     Args:
@@ -223,7 +229,7 @@ async def retry_with_backoff(
                 break
 
             delay = min(
-                cfg.base_delay_seconds * (cfg.exponential_base ** attempt),
+                cfg.base_delay_seconds * (cfg.exponential_base**attempt),
                 cfg.max_delay_seconds,
             )
 
@@ -237,7 +243,7 @@ async def retry_with_backoff(
 
             await asyncio.sleep(delay)
 
-        except Exception as exc:
+        except Exception:
             # Unexpected exception — don't retry
             if circuit_breaker is not None:
                 circuit_breaker.record_failure()
@@ -252,15 +258,16 @@ async def retry_with_backoff(
 # Decorator for convenience
 # ---------------------------------------------------------------------------
 
+
 def with_resilience(
     retry_config: RetryConfig | None = None,
     circuit_breaker: CircuitBreaker | None = None,
-):
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
     """Decorator that wraps an async method with retry + circuit breaker."""
 
-    def decorator(func):
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             return await retry_with_backoff(
                 func,
                 *args,
@@ -268,6 +275,7 @@ def with_resilience(
                 circuit_breaker=circuit_breaker,
                 **kwargs,
             )
+
         return wrapper
 
     return decorator

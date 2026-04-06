@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Any, Dict
-from pydantic import BaseModel
-import structlog
+from typing import Annotated, Any
 
-from sre_agent.domain.models.canonical import AnomalyAlert
+import structlog
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
 from sre_agent.domain.diagnostics.ingestion import DocumentIngestionPipeline
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
+from sre_agent.domain.models.canonical import AnomalyAlert
 from sre_agent.ports.diagnostics import DiagnosisRequest
 
 logger = structlog.get_logger(__name__)
@@ -31,6 +32,7 @@ def get_pipeline() -> RAGDiagnosticPipeline:
             from sre_agent.adapters.intelligence_bootstrap import (
                 create_diagnostic_pipeline,
             )
+
             _pipeline = create_diagnostic_pipeline()
             logger.info(
                 "pipeline_initialised",
@@ -48,16 +50,25 @@ def get_pipeline() -> RAGDiagnosticPipeline:
             ) from exc
     return _pipeline
 
+
 class DiagnoseRequestPayload(BaseModel):
     alert: AnomalyAlert
+
 
 class IngestRequestPayload(BaseModel):
     source: str
     content: str
-    metadata: Dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
+
+
+PipelineDep = Annotated[RAGDiagnosticPipeline, Depends(get_pipeline)]
+
 
 @router.post("/ingest", status_code=200)
-async def ingest_document(payload: IngestRequestPayload, pipeline: RAGDiagnosticPipeline = Depends(get_pipeline)) -> Dict[str, Any]:
+async def ingest_document(
+    payload: IngestRequestPayload,
+    pipeline: PipelineDep,
+) -> dict[str, Any]:
     """Ingest a markdown runbook/post-mortem into the server's vector db for RAG."""
     try:
         ingestor = DocumentIngestionPipeline(
@@ -79,10 +90,14 @@ async def ingest_document(payload: IngestRequestPayload, pipeline: RAGDiagnostic
         }
     except Exception as e:
         logger.exception("ingest_route_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 
 @router.post("", status_code=200)
-async def trigger_diagnosis(payload: DiagnoseRequestPayload, pipeline: RAGDiagnosticPipeline = Depends(get_pipeline)) -> Dict[str, Any]:
+async def trigger_diagnosis(
+    payload: DiagnoseRequestPayload,
+    pipeline: PipelineDep,
+) -> dict[str, Any]:
     """Trigger the RAG Diagnostic Pipeline via HTTP."""
     try:
         req = DiagnosisRequest(
@@ -90,7 +105,7 @@ async def trigger_diagnosis(payload: DiagnoseRequestPayload, pipeline: RAGDiagno
             correlated_signals=payload.alert.correlated_signals,
         )
         result = await pipeline.diagnose(req)
-        
+
         return {
             "status": "success",
             "alert_id": str(payload.alert.alert_id),
@@ -100,8 +115,8 @@ async def trigger_diagnosis(payload: DiagnoseRequestPayload, pipeline: RAGDiagno
             "remediation": result.suggested_remediation,
             "requires_approval": result.requires_human_approval,
             "citations": result.evidence_citations,
-            "audit_trail": result.audit_trail
+            "audit_trail": result.audit_trail,
         }
     except Exception as e:
         logger.exception("diagnose_route_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

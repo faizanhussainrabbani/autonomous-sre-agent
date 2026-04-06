@@ -7,8 +7,6 @@ Phase 1.5: Decouples remediation dispatch from provider-specific code.
 
 from __future__ import annotations
 
-from typing import Any
-
 import structlog
 
 from sre_agent.domain.models.canonical import ComputeMechanism
@@ -83,7 +81,7 @@ class CloudOperatorRegistry:
             name = f"{operator.provider_name}:{type(operator).__name__}"
             try:
                 results[name] = await operator.health_check()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 results[name] = False
                 logger.error("operator_health_check_failed", operator=name, error=str(exc))
         return results

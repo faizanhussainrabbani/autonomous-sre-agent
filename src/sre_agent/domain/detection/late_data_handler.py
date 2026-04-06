@@ -11,18 +11,16 @@ Implements: AC-2.5.4 (late data ingestion), AC-2.5.5 (retroactive updates)
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 import structlog
 
 from sre_agent.domain.models.canonical import (
-    AnomalyAlert,
     CanonicalMetric,
     DataQuality,
     DomainEvent,
-    EventTypes,
 )
 from sre_agent.ports.events import EventBus
 from sre_agent.ports.telemetry import BaselineQuery
@@ -36,6 +34,7 @@ LATE_ARRIVAL_THRESHOLD = timedelta(seconds=60)
 @dataclass
 class LateArrivalRecord:
     """Tracks a late-arriving data point and any side effects."""
+
     metric: CanonicalMetric
     arrival_time: datetime
     delay_seconds: float
@@ -79,11 +78,13 @@ class LateDataHandler:
         """Register a recent incident for potential retroactive updates."""
         if service not in self._recent_incidents:
             self._recent_incidents[service] = []
-        self._recent_incidents[service].append({
-            "id": incident_id,
-            "timestamp": timestamp,
-            "anomaly_type": anomaly_type,
-        })
+        self._recent_incidents[service].append(
+            {
+                "id": incident_id,
+                "timestamp": timestamp,
+                "anomaly_type": anomaly_type,
+            }
+        )
         # Keep only last 100 per service
         self._recent_incidents[service] = self._recent_incidents[service][-100:]
 
@@ -106,7 +107,7 @@ class LateDataHandler:
         Returns:
             Record of the late arrival and any retroactive updates.
         """
-        current_time = now or datetime.now(timezone.utc)
+        current_time = now or datetime.now(UTC)
         delay = (current_time - metric.timestamp).total_seconds()
 
         # Flag as late
@@ -149,7 +150,7 @@ class LateDataHandler:
 
     def is_late(self, metric: CanonicalMetric, now: datetime | None = None) -> bool:
         """Check if a metric is late-arriving (>60s old)."""
-        current_time = now or datetime.now(timezone.utc)
+        current_time = now or datetime.now(UTC)
         return (current_time - metric.timestamp) > self._late_threshold
 
     def _check_retroactive_impact(

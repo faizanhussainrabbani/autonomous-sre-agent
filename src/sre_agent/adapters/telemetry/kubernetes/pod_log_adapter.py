@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from typing import Any
 
 import anyio
@@ -123,8 +124,7 @@ class KubernetesLogAdapter(LogQuery):
         pod_names = [pod.metadata.name for pod in pods.items[:_MAX_PODS]]
         pod_service_names: dict[str, str] = {
             pod.metadata.name: (
-                service
-                or ((pod.metadata.labels or {}).get("app", "unknown-service"))
+                service or ((pod.metadata.labels or {}).get("app", "unknown-service"))
             )
             for pod in pods.items[:_MAX_PODS]
         }
@@ -134,13 +134,15 @@ class KubernetesLogAdapter(LogQuery):
 
         async def _read_pod_log(pod_name: str) -> None:
             try:
+                read_pod_log = partial(
+                    self._api.read_namespaced_pod_log,
+                    name=pod_name,
+                    namespace=self._namespace,
+                    since_seconds=since_seconds,
+                    tail_lines=limit,
+                )
                 log_text: str = await anyio.to_thread.run_sync(
-                    lambda name=pod_name: self._api.read_namespaced_pod_log(
-                        name=name,
-                        namespace=self._namespace,
-                        since_seconds=since_seconds,
-                        tail_lines=limit,
-                    )
+                    read_pod_log
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
@@ -233,9 +235,7 @@ class KubernetesLogAdapter(LogQuery):
         Calls ``list_namespace(limit=1)`` as a lightweight connectivity probe.
         """
         try:
-            await anyio.to_thread.run_sync(
-                lambda: self._api.list_namespace(limit=1)
-            )
+            await anyio.to_thread.run_sync(lambda: self._api.list_namespace(limit=1))
             return True
         except Exception as exc:  # noqa: BLE001
             logger.warning(

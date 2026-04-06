@@ -11,15 +11,20 @@ This module is called at application startup (e.g., from main.py).
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 import structlog
 
+from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
 from sre_agent.config.plugin import ProviderPlugin
 from sre_agent.config.settings import AgentConfig, LockBackendType
-from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
-from sre_agent.ports.lock_manager import DistributedLockManagerPort
 from sre_agent.domain.detection.provider_registry import ProviderRegistry
+from sre_agent.ports.lock_manager import DistributedLockManagerPort
 from sre_agent.ports.telemetry import LogQuery, TelemetryProvider
+
+if TYPE_CHECKING:
+    from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
+    from sre_agent.ports.telemetry import eBPFQuery
 
 logger = structlog.get_logger(__name__)
 
@@ -27,6 +32,7 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Built-in provider factories (adapter layer — OK to import adapters here)
 # ---------------------------------------------------------------------------
+
 
 def _otel_factory(config: AgentConfig) -> TelemetryProvider:
     """Factory for the OTel provider (Prometheus + Jaeger + Loki)."""
@@ -100,6 +106,7 @@ def _newrelic_factory(config: AgentConfig) -> TelemetryProvider:
     For now, uses a placeholder — real secrets integration in cloud-portability.
     """
     from sre_agent.adapters.telemetry.newrelic.provider import NewRelicProvider
+
     # In production, api_key comes from secrets manager (AWS SM, Azure KV, Vault)
     api_key = ""  # Placeholder — resolved at runtime
     return NewRelicProvider(config.newrelic, api_key=api_key)
@@ -128,7 +135,7 @@ def _cloudwatch_factory(config: AgentConfig) -> TelemetryProvider:
     )
 
 
-def _create_pixie_adapter(config: AgentConfig):
+def _create_pixie_adapter(config: AgentConfig) -> eBPFQuery:
     """Factory for the Pixie eBPF adapter (optional — kernel telemetry).
 
     Returns an eBPFQuery implementation. This is separate from the
@@ -136,6 +143,7 @@ def _create_pixie_adapter(config: AgentConfig):
     metrics/traces/logs provider.
     """
     from sre_agent.adapters.telemetry.ebpf.pixie_adapter import PixieAdapter
+
     return PixieAdapter(
         api_url=getattr(config, "pixie_api_url", "https://work.withpixie.ai"),
         cluster_id=getattr(config, "pixie_cluster_id", ""),
@@ -193,7 +201,8 @@ async def bootstrap_provider(
 # Phase 1.5 — Cloud operator bootstrap
 # ---------------------------------------------------------------------------
 
-def bootstrap_cloud_operators(config: AgentConfig):
+
+def bootstrap_cloud_operators(config: AgentConfig) -> CloudOperatorRegistry:
     """Bootstrap cloud remediation operators based on available SDKs.
 
     Returns a CloudOperatorRegistry with registered operators for any
@@ -218,8 +227,8 @@ def bootstrap_cloud_operators(config: AgentConfig):
     try:
         import boto3  # noqa: F401
 
-        from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
         from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator
+        from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
         from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator
 
         region = getattr(config, "aws_region", "us-east-1")
@@ -232,8 +241,8 @@ def bootstrap_cloud_operators(config: AgentConfig):
 
     # Azure operators (requires azure-mgmt-web)
     try:
-        from azure.mgmt.web import WebSiteManagementClient  # noqa: F401
         from azure.identity import DefaultAzureCredential  # noqa: F401
+        from azure.mgmt.web import WebSiteManagementClient  # noqa: F401
 
         from sre_agent.adapters.cloud.azure.app_service_operator import AppServiceOperator
         from sre_agent.adapters.cloud.azure.functions_operator import FunctionsOperator
@@ -261,14 +270,13 @@ def bootstrap_lock_manager(config: AgentConfig) -> DistributedLockManagerPort:
                 RedisLockConfig,
             )
 
-            lock_manager = RedisDistributedLockManager(
+            logger.info("lock_manager_bootstrapped", backend="redis")
+            return RedisDistributedLockManager(
                 config=RedisLockConfig(
                     url=config.lock.redis_url,
                     key_prefix=config.lock.key_prefix,
                 )
             )
-            logger.info("lock_manager_bootstrapped", backend="redis")
-            return lock_manager
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "lock_manager_backend_failed",
@@ -284,15 +292,14 @@ def bootstrap_lock_manager(config: AgentConfig) -> DistributedLockManagerPort:
                 EtcdLockConfig,
             )
 
-            lock_manager = EtcdDistributedLockManager(
+            logger.info("lock_manager_bootstrapped", backend="etcd")
+            return EtcdDistributedLockManager(
                 config=EtcdLockConfig(
                     host=config.lock.etcd_host,
                     port=config.lock.etcd_port,
                     key_prefix=config.lock.key_prefix,
                 )
             )
-            logger.info("lock_manager_bootstrapped", backend="etcd")
-            return lock_manager
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "lock_manager_backend_failed",

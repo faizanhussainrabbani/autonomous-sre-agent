@@ -21,41 +21,42 @@ Prerequisites:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import random
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 # --- Add project root to path ---
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from sre_agent.domain.detection.anomaly_detector import AnomalyDetector, DetectionResult
-from sre_agent.domain.detection.baseline import BaselineService
 from sre_agent.domain.detection.alert_correlation import (
     AlertCorrelationEngine,
-    CorrelatedIncident,
 )
+from sre_agent.domain.detection.anomaly_detector import AnomalyDetector, DetectionResult
+from sre_agent.domain.detection.baseline import BaselineService
 from sre_agent.domain.models.canonical import (
     AnomalyAlert,
-    CanonicalEvent,
     CanonicalMetric,
     ServiceGraph,
     ServiceLabels,
 )
 from sre_agent.domain.models.detection_config import DetectionConfig
-from sre_agent.ports.events import EventBus
 from sre_agent.events import InMemoryEventBus
+from sre_agent.ports.events import EventBus
 
 # ============================================================================
 # Colors and formatting for terminal output
 # ============================================================================
 
+
 class C:
     """Terminal colors."""
+
     BOLD = "\033[1m"
     RED = "\033[91m"
     GREEN = "\033[92m"
@@ -97,11 +98,15 @@ def info(text: str) -> None:
 # Cluster queries via kubectl
 # ============================================================================
 
+
 def kubectl(args: str) -> str:
     """Run kubectl and return stdout."""
     result = subprocess.run(
         f"kubectl {args}",
-        shell=True, capture_output=True, text=True, timeout=15,
+        shell=True,
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
     return result.stdout.strip()
 
@@ -114,11 +119,9 @@ def kubectl_json(args: str) -> dict:
 
 def get_pod_metrics() -> list[dict]:
     """Get resource metrics for all pods via metrics-server."""
-    try:
-        data = kubectl_json("top pods -A --no-headers --use-protocol-buffers=false")
+    with contextlib.suppress(Exception):
+        kubectl_json("top pods -A --no-headers --use-protocol-buffers=false")
         # Fallback: parse text output
-    except (json.JSONDecodeError, Exception):
-        pass
 
     # Parse text output from 'kubectl top pods'
     raw = kubectl("top pods -A --no-headers")
@@ -133,12 +136,14 @@ def get_pod_metrics() -> list[dict]:
             cpu_val = int(cpu.replace("m", "")) if "m" in cpu else int(cpu) * 1000
             # Parse Memory: "32Mi" → 32
             mem_val = int(mem.replace("Mi", "")) if "Mi" in mem else int(mem)
-            metrics.append({
-                "namespace": ns,
-                "pod": name,
-                "cpu_millicores": cpu_val,
-                "memory_mi": mem_val,
-            })
+            metrics.append(
+                {
+                    "namespace": ns,
+                    "pod": name,
+                    "cpu_millicores": cpu_val,
+                    "memory_mi": mem_val,
+                }
+            )
     return metrics
 
 
@@ -151,13 +156,15 @@ def get_pod_status(namespace: str = "default") -> list[dict]:
             continue
         parts = line.split()
         if len(parts) >= 5:
-            pods.append({
-                "name": parts[0],
-                "ready": parts[1],
-                "status": parts[2],
-                "restarts": int(parts[3]),
-                "age": parts[4],
-            })
+            pods.append(
+                {
+                    "name": parts[0],
+                    "ready": parts[1],
+                    "status": parts[2],
+                    "restarts": int(parts[3]),
+                    "age": parts[4],
+                }
+            )
     return pods
 
 
@@ -172,12 +179,18 @@ def test_service_connectivity(svc: str, namespace: str = "default") -> tuple[boo
         result = subprocess.run(
             f"kubectl get endpoints {svc} -n {namespace} -o "
             f"jsonpath='{{.subsets[0].addresses[0].ip}}'",
-            shell=True, capture_output=True, text=True, timeout=5,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         elapsed = (time.time() - start) * 1000  # ms
         has_endpoint = bool(result.stdout.strip().replace("'", ""))
         return has_endpoint, elapsed
-    except (subprocess.TimeoutExpired, Exception):
+    except subprocess.TimeoutExpired:
+        elapsed = (time.time() - start) * 1000
+        return False, elapsed
+    except Exception:  # noqa: BLE001
         elapsed = (time.time() - start) * 1000
         return False, elapsed
 
@@ -185,6 +198,7 @@ def test_service_connectivity(svc: str, namespace: str = "default") -> tuple[boo
 # ============================================================================
 # Build CanonicalMetric objects from live cluster data
 # ============================================================================
+
 
 def build_metrics_from_cluster(
     pod_metrics: list[dict],
@@ -200,7 +214,7 @@ def build_metrics_from_cluster(
     - http_request_duration_seconds (from latency test)
     - http_error_rate (derived from connectivity test)
     """
-    ts = timestamp or datetime.now(timezone.utc)
+    ts = timestamp or datetime.now(UTC)
     by_service: dict[str, list[CanonicalMetric]] = {}
 
     # Map pod names to services (svc-a-xxx → svc-a)
@@ -219,24 +233,28 @@ def build_metrics_from_cluster(
             by_service[svc_name] = []
 
         # CPU metric
-        by_service[svc_name].append(CanonicalMetric(
-            name="container_cpu_usage_seconds_total",
-            value=pm["cpu_millicores"] / 1000.0,  # Convert to cores
-            timestamp=ts,
-            labels=labels,
-            unit="cores",
-            provider_source="k8s-metrics-server",
-        ))
+        by_service[svc_name].append(
+            CanonicalMetric(
+                name="container_cpu_usage_seconds_total",
+                value=pm["cpu_millicores"] / 1000.0,  # Convert to cores
+                timestamp=ts,
+                labels=labels,
+                unit="cores",
+                provider_source="k8s-metrics-server",
+            )
+        )
 
         # Memory metric
-        by_service[svc_name].append(CanonicalMetric(
-            name="process_resident_memory_bytes",
-            value=pm["memory_mi"] * 1024 * 1024,  # Convert MiB to bytes
-            timestamp=ts,
-            labels=labels,
-            unit="bytes",
-            provider_source="k8s-metrics-server",
-        ))
+        by_service[svc_name].append(
+            CanonicalMetric(
+                name="process_resident_memory_bytes",
+                value=pm["memory_mi"] * 1024 * 1024,  # Convert MiB to bytes
+                timestamp=ts,
+                labels=labels,
+                unit="bytes",
+                provider_source="k8s-metrics-server",
+            )
+        )
 
     # Latency metrics from connectivity tests
     for svc_name, latency_ms in service_latencies.items():
@@ -245,14 +263,16 @@ def build_metrics_from_cluster(
             by_service[svc_name] = []
 
         # Latency metric (what AnomalyDetector checks for latency spikes)
-        by_service[svc_name].append(CanonicalMetric(
-            name="http_request_duration_seconds",
-            value=latency_ms / 1000.0,  # Convert to seconds
-            timestamp=ts,
-            labels=labels,
-            unit="seconds",
-            provider_source="live-probe",
-        ))
+        by_service[svc_name].append(
+            CanonicalMetric(
+                name="http_request_duration_seconds",
+                value=latency_ms / 1000.0,  # Convert to seconds
+                timestamp=ts,
+                labels=labels,
+                unit="seconds",
+                provider_source="live-probe",
+            )
+        )
 
     # Error rate from pod status
     for ps in pod_statuses:
@@ -267,14 +287,16 @@ def build_metrics_from_cluster(
         is_error = ps["status"] != "Running" or ps["restarts"] > 0
         error_rate = 1.0 if is_error else 0.0
 
-        by_service[svc_name].append(CanonicalMetric(
-            name="http_requests_total",  # Error rate metric name
-            value=error_rate,
-            timestamp=ts,
-            labels=labels,
-            unit="ratio",
-            provider_source="k8s-pod-status",
-        ))
+        by_service[svc_name].append(
+            CanonicalMetric(
+                name="http_requests_total",  # Error rate metric name
+                value=error_rate,
+                timestamp=ts,
+                labels=labels,
+                unit="ratio",
+                provider_source="k8s-pod-status",
+            )
+        )
 
     return by_service
 
@@ -291,6 +313,7 @@ def _pod_to_service(pod_name: str) -> str | None:
 # Phase 1: Baseline Learning
 # ============================================================================
 
+
 async def phase_1_baseline_learning(
     baseline_service: BaselineService,
     rounds: int = 40,
@@ -304,8 +327,10 @@ async def phase_1_baseline_learning(
     "established".
     """
     banner("PHASE 1: Baseline Learning")
-    info(f"Collecting {rounds} rounds at {interval_sec}s intervals "
-         f"(~{int(rounds * interval_sec)}s total)")
+    info(
+        f"Collecting {rounds} rounds at {interval_sec}s intervals "
+        f"(~{int(rounds * interval_sec)}s total)"
+    )
     info("Building rolling mean + std_dev for each service + metric")
     print()
 
@@ -313,7 +338,7 @@ async def phase_1_baseline_learning(
     start_time = time.time()
 
     for i in range(1, rounds + 1):
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
 
         # Collect real cluster data
         pod_metrics = get_pod_metrics()
@@ -331,7 +356,10 @@ async def phase_1_baseline_learning(
 
         # Convert to canonical metrics
         metrics_batch = build_metrics_from_cluster(
-            pod_metrics, pod_statuses, latencies, ts,
+            pod_metrics,
+            pod_statuses,
+            latencies,
+            ts,
         )
 
         # Ingest into baseline service
@@ -344,7 +372,8 @@ async def phase_1_baseline_learning(
 
         # Progress display
         established = sum(
-            1 for svc in ("svc-a", "svc-b", "svc-c")
+            1
+            for svc in ("svc-a", "svc-b", "svc-c")
             for b in baseline_service.get_all_baselines_for_service(svc)
         )
 
@@ -372,8 +401,7 @@ async def phase_1_baseline_learning(
         if baselines:
             ok(f"{C.BOLD}{svc}{C.RESET}: {len(baselines)} established baselines")
             for b in baselines:
-                info(f"  {b.metric}: mean={b.mean:.4f} std={b.std_dev:.4f} "
-                     f"(n={b.count})")
+                info(f"  {b.metric}: mean={b.mean:.4f} std={b.std_dev:.4f} (n={b.count})")
         else:
             warn(f"{svc}: no established baselines yet")
 
@@ -385,6 +413,7 @@ async def phase_1_baseline_learning(
 # ============================================================================
 # Phase 2: Fault Injection
 # ============================================================================
+
 
 async def phase_2_inject_fault() -> datetime:
     """Kill svc-b to simulate a real infrastructure failure.
@@ -404,7 +433,7 @@ async def phase_2_inject_fault() -> datetime:
     info("  • svc-c → unaffected (no upstream dependency)")
     print()
 
-    fault_time = datetime.now(timezone.utc)
+    fault_time = datetime.now(UTC)
 
     # Scale svc-b to 0 replicas (clean fault injection)
     step(1, "Scaling svc-b to 0 replicas...")
@@ -429,6 +458,7 @@ async def phase_2_inject_fault() -> datetime:
 # ============================================================================
 # Phase 3: Anomaly Detection
 # ============================================================================
+
 
 async def phase_3_detect_anomaly(
     baseline_service: BaselineService,
@@ -461,7 +491,7 @@ async def phase_3_detect_anomaly(
 
     # Run 5 detection rounds to catch the anomaly
     for i in range(1, 6):
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
         info(f"Detection round {i}/5 (t+{(ts - fault_time).total_seconds():.0f}s after fault)")
 
         # Collect metrics
@@ -478,7 +508,10 @@ async def phase_3_detect_anomaly(
                 latencies[svc] = 5000.0  # 5 second timeout
 
         metrics_batch = build_metrics_from_cluster(
-            pod_metrics, pod_statuses, latencies, ts,
+            pod_metrics,
+            pod_statuses,
+            latencies,
+            ts,
         )
 
         # Run detection for each service
@@ -514,16 +547,18 @@ async def phase_3_detect_anomaly(
             if result.alerts:
                 for alert in result.alerts:
                     all_alerts.append(alert)
-                    incident = await correlation_engine.process_alert(alert)
+                    await correlation_engine.process_alert(alert)
 
                     sev_val = alert.severity.value if alert.severity else 3
                     sev_name = alert.severity.name if alert.severity else "UNKNOWN"
                     severity_color = C.RED if sev_val <= 2 else C.YELLOW
                     sigma = alert.sigma_deviation if alert.sigma_deviation else 0
-                    print(f"    {severity_color}🚨 ALERT: {alert.anomaly_type.value} "
-                          f"on {alert.service} "
-                          f"(σ={sigma:.1f}, "
-                          f"sev={sev_name}){C.RESET}")
+                    print(
+                        f"    {severity_color}🚨 ALERT: {alert.anomaly_type.value} "
+                        f"on {alert.service} "
+                        f"(σ={sigma:.1f}, "
+                        f"sev={sev_name}){C.RESET}"
+                    )
 
         await asyncio.sleep(3)
 
@@ -546,28 +581,33 @@ async def phase_3_detect_anomaly(
 
         for atype, alerts in by_type.items():
             services = {a.service for a in alerts}
-            print(f"    {C.BOLD}{atype}{C.RESET}: "
-                  f"{len(alerts)} alerts across {services}")
+            print(f"    {C.BOLD}{atype}{C.RESET}: {len(alerts)} alerts across {services}")
 
         # Check correlation engine
         print()
         incidents = correlation_engine.get_incident_summary()
         if incidents:
-            ok(f"{C.BOLD}{len(incidents)} correlated incidents{C.RESET} "
-               f"(vs {len(all_alerts)} raw alerts)")
+            ok(
+                f"{C.BOLD}{len(incidents)} correlated incidents{C.RESET} "
+                f"(vs {len(all_alerts)} raw alerts)"
+            )
             for inc in incidents:
                 cascade = f" {C.RED}[CASCADE]{C.RESET}" if inc.get("is_cascade") else ""
-                print(f"    📋 Incident {str(inc.get('incident_id', ''))[:8]}... "
-                      f"| {inc.get('alert_count', 0)} alerts "
-                      f"| root: {inc.get('root_service', '?')}"
-                      f"{cascade}")
+                print(
+                    f"    📋 Incident {str(inc.get('incident_id', ''))[:8]}... "
+                    f"| {inc.get('alert_count', 0)} alerts "
+                    f"| root: {inc.get('root_service', '?')}"
+                    f"{cascade}"
+                )
         else:
             warn("No incidents created (alerts may not have correlated)")
 
     else:
         fail("No anomaly alerts generated!")
-        info("This likely means baselines were not established or "
-             "detection thresholds were not exceeded")
+        info(
+            "This likely means baselines were not established or "
+            "detection thresholds were not exceeded"
+        )
 
     # Timing check
     print()
@@ -575,11 +615,9 @@ async def phase_3_detect_anomaly(
     print()
 
     if detection_time <= 60:
-        ok(f"Detection completed in {detection_time:.1f}s "
-           f"(SLO: <60s for latency) ✓")
+        ok(f"Detection completed in {detection_time:.1f}s (SLO: <60s for latency) ✓")
     else:
-        warn(f"Detection took {detection_time:.1f}s "
-             f"(SLO: <60s for latency)")
+        warn(f"Detection took {detection_time:.1f}s (SLO: <60s for latency)")
 
     return all_alerts
 
@@ -587,6 +625,7 @@ async def phase_3_detect_anomaly(
 # ============================================================================
 # Phase 4: Restore
 # ============================================================================
+
 
 async def phase_4_restore():
     """Restore svc-b and verify recovery."""
@@ -616,6 +655,7 @@ async def phase_4_restore():
 # ============================================================================
 # Main
 # ============================================================================
+
 
 async def main():
     banner("SRE Agent — Phase 1 E2E Live Cluster Demo")
@@ -652,7 +692,7 @@ async def main():
             ok(f"Metrics-server: {len(default_metrics)} pods with resource data")
         else:
             warn("Metrics-server reachable but no default namespace metrics")
-    except Exception:
+    except Exception:  # noqa: BLE001
         warn("Metrics-server not available (will use probe-only data)")
 
     print()
@@ -670,8 +710,10 @@ async def main():
     # --- Run phases ---
     try:
         # Phase 1: Collect baseline
-        all_metrics = await phase_1_baseline_learning(
-            baseline_service, rounds=40, interval_sec=2.0,
+        await phase_1_baseline_learning(
+            baseline_service,
+            rounds=40,
+            interval_sec=2.0,
         )
 
         # Phase 2: Inject fault
@@ -679,7 +721,11 @@ async def main():
 
         # Phase 3: Detect anomaly
         alerts = await phase_3_detect_anomaly(
-            baseline_service, config, event_bus, fault_time, service_graph,
+            baseline_service,
+            config,
+            event_bus,
+            fault_time,
+            service_graph,
         )
 
         # Phase 4: Restore
@@ -693,32 +739,26 @@ async def main():
     # --- Final summary ---
     banner("DEMO COMPLETE")
 
-    print(f"  {'Baselines established:':<30} "
-          f"{C.BOLD}{baseline_service.baseline_count}{C.RESET}")
-    print(f"  {'Anomalies detected:':<30} "
-          f"{C.BOLD}{len(alerts)}{C.RESET}")
+    print(f"  {'Baselines established:':<30} {C.BOLD}{baseline_service.baseline_count}{C.RESET}")
+    print(f"  {'Anomalies detected:':<30} {C.BOLD}{len(alerts)}{C.RESET}")
 
     if alerts:
         types_found = {a.anomaly_type.value for a in alerts}
-        print(f"  {'Detection types fired:':<30} "
-              f"{C.BOLD}{', '.join(types_found)}{C.RESET}")
+        print(f"  {'Detection types fired:':<30} {C.BOLD}{', '.join(types_found)}{C.RESET}")
         services_alerted = {a.service for a in alerts}
-        print(f"  {'Services alerted:':<30} "
-              f"{C.BOLD}{', '.join(services_alerted)}{C.RESET}")
+        print(f"  {'Services alerted:':<30} {C.BOLD}{', '.join(services_alerted)}{C.RESET}")
 
     print()
 
     # AC validation
     ac_results = {
         "AC-3.1.1 (baseline learning)": baseline_service.baseline_count > 0,
-        "AC-3.1.2 (latency spike)": any(
-            a.anomaly_type.value == "latency_spike" for a in alerts
-        ),
+        "AC-3.1.2 (latency spike)": any(a.anomaly_type.value == "latency_spike" for a in alerts),
         "AC-3.1.3 (error rate surge)": any(
             a.anomaly_type.value == "error_rate_surge" for a in alerts
         ),
         "AC-3.3 (alert correlation)": True,  # Engine ran
-        "AC-4.1 (detection < 60s)": True,    # Validated in Phase 3
+        "AC-4.1 (detection < 60s)": True,  # Validated in Phase 3
     }
 
     step(0, "Acceptance Criteria Validation")

@@ -9,7 +9,7 @@ from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegi
 from sre_agent.domain.models.canonical import AnomalyAlert, AnomalyType, ComputeMechanism, Severity
 from sre_agent.domain.models.diagnosis import Diagnosis
 from sre_agent.domain.remediation.engine import RemediationEngine
-from sre_agent.domain.remediation.models import ApprovalState, SafetyConstraints, VerificationStatus
+from sre_agent.domain.remediation.models import ApprovalState, VerificationStatus
 from sre_agent.domain.remediation.planner import RemediationPlanner
 from sre_agent.domain.safety.blast_radius import BlastRadiusCalculator
 from sre_agent.domain.safety.cooldown import CooldownEnforcer
@@ -59,7 +59,9 @@ class _DeniedLockManager(DistributedLockManagerPort):
             reason="lock_held_by_higher_or_equal_priority",
         )
 
-    async def release_lock(self, lock_key: str, agent_id: str, fencing_token: int | None = None) -> bool:
+    async def release_lock(
+        self, lock_key: str, agent_id: str, fencing_token: int | None = None
+    ) -> bool:
         self.release_calls += 1
         return False
 
@@ -144,7 +146,9 @@ class TestPhase2ActionLockE2E:
         assert operator.restart_calls >= 1
 
     async def test_fencing_token_propagates_with_successful_lock(self) -> None:
-        from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
+        from sre_agent.adapters.coordination.in_memory_lock_manager import (
+            InMemoryDistributedLockManager,
+        )
 
         operator = _FakeOperator()
         lock_manager = InMemoryDistributedLockManager()

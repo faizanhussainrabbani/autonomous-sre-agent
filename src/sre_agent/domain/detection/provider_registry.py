@@ -11,12 +11,10 @@ Validates: AC-1.5.1 through AC-1.5.5
 from __future__ import annotations
 
 import structlog
-from datetime import datetime
-from typing import Any
 
 from sre_agent.domain.models.canonical import DomainEvent, EventTypes
-from sre_agent.ports.telemetry import TelemetryProvider
 from sre_agent.ports.events import EventBus
+from sre_agent.ports.telemetry import TelemetryProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -82,9 +80,7 @@ class ProviderRegistry:
         Validates: AC-1.5.5 (plugin interface — register new providers)
         """
         if provider.name in self._providers:
-            raise ProviderRegistryError(
-                f"Provider '{provider.name}' is already registered"
-            )
+            raise ProviderRegistryError(f"Provider '{provider.name}' is already registered")
         self._providers[provider.name] = provider
         logger.info("provider_registered", provider=provider.name)
 
@@ -145,7 +141,7 @@ class ProviderRegistry:
 
         try:
             is_healthy = await provider.health_check()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             is_healthy = False
             logger.error(
                 "provider_health_check_failed",
@@ -206,5 +202,5 @@ class ProviderRegistry:
             try:
                 await provider.close()
                 logger.info("provider_closed", provider=name)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.error("provider_close_failed", provider=name, error=str(exc))

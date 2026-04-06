@@ -7,23 +7,25 @@ Includes retry with exponential backoff and circuit breaker.
 
 from __future__ import annotations
 
-import structlog
 from typing import Any
+
+import structlog
 
 try:
     from botocore.exceptions import ClientError as _BotoCoreClientError
+
     _AWS_ERRORS = (_BotoCoreClientError, ConnectionError, TimeoutError)
 except ImportError:  # boto3 not installed
     _AWS_ERRORS = (Exception,)  # type: ignore[assignment]
 
-from sre_agent.domain.models.canonical import ComputeMechanism
-from sre_agent.ports.cloud_operator import CloudOperatorPort
 from sre_agent.adapters.cloud.aws.error_mapper import map_boto_error
 from sre_agent.adapters.cloud.resilience import (
     CircuitBreaker,
     RetryConfig,
     retry_with_backoff,
 )
+from sre_agent.domain.models.canonical import ComputeMechanism
+from sre_agent.ports.cloud_operator import CloudOperatorPort
 
 logger = structlog.get_logger(__name__)
 
@@ -50,13 +52,15 @@ class ECSOperator(CloudOperatorPort):
         return [ComputeMechanism.CONTAINER_INSTANCE]
 
     async def restart_compute_unit(
-        self, resource_id: str, metadata: dict[str, Any] | None = None,
+        self,
+        resource_id: str,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Stop an ECS task; the service scheduler starts a replacement."""
         meta = metadata or {}
         cluster = meta.get("cluster", "default")
 
-        async def _do_stop():
+        async def _do_stop() -> dict[str, Any]:
             logger.info("ecs_stop_task", task=resource_id, cluster=cluster)
             try:
                 response = self._ecs.stop_task(cluster=cluster, task=resource_id)
@@ -71,22 +75,31 @@ class ECSOperator(CloudOperatorPort):
         )
 
     async def scale_capacity(
-        self, resource_id: str, desired_count: int,
+        self,
+        resource_id: str,
+        desired_count: int,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Update the desiredCount of an ECS service."""
         meta = metadata or {}
         cluster = meta.get("cluster", "default")
 
-        async def _do_scale():
+        async def _do_scale() -> dict[str, Any]:
             logger.info("ecs_update_service", service=resource_id, desired=desired_count)
             try:
                 response = self._ecs.update_service(
-                    cluster=cluster, service=resource_id, desiredCount=desired_count,
+                    cluster=cluster,
+                    service=resource_id,
+                    desiredCount=desired_count,
                 )
             except _AWS_ERRORS as exc:
                 raise map_boto_error(exc) from exc
-            return {"action": "update_service", "service": resource_id, "desired_count": desired_count, "response": response}
+            return {
+                "action": "update_service",
+                "service": resource_id,
+                "desired_count": desired_count,
+                "response": response,
+            }
 
         return await retry_with_backoff(
             _do_scale,

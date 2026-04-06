@@ -14,14 +14,15 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def client():
     from sre_agent.api.main import create_app
+
     app = create_app()
     return TestClient(app, raise_server_exceptions=False)
 
@@ -29,6 +30,7 @@ def client():
 # ---------------------------------------------------------------------------
 # AC-2.1 — 200 when all components importable
 # ---------------------------------------------------------------------------
+
 
 def test_healthz_200_when_healthy(client):
     """Baseline: /healthz returns 200 with status=ok."""
@@ -52,9 +54,11 @@ def test_healthz_checks_keys_present(client):
 # AC-2.2 — 503 when a component fails
 # ---------------------------------------------------------------------------
 
+
 def test_healthz_503_when_component_fails(monkeypatch):
     """If an adapter import raises, /healthz returns 503 with degraded status."""
     import builtins
+
     _real_import = builtins.__import__
 
     def _failing_import(name, *args, **kwargs):
@@ -65,6 +69,7 @@ def test_healthz_503_when_component_fails(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", _failing_import)
 
     from sre_agent.api.main import create_app
+
     app = create_app()
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.get("/healthz")
@@ -77,6 +82,7 @@ def test_healthz_503_when_component_fails(monkeypatch):
 # ---------------------------------------------------------------------------
 # AC-2.3 — No external API calls
 # ---------------------------------------------------------------------------
+
 
 def test_healthz_makes_no_external_calls(client, monkeypatch):
     """Verify that /healthz never calls an external API endpoint."""
@@ -95,6 +101,7 @@ def test_healthz_makes_no_external_calls(client, monkeypatch):
 # ---------------------------------------------------------------------------
 # AC-3.2 — Middleware: X-Request-ID header on every response
 # ---------------------------------------------------------------------------
+
 
 def test_middleware_adds_request_id_header(client):
     """Every HTTP response must carry an X-Request-ID header (OBS-004)."""
@@ -117,6 +124,7 @@ def test_request_id_different_per_call(client):
 # ---------------------------------------------------------------------------
 # AC-3.3 — Middleware: structured log events emitted
 # ---------------------------------------------------------------------------
+
 
 def test_middleware_emits_request_log_events(client, capsys):
     """request_received and request_completed events are emitted by the middleware."""

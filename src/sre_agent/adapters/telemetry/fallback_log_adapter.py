@@ -16,6 +16,7 @@ Validates: AC-LF-4.1 (fallback chain)
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, cast
 
 import structlog
 
@@ -144,7 +145,8 @@ class FallbackLogAdapter(LogQuery):
         fallback_ok = False
 
         try:
-            primary_ok = await self._primary.health_check()
+            health_check = getattr(self._primary, "health_check", None)
+            primary_ok = bool(await cast(Any, health_check)()) if callable(health_check) else True
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "fallback_log_adapter_health_check_failed",
@@ -153,7 +155,10 @@ class FallbackLogAdapter(LogQuery):
             )
 
         try:
-            fallback_ok = await self._fallback.health_check()
+            health_check = getattr(self._fallback, "health_check", None)
+            fallback_ok = (
+                bool(await cast(Any, health_check)()) if callable(health_check) else True
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "fallback_log_adapter_health_check_failed",
@@ -166,7 +171,9 @@ class FallbackLogAdapter(LogQuery):
     async def close(self) -> None:
         """Close both adapters."""
         try:
-            await self._primary.close()
+            close_fn = getattr(self._primary, "close", None)
+            if callable(close_fn):
+                await cast(Any, close_fn)()
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "fallback_log_adapter_close_failed",
@@ -174,7 +181,9 @@ class FallbackLogAdapter(LogQuery):
                 error=str(exc),
             )
         try:
-            await self._fallback.close()
+            close_fn = getattr(self._fallback, "close", None)
+            if callable(close_fn):
+                await cast(Any, close_fn)()
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "fallback_log_adapter_close_failed",

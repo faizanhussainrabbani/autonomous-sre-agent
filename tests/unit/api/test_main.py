@@ -8,11 +8,12 @@ and error handling using httpx AsyncClient.
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch
 
 try:
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from sre_agent.api.main import create_app
+
     _FASTAPI_AVAILABLE = True
 except ImportError:
     _FASTAPI_AVAILABLE = False

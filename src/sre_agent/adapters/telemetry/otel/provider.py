@@ -8,12 +8,15 @@ Validates: AC-1.3.1 through AC-1.3.4
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import structlog
 
-from sre_agent.adapters.telemetry.otel.prometheus_adapter import PrometheusMetricsAdapter
 from sre_agent.adapters.telemetry.otel.jaeger_adapter import JaegerTraceAdapter
 from sre_agent.adapters.telemetry.otel.loki_adapter import LokiLogAdapter
+from sre_agent.adapters.telemetry.otel.prometheus_adapter import PrometheusMetricsAdapter
 from sre_agent.config.settings import OTelConfig
+from sre_agent.domain.models.canonical import ServiceGraph
 from sre_agent.ports.telemetry import (
     DependencyGraphQuery,
     LogQuery,
@@ -33,16 +36,18 @@ class OTelDependencyGraphAdapter(DependencyGraphQuery):
     satisfies the interface so the provider can be registered.
     """
 
-    async def get_graph(self):
-        from sre_agent.domain.models.canonical import ServiceGraph
+    async def get_graph(self) -> ServiceGraph:
         # Task 1.5 will populate this from observed traces
         return ServiceGraph()
 
-    async def get_service_dependencies(self, service, include_transitive=False):
-        from sre_agent.domain.models.canonical import ServiceGraph
+    async def get_service_dependencies(
+        self,
+        service: str,
+        include_transitive: bool = False,
+    ) -> ServiceGraph:
         return ServiceGraph()
 
-    async def get_service_health(self, service):
+    async def get_service_health(self, service: str) -> dict[str, Any]:
         return {"is_healthy": True, "source": "otel_placeholder"}
 
 
@@ -57,7 +62,7 @@ class OTelProvider(TelemetryProvider):
         self._config = config
         self._metrics = PrometheusMetricsAdapter(config.prometheus_url)
         self._traces = JaegerTraceAdapter(config.jaeger_url)
-        self._logs = logs_adapter or LokiLogAdapter(config.loki_url)
+        self._logs: Any = logs_adapter or LokiLogAdapter(config.loki_url)
         self._dep_graph = OTelDependencyGraphAdapter()
 
     @property
@@ -74,7 +79,7 @@ class OTelProvider(TelemetryProvider):
 
     @property
     def logs(self) -> LogQuery:
-        return self._logs
+        return cast(LogQuery, self._logs)
 
     @property
     def dependency_graph(self) -> DependencyGraphQuery:
@@ -88,7 +93,8 @@ class OTelProvider(TelemetryProvider):
         """
         prom_ok = await self._metrics.health_check()
         jaeger_ok = await self._traces.health_check()
-        loki_ok = await self._logs.health_check()
+        health_check = getattr(self._logs, "health_check", None)
+        loki_ok = bool(await cast(Any, health_check)()) if callable(health_check) else True
 
         if not prom_ok:
             logger.warning("otel_provider_unhealthy", component="prometheus")
@@ -103,5 +109,7 @@ class OTelProvider(TelemetryProvider):
         """Close all adapter connections."""
         await self._metrics.close()
         await self._traces.close()
-        await self._logs.close()
+        close_fn = getattr(self._logs, "close", None)
+        if callable(close_fn):
+            await cast(Any, close_fn)()
         logger.info("otel_provider_closed")

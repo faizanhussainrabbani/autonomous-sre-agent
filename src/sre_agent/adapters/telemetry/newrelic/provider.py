@@ -10,12 +10,13 @@ Validates: AC-1.4.1 through AC-1.4.4
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import httpx
 import structlog
 
+from sre_agent.config.settings import NewRelicConfig
 from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
     CanonicalMetric,
@@ -34,7 +35,6 @@ from sre_agent.ports.telemetry import (
     TelemetryProvider,
     TraceQuery,
 )
-from sre_agent.config.settings import NewRelicConfig
 
 logger = structlog.get_logger(__name__)
 
@@ -67,33 +67,37 @@ class NerdGraphClient:
         """Execute a NRQL query via NerdGraph and return results."""
         graphql_query = {
             "query": """
-            {
-                actor {
-                    account(id: %s) {
-                        nrql(query: "%s") {
+            {{
+                actor {{
+                    account(id: {}) {{
+                        nrql(query: "{}") {{
                             results
-                        }
-                    }
-                }
-            }
-            """ % (self._account_id, nrql.replace('"', '\\"'))
+                        }}
+                    }}
+                }}
+            }}
+            """.format(self._account_id, nrql.replace('"', '\\"'))
         }
 
         try:
             response = await self._client.post("", json=graphql_query)
             response.raise_for_status()
-            data = response.json()
+            data = cast(dict[str, Any], response.json())
         except httpx.HTTPError as exc:
             logger.error("nerdgraph_query_failed", nrql=nrql, error=str(exc))
             return []
 
         try:
-            return data["data"]["actor"]["account"]["nrql"]["results"]
+            return cast(list[dict[str, Any]], data["data"]["actor"]["account"]["nrql"]["results"])
         except (KeyError, TypeError):
             logger.warning("nerdgraph_unexpected_response", data=data)
             return []
 
-    async def graphql(self, query: str, variables: dict | None = None) -> dict[str, Any]:
+    async def graphql(
+        self,
+        query: str,
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute a raw GraphQL query."""
         payload: dict[str, Any] = {"query": query}
         if variables:
@@ -102,7 +106,7 @@ class NerdGraphClient:
         try:
             response = await self._client.post("", json=payload)
             response.raise_for_status()
-            return response.json()
+            return cast(dict[str, Any], response.json())
         except httpx.HTTPError as exc:
             logger.error("nerdgraph_graphql_failed", error=str(exc))
             return {}
@@ -119,6 +123,7 @@ class NerdGraphClient:
 # ---------------------------------------------------------------------------
 # Metrics Adapter
 # ---------------------------------------------------------------------------
+
 
 class NewRelicMetricsAdapter(MetricsQuery):
     """Queries New Relic metrics via NRQL and returns canonical metrics.
@@ -169,10 +174,10 @@ class NewRelicMetricsAdapter(MetricsQuery):
         return CanonicalMetric(
             name=metric,
             value=float(value) if value else 0.0,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             labels=ServiceLabels(service=service, namespace=""),
             provider_source="newrelic",
-            ingestion_timestamp=datetime.now(timezone.utc),
+            ingestion_timestamp=datetime.now(UTC),
         )
 
     async def list_metrics(self, service: str) -> list[str]:
@@ -182,11 +187,16 @@ class NewRelicMetricsAdapter(MetricsQuery):
         )
         results = await self._client.query(nrql)
         if results:
-            return results[0].get("uniques.metricName", [])
+            names = results[0].get("uniques.metricName", [])
+            if isinstance(names, list):
+                return [str(name) for name in names]
         return []
 
     def _parse_timeseries(
-        self, results: list[dict], service: str, metric: str
+        self,
+        results: list[dict[str, Any]],
+        service: str,
+        metric: str,
     ) -> list[CanonicalMetric]:
         metrics: list[CanonicalMetric] = []
         for point in results:
@@ -198,10 +208,10 @@ class NewRelicMetricsAdapter(MetricsQuery):
                     CanonicalMetric(
                         name=metric,
                         value=float(value),
-                        timestamp=datetime.fromtimestamp(begin_time, tz=timezone.utc),
+                        timestamp=datetime.fromtimestamp(begin_time, tz=UTC),
                         labels=ServiceLabels(service=service, namespace=""),
                         provider_source="newrelic",
-                        ingestion_timestamp=datetime.now(timezone.utc),
+                        ingestion_timestamp=datetime.now(UTC),
                     )
                 )
         return metrics
@@ -210,6 +220,7 @@ class NewRelicMetricsAdapter(MetricsQuery):
 # ---------------------------------------------------------------------------
 # Trace Adapter
 # ---------------------------------------------------------------------------
+
 
 class NewRelicTraceAdapter(TraceQuery):
     """Queries New Relic distributed traces via NerdGraph.
@@ -221,10 +232,7 @@ class NewRelicTraceAdapter(TraceQuery):
         self._client = client
 
     async def get_trace(self, trace_id: str) -> CanonicalTrace | None:
-        nrql = (
-            f"SELECT * FROM Span "
-            f"WHERE trace.id = '{trace_id}' SINCE 1 day ago LIMIT MAX"
-        )
+        nrql = f"SELECT * FROM Span WHERE trace.id = '{trace_id}' SINCE 1 day ago LIMIT MAX"
         results = await self._client.query(nrql)
         if not results:
             return None
@@ -264,7 +272,9 @@ class NewRelicTraceAdapter(TraceQuery):
         return traces
 
     def _parse_spans_to_trace(
-        self, trace_id: str, span_data: list[dict]
+        self,
+        trace_id: str,
+        span_data: list[dict[str, Any]],
     ) -> CanonicalTrace:
         spans: list[TraceSpan] = []
         for sd in span_data:
@@ -279,12 +289,23 @@ class NewRelicTraceAdapter(TraceQuery):
                     status_code=int(sd.get("http.statusCode", 200)),
                     error=sd.get("error.message"),
                     attributes={
-                        k: v for k, v in sd.items()
-                        if k not in {
-                            "id", "span.id", "parent.id", "parentId",
-                            "service.name", "entity.name", "name",
-                            "duration.ms", "duration", "http.statusCode",
-                            "error.message", "trace.id", "timestamp",
+                        k: v
+                        for k, v in sd.items()
+                        if k
+                        not in {
+                            "id",
+                            "span.id",
+                            "parent.id",
+                            "parentId",
+                            "service.name",
+                            "entity.name",
+                            "name",
+                            "duration.ms",
+                            "duration",
+                            "http.statusCode",
+                            "error.message",
+                            "trace.id",
+                            "timestamp",
                         }
                     },
                 )
@@ -317,13 +338,14 @@ class NewRelicTraceAdapter(TraceQuery):
             missing_services=missing_services,
             quality=DataQuality.HIGH if is_complete else DataQuality.INCOMPLETE,
             provider_source="newrelic",
-            ingestion_timestamp=datetime.now(timezone.utc),
+            ingestion_timestamp=datetime.now(UTC),
         )
 
 
 # ---------------------------------------------------------------------------
 # Log Adapter
 # ---------------------------------------------------------------------------
+
 
 class NewRelicLogAdapter(LogQuery):
     """Queries New Relic logs via NRQL.
@@ -377,18 +399,20 @@ class NewRelicLogAdapter(LogQuery):
         return self._parse_logs(results, "")
 
     def _parse_logs(
-        self, results: list[dict], default_service: str
+        self,
+        results: list[dict[str, Any]],
+        default_service: str,
     ) -> list[CanonicalLogEntry]:
         entries: list[CanonicalLogEntry] = []
         for r in results:
             ts_val = r.get("timestamp")
             if ts_val:
                 try:
-                    ts = datetime.fromtimestamp(ts_val / 1000, tz=timezone.utc)
+                    ts = datetime.fromtimestamp(ts_val / 1000, tz=UTC)
                 except (ValueError, TypeError):
-                    ts = datetime.now(timezone.utc)
+                    ts = datetime.now(UTC)
             else:
-                ts = datetime.now(timezone.utc)
+                ts = datetime.now(UTC)
 
             entries.append(
                 CanonicalLogEntry(
@@ -402,7 +426,7 @@ class NewRelicLogAdapter(LogQuery):
                     trace_id=r.get("trace.id"),
                     span_id=r.get("span.id"),
                     provider_source="newrelic",
-                    ingestion_timestamp=datetime.now(timezone.utc),
+                    ingestion_timestamp=datetime.now(UTC),
                 )
             )
         return entries
@@ -411,6 +435,7 @@ class NewRelicLogAdapter(LogQuery):
 # ---------------------------------------------------------------------------
 # Dependency Graph Adapter
 # ---------------------------------------------------------------------------
+
 
 class NewRelicDependencyGraphAdapter(DependencyGraphQuery):
     """Builds dependency graph from New Relic Service Maps API.
@@ -458,22 +483,22 @@ class NewRelicDependencyGraphAdapter(DependencyGraphQuery):
             if name:
                 graph.nodes[name] = ServiceNode(service=name, namespace="")
                 for rel in entity.get("relationships", []):
-                    target_name = (
-                        rel.get("target", {}).get("entity", {}).get("name", "")
-                    )
+                    target_name = rel.get("target", {}).get("entity", {}).get("name", "")
                     if target_name and rel.get("type") == "CALLS":
-                        graph.edges.append(
-                            ServiceEdge(source=name, target=target_name)
-                        )
+                        graph.edges.append(ServiceEdge(source=name, target=target_name))
                         if target_name not in graph.nodes:
                             graph.nodes[target_name] = ServiceNode(
                                 service=target_name, namespace=""
                             )
 
-        graph.last_updated = datetime.now(timezone.utc)
+        graph.last_updated = datetime.now(UTC)
         return graph
 
-    async def get_service_dependencies(self, service, include_transitive=False):
+    async def get_service_dependencies(
+        self,
+        service: str,
+        include_transitive: bool = False,
+    ) -> ServiceGraph:
         full_graph = await self.get_graph()
         if include_transitive:
             downstream = full_graph.get_transitive_downstream(service)
@@ -486,15 +511,12 @@ class NewRelicDependencyGraphAdapter(DependencyGraphQuery):
 
         sub_graph = ServiceGraph(
             nodes={k: v for k, v in full_graph.nodes.items() if k in relevant},
-            edges=[
-                e for e in full_graph.edges
-                if e.source in relevant and e.target in relevant
-            ],
+            edges=[e for e in full_graph.edges if e.source in relevant and e.target in relevant],
             last_updated=full_graph.last_updated,
         )
         return sub_graph
 
-    async def get_service_health(self, service):
+    async def get_service_health(self, service: str) -> dict[str, Any]:
         nrql = (
             f"SELECT average(duration), percentage(count(*), WHERE error IS true) "
             f"FROM Transaction WHERE appName = '{service}' SINCE 5 minutes ago"
@@ -513,6 +535,7 @@ class NewRelicDependencyGraphAdapter(DependencyGraphQuery):
 # ---------------------------------------------------------------------------
 # Composite Provider
 # ---------------------------------------------------------------------------
+
 
 class NewRelicProvider(TelemetryProvider):
     """Composite New Relic provider using NerdGraph for all queries.

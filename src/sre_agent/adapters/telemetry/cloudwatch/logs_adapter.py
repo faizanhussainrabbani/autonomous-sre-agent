@@ -14,23 +14,29 @@ Validates: AC-CW-2.1 through AC-CW-2.6
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
 
+from sre_agent.adapters.telemetry.cloudwatch.log_group_resolver import (
+    LOG_GROUP_PATTERNS as _LOG_GROUP_PATTERNS,
+)
+from sre_agent.adapters.telemetry.cloudwatch.log_group_resolver import (
+    CloudWatchLogGroupResolver,
+)
 from sre_agent.domain.models.canonical import (
     CanonicalLogEntry,
     DataQuality,
     ServiceLabels,
 )
-from sre_agent.adapters.telemetry.cloudwatch.log_group_resolver import (
-    LOG_GROUP_PATTERNS,
-    CloudWatchLogGroupResolver,
-)
 from sre_agent.ports.telemetry import LogQuery
 
 logger = structlog.get_logger(__name__)
+
+# Backward-compatible re-export for existing imports and tests.
+LOG_GROUP_PATTERNS = _LOG_GROUP_PATTERNS
+
 
 class CloudWatchLogsAdapter(LogQuery):
     """LogQuery port backed by CloudWatch Logs FilterLogEvents API.
@@ -84,8 +90,8 @@ class CloudWatchLogsAdapter(LogQuery):
             return []
 
         filter_pattern = self._build_filter(severity, trace_id, search_text)
-        effective_start = start_time or start or datetime.now(timezone.utc)
-        effective_end = end_time or end or datetime.now(timezone.utc)
+        effective_start = start_time or start or datetime.now(UTC)
+        effective_end = end_time or end or datetime.now(UTC)
         start_ms = int(effective_start.timestamp() * 1000)
         end_ms = int(effective_end.timestamp() * 1000)
 
@@ -101,7 +107,7 @@ class CloudWatchLogsAdapter(LogQuery):
                 kwargs["filterPattern"] = filter_pattern
 
             response = self._client.filter_log_events(**kwargs)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.error(
                 "cloudwatch_logs_query_failed",
                 log_group=log_group,
@@ -150,10 +156,8 @@ class CloudWatchLogsAdapter(LogQuery):
                     kwargs["endTime"] = end_ms
 
                 response = self._client.filter_log_events(**kwargs)
-                all_entries.extend(
-                    self._parse_events(response.get("events", []), service)
-                )
-            except Exception as exc:
+                all_entries.extend(self._parse_events(response.get("events", []), service))
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "cloudwatch_logs_trace_query_failed",
                     log_group=group,
@@ -168,7 +172,7 @@ class CloudWatchLogsAdapter(LogQuery):
         try:
             self._client.describe_log_groups(limit=1)
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("cloudwatch_logs_health_check_failed", error=str(exc))
             return False
 
@@ -228,7 +232,7 @@ class CloudWatchLogsAdapter(LogQuery):
         for event in events:
             try:
                 timestamp_ms = event.get("timestamp", 0)
-                ts = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+                ts = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
                 message = event.get("message", "")
 
                 # Attempt to parse JSON-structured log messages
@@ -240,9 +244,7 @@ class CloudWatchLogsAdapter(LogQuery):
                 try:
                     parsed = json.loads(message)
                     if isinstance(parsed, dict):
-                        severity = str(
-                            parsed.get("level", parsed.get("severity", "INFO"))
-                        ).upper()
+                        severity = str(parsed.get("level", parsed.get("severity", "INFO"))).upper()
                         trace_id = parsed.get("trace_id", parsed.get("traceId"))
                         span_id = parsed.get("span_id", parsed.get("spanId"))
                         # Preserve the original message for LLM context
@@ -250,9 +252,17 @@ class CloudWatchLogsAdapter(LogQuery):
                         attributes = {
                             k: v
                             for k, v in parsed.items()
-                            if k not in {"level", "severity", "message",
-                                         "trace_id", "traceId", "span_id", "spanId",
-                                         "timestamp"}
+                            if k
+                            not in {
+                                "level",
+                                "severity",
+                                "message",
+                                "trace_id",
+                                "traceId",
+                                "span_id",
+                                "spanId",
+                                "timestamp",
+                            }
                         }
                 except (json.JSONDecodeError, TypeError):
                     # Plain text log — infer severity from content
@@ -269,10 +279,10 @@ class CloudWatchLogsAdapter(LogQuery):
                         attributes=attributes,
                         quality=DataQuality.HIGH,
                         provider_source="cloudwatch",
-                        ingestion_timestamp=datetime.now(timezone.utc),
+                        ingestion_timestamp=datetime.now(UTC),
                     )
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning("cloudwatch_logs_parse_failed", error=str(exc))
 
         return entries

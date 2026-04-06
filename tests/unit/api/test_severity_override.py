@@ -6,7 +6,6 @@ Tests Sev1/2 override halts pipeline, Sev3 no halt, override recording.
 
 from __future__ import annotations
 
-import pytest
 from uuid import uuid4
 
 from sre_agent.api.severity_override import SeverityOverrideService

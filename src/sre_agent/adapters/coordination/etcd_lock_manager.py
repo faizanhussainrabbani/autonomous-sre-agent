@@ -6,6 +6,7 @@ import json
 import os
 import warnings
 from dataclasses import dataclass
+from typing import Any
 
 import anyio
 
@@ -18,7 +19,7 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         import etcd3
-except Exception:  # pragma: no cover
+except Exception:  # noqa: BLE001, pragma: no cover
     etcd3 = None
 
 from sre_agent.domain.models.canonical import ComputeMechanism
@@ -35,13 +36,13 @@ class EtcdLockConfig:
 class EtcdDistributedLockManager(DistributedLockManagerPort):
     """Etcd lock manager with priority preemption and fencing tokens."""
 
-    def __init__(self, client=None, config: EtcdLockConfig | None = None) -> None:
+    def __init__(self, client: Any | None = None, config: EtcdLockConfig | None = None) -> None:
         self._config = config or EtcdLockConfig()
         if client is None:
             if etcd3 is None:
                 raise RuntimeError("etcd3 dependency is not installed")
             client = etcd3.client(host=self._config.host, port=self._config.port)
-        self._client = client
+        self._client: Any = client
 
     async def acquire_lock(self, request: LockRequest) -> LockResult:
         lock_key = self._lock_key(request)
@@ -65,7 +66,9 @@ class EtcdDistributedLockManager(DistributedLockManagerPort):
 
         if request.priority_level < holder_priority:
             token = await self._next_fencing_token(lock_key)
-            if raw_value is not None and await self._try_preempt_lock(lock_key, raw_value, request, token):
+            if raw_value is not None and await self._try_preempt_lock(
+                lock_key, raw_value, request, token
+            ):
                 return LockResult(
                     granted=True,
                     lock_key=lock_key,
@@ -76,7 +79,9 @@ class EtcdDistributedLockManager(DistributedLockManagerPort):
                 )
 
             refreshed = await self._get_record(lock_key)
-            refreshed_holder = holder_agent_id if refreshed is None else str(refreshed.get("agent_id", ""))
+            refreshed_holder = (
+                holder_agent_id if refreshed is None else str(refreshed.get("agent_id", ""))
+            )
             return LockResult(
                 granted=False,
                 lock_key=lock_key,
@@ -130,16 +135,24 @@ class EtcdDistributedLockManager(DistributedLockManagerPort):
             return None
         if isinstance(value, bytes):
             value = value.decode("utf-8")
-        return json.loads(value)
+        parsed = json.loads(value)
+        if not isinstance(parsed, dict):
+            return None
+        return {str(key): str(val) for key, val in parsed.items()}
 
-    async def _get_record_with_raw(self, lock_key: str) -> tuple[dict[str, str] | None, bytes | None]:
+    async def _get_record_with_raw(
+        self, lock_key: str
+    ) -> tuple[dict[str, str] | None, bytes | None]:
         value, _meta = await anyio.to_thread.run_sync(self._client.get, lock_key)
         if value is None:
             return None, None
 
         raw_value = value if isinstance(value, bytes) else str(value).encode("utf-8")
         decoded = raw_value.decode("utf-8")
-        return json.loads(decoded), raw_value
+        parsed = json.loads(decoded)
+        if not isinstance(parsed, dict):
+            return None, raw_value
+        return {str(key): str(val) for key, val in parsed.items()}, raw_value
 
     async def _put_record(self, lock_key: str, request: LockRequest, token: int) -> None:
         lease = await anyio.to_thread.run_sync(self._client.lease, max(1, request.ttl_seconds))

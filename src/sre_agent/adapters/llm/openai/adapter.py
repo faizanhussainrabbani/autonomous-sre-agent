@@ -13,6 +13,7 @@ import asyncio
 import json
 import re
 import time
+from typing import Any
 
 import structlog
 
@@ -26,7 +27,6 @@ from sre_agent.adapters.telemetry.metrics import (
     LLM_TOKENS_USED,
 )
 from sre_agent.ports.llm import (
-    EvidenceContext,
     Hypothesis,
     HypothesisRequest,
     LLMConfig,
@@ -47,11 +47,11 @@ class OpenAILLMAdapter(LLMReasoningPort):
 
     def __init__(self, config: LLMConfig | None = None) -> None:
         self._config = config or LLMConfig()
-        self._client = None
-        self._tokenizer = None
+        self._client: Any | None = None
+        self._tokenizer: Any | None = None
         self._usage = TokenUsage()
 
-    def _ensure_client(self):
+    def _ensure_client(self) -> None:
         """Lazily initialize the OpenAI client."""
         if self._client is None:
             try:
@@ -64,7 +64,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
                 raise ImportError(msg) from exc
             self._client = openai.AsyncOpenAI()
 
-    def _ensure_tokenizer(self):
+    def _ensure_tokenizer(self) -> None:
         """Lazily load the tiktoken tokenizer."""
         if self._tokenizer is None:
             try:
@@ -86,6 +86,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
     ) -> Hypothesis:
         """Generate a root-cause hypothesis using GPT."""
         self._ensure_client()
+        assert self._client is not None
 
         user_prompt = self._build_hypothesis_prompt(request)
 
@@ -104,7 +105,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
                 ),
                 timeout=self._config.timeout_seconds,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError as exc:
             logger.error(
                 "llm_call_timeout",
                 provider="openai",
@@ -113,7 +114,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
             )
             raise TimeoutError(
                 f"OpenAI hypothesis call timed out after {self._config.timeout_seconds}s"
-            )
+            ) from exc
         LLM_CALL_DURATION.labels(provider="openai", call_type="hypothesis").observe(
             time.monotonic() - _t0
         )
@@ -140,6 +141,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
     ) -> ValidationResult:
         """Cross-validate a hypothesis using a second GPT call."""
         self._ensure_client()
+        assert self._client is not None
 
         user_prompt = self._build_validation_prompt(request)
 
@@ -158,7 +160,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
                 ),
                 timeout=self._config.timeout_seconds,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError as exc:
             logger.error(
                 "llm_call_timeout",
                 provider="openai",
@@ -167,7 +169,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
             )
             raise TimeoutError(
                 f"OpenAI validation call timed out after {self._config.timeout_seconds}s"
-            )
+            ) from exc
         LLM_CALL_DURATION.labels(provider="openai", call_type="validation").observe(
             time.monotonic() - _t0
         )
@@ -190,6 +192,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
     def count_tokens(self, text: str) -> int:
         """Count tokens using tiktoken."""
         self._ensure_tokenizer()
+        assert self._tokenizer is not None
         return len(self._tokenizer.encode(text))
 
     def get_token_usage(self) -> TokenUsage:
@@ -200,6 +203,7 @@ class OpenAILLMAdapter(LLMReasoningPort):
         """Verify OpenAI API connectivity."""
         try:
             self._ensure_client()
+            assert self._client is not None
             await self._client.models.list()
             return True
         except Exception:  # noqa: BLE001

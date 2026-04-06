@@ -20,20 +20,24 @@ from sre_agent.domain.models.diagnosis import (
 logger = structlog.get_logger(__name__)
 
 # Anomaly types that always escalate to Sev 1
-_CRITICAL_ANOMALY_TYPES = frozenset({
-    "data_loss",
-    "security_breach",
-    "data_corruption",
-})
+_CRITICAL_ANOMALY_TYPES = frozenset(
+    {
+        "data_loss",
+        "security_breach",
+        "data_corruption",
+    }
+)
 
 # Keywords in alert descriptions that indicate critical incidents
-_CRITICAL_KEYWORDS = frozenset({
-    "data loss",
-    "security",
-    "breach",
-    "unauthorized",
-    "corruption",
-})
+_CRITICAL_KEYWORDS = frozenset(
+    {
+        "data loss",
+        "security",
+        "breach",
+        "unauthorized",
+        "corruption",
+    }
+)
 
 
 class SeverityClassifier:
@@ -182,7 +186,7 @@ class SeverityClassifier:
 
         return severity, impact
 
-    def get_service_tier(self, service: str) -> "ServiceTier":
+    def get_service_tier(self, service: str) -> ServiceTier:
         """Resolve the tier for a given service name.
 
         Returns the configured tier for the service, or the default tier
@@ -194,7 +198,7 @@ class SeverityClassifier:
         Returns:
             The ServiceTier for the service.
         """
-        from sre_agent.domain.models.diagnosis import ServiceTier  # local to avoid circular
+
         raw = self._service_tiers.get(service, self._default_tier)
         # _service_tiers values are already ServiceTier instances
         return raw

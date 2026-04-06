@@ -6,7 +6,6 @@ Tests rule-based and cross-check validation strategies.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from sre_agent.domain.diagnostics.validator import SecondOpinionValidator, ValidationStrategy
@@ -59,14 +58,17 @@ class TestSecondOpinionValidator:
 
     async def test_cross_check_agreement(self):
         mock_llm = MagicMock()
-        mock_llm.validate_hypothesis = AsyncMock(return_value=ValidationResult(
-            agrees=True,
-            confidence=0.90,
-            reasoning="Hypothesis well-supported by evidence.",
-            contradictions=[],
-        ))
+        mock_llm.validate_hypothesis = AsyncMock(
+            return_value=ValidationResult(
+                agrees=True,
+                confidence=0.90,
+                reasoning="Hypothesis well-supported by evidence.",
+                contradictions=[],
+            )
+        )
         validator = SecondOpinionValidator(
-            llm=mock_llm, strategy=ValidationStrategy.CROSS_CHECK,
+            llm=mock_llm,
+            strategy=ValidationStrategy.CROSS_CHECK,
         )
         hypothesis = _make_hypothesis()
         result = await validator.validate(hypothesis, alert_description="latency spike")
@@ -75,14 +77,17 @@ class TestSecondOpinionValidator:
 
     async def test_cross_check_disagreement(self):
         mock_llm = MagicMock()
-        mock_llm.validate_hypothesis = AsyncMock(return_value=ValidationResult(
-            agrees=False,
-            confidence=0.40,
-            reasoning="Evidence contradicts hypothesis.",
-            contradictions=["Claim X unsupported."],
-        ))
+        mock_llm.validate_hypothesis = AsyncMock(
+            return_value=ValidationResult(
+                agrees=False,
+                confidence=0.40,
+                reasoning="Evidence contradicts hypothesis.",
+                contradictions=["Claim X unsupported."],
+            )
+        )
         validator = SecondOpinionValidator(
-            llm=mock_llm, strategy=ValidationStrategy.CROSS_CHECK,
+            llm=mock_llm,
+            strategy=ValidationStrategy.CROSS_CHECK,
         )
         hypothesis = _make_hypothesis()
         result = await validator.validate(hypothesis, alert_description="latency spike")
@@ -93,7 +98,8 @@ class TestSecondOpinionValidator:
         mock_llm = MagicMock()
         mock_llm.validate_hypothesis = AsyncMock()
         validator = SecondOpinionValidator(
-            llm=mock_llm, strategy=ValidationStrategy.BOTH,
+            llm=mock_llm,
+            strategy=ValidationStrategy.BOTH,
         )
         hypothesis = _make_hypothesis(root_cause="")
         result = await validator.validate(hypothesis, evidence_count=1)

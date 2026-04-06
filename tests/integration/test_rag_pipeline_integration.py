@@ -7,8 +7,9 @@ novel incident handling, and provenance chain.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from sre_agent.domain.diagnostics.rag_pipeline import RAGDiagnosticPipeline
 from sre_agent.domain.diagnostics.severity import SeverityClassifier
@@ -36,19 +37,23 @@ def _create_integrated_pipeline(
     mock_emb.health_check = AsyncMock(return_value=True)
 
     mock_llm = MagicMock()
-    mock_llm.generate_hypothesis = AsyncMock(return_value=Hypothesis(
-        root_cause="OOM kill caused by memory leak in payment-service",
-        confidence=0.88,
-        reasoning="RSS usage grew linearly over 6 hours before OOM.",
-        evidence_citations=["runbook/oom-recovery.md", "postmortem/2024-02.md"],
-        suggested_remediation="Increase memory limits to 4Gi and restart.",
-    ))
-    mock_llm.validate_hypothesis = AsyncMock(return_value=ValidationResult(
-        agrees=True,
-        confidence=0.85,
-        reasoning="Evidence strongly supports the hypothesis.",
-        contradictions=[],
-    ))
+    mock_llm.generate_hypothesis = AsyncMock(
+        return_value=Hypothesis(
+            root_cause="OOM kill caused by memory leak in payment-service",
+            confidence=0.88,
+            reasoning="RSS usage grew linearly over 6 hours before OOM.",
+            evidence_citations=["runbook/oom-recovery.md", "postmortem/2024-02.md"],
+            suggested_remediation="Increase memory limits to 4Gi and restart.",
+        )
+    )
+    mock_llm.validate_hypothesis = AsyncMock(
+        return_value=ValidationResult(
+            agrees=True,
+            confidence=0.85,
+            reasoning="Evidence strongly supports the hypothesis.",
+            contradictions=[],
+        )
+    )
     mock_llm.count_tokens = MagicMock(side_effect=lambda text: len(text) // 4)
     mock_llm.health_check = AsyncMock(return_value=True)
 

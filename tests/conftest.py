@@ -7,33 +7,30 @@ and common test utilities used across unit, integration, and e2e tests.
 
 from __future__ import annotations
 
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
+
+from sre_agent.config.settings import DetectionConfig
 from sre_agent.domain.models.canonical import (
     AnomalyAlert,
     AnomalyType,
     CanonicalMetric,
-    CanonicalTrace,
-    CanonicalLogEntry,
     DomainEvent,
     EventTypes,
-    IncidentPhase,
     ServiceEdge,
     ServiceGraph,
     ServiceLabels,
     ServiceNode,
     Severity,
-    TraceSpan,
 )
 from sre_agent.events.in_memory import InMemoryEventBus, InMemoryEventStore
-from sre_agent.config.settings import DetectionConfig
-
 
 # ---------------------------------------------------------------------------
 # Event Infrastructure Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def event_bus() -> InMemoryEventBus:
@@ -50,6 +47,7 @@ def event_store() -> InMemoryEventStore:
 # ---------------------------------------------------------------------------
 # Canonical Model Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_labels() -> ServiceLabels:
@@ -68,7 +66,7 @@ def sample_metric(sample_labels: ServiceLabels) -> CanonicalMetric:
     return CanonicalMetric(
         name="http_request_duration_seconds",
         value=0.250,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         labels=sample_labels,
         unit="seconds",
         provider_source="prometheus",
@@ -85,7 +83,7 @@ def sample_alert(sample_labels: ServiceLabels) -> AnomalyAlert:
         namespace=sample_labels.namespace,
         severity=Severity.WARNING,
         message="Latency spike detected: p99 > 3σ for > 2 minutes",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         metric_name="http_request_duration_seconds",
         current_value=1.5,
         threshold_value=0.5,
@@ -119,7 +117,7 @@ def sample_domain_event() -> DomainEvent:
     """A valid DomainEvent for event bus testing."""
     return DomainEvent(
         event_type=EventTypes.ANOMALY_DETECTED,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         payload={
             "service": "svc-a",
             "anomaly_type": "latency_spike",

@@ -6,23 +6,21 @@ Validates: AC-1.5.2.1 through AC-1.5.2.5
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 
+from sre_agent.domain.detection.signal_correlator import SignalCorrelator
 from sre_agent.domain.models.canonical import (
     ComputeMechanism,
-    CorrelatedSignals,
 )
-from sre_agent.domain.detection.signal_correlator import SignalCorrelator
 from sre_agent.ports.telemetry import eBPFQuery
-
 
 # ---------------------------------------------------------------------------
 # Helpers — minimal mock adapters
 # ---------------------------------------------------------------------------
+
 
 class MockeBPFQuery(eBPFQuery):
     """Concrete eBPFQuery that does nothing; inherits default is_supported()."""
@@ -62,6 +60,7 @@ def _make_correlator(ebpf_query=None) -> SignalCorrelator:
 # eBPFQuery.is_supported() tests
 # ---------------------------------------------------------------------------
 
+
 def test_ebpf_degrades_on_serverless():
     """AC-1.5.2.2: eBPF is NOT supported on SERVERLESS."""
     q = MockeBPFQuery()
@@ -90,13 +89,14 @@ def test_ebpf_supported_on_virtual_machine():
 # SignalCorrelator degradation integration
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_correlator_degrades_for_serverless():
     """AC-1.5.2.4: SignalCorrelator sets has_degraded_observability for serverless."""
     ebpf = MockeBPFQuery()
     correlator = _make_correlator(ebpf_query=ebpf)
-    t0 = datetime.now(timezone.utc) - timedelta(minutes=5)
-    t1 = datetime.now(timezone.utc)
+    t0 = datetime.now(UTC) - timedelta(minutes=5)
+    t1 = datetime.now(UTC)
 
     result = await correlator.correlate(
         service="payment-handler",
@@ -116,8 +116,8 @@ async def test_correlator_normal_for_kubernetes():
     """AC-1.5.2.5: No degradation on Kubernetes with eBPF available."""
     ebpf = MockeBPFQuery()
     correlator = _make_correlator(ebpf_query=ebpf)
-    t0 = datetime.now(timezone.utc) - timedelta(minutes=5)
-    t1 = datetime.now(timezone.utc)
+    t0 = datetime.now(UTC) - timedelta(minutes=5)
+    t1 = datetime.now(UTC)
 
     result = await correlator.correlate(
         service="checkout",

@@ -6,18 +6,18 @@ Phase 1.5.1: Added to ensure accurate resilience behavior (e.g. not retrying 404
 and better support for fault injection tests.
 """
 
-from typing import Any
 
-from sre_agent.adapters.cloud.resilience import AuthenticationError
-from sre_agent.adapters.cloud.resilience import CloudOperatorError
-from sre_agent.adapters.cloud.resilience import RateLimitError
-from sre_agent.adapters.cloud.resilience import ResourceNotFoundError
-from sre_agent.adapters.cloud.resilience import TransientError
+from sre_agent.adapters.cloud.resilience import (
+    AuthenticationError,
+    CloudOperatorError,
+    RateLimitError,
+    ResourceNotFoundError,
+    TransientError,
+)
 
 
 def map_azure_error(exc: Exception) -> CloudOperatorError:
-    """Map an Azure HttpResponseError to our canonical resilience exceptions.
-    """
+    """Map an Azure HttpResponseError to our canonical resilience exceptions."""
     if isinstance(exc, (ConnectionError, TimeoutError)):
         return TransientError(f"Azure Connection/Timeout Error: {exc}")
 

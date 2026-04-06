@@ -11,3 +11,5 @@ from sre_agent.domain.detection.provider_registry import (  # noqa: F401
     ProviderRegistry,
     ProviderRegistryError,
 )
+
+__all__ = ["ProviderRegistry", "ProviderRegistryError"]

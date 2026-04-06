@@ -29,14 +29,14 @@ testcontainers_localstack = pytest.importorskip("testcontainers.localstack")
 LocalStackContainer = testcontainers_localstack.LocalStackContainer
 
 
-from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator
-from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator
-from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator
-
+from sre_agent.adapters.cloud.aws.ec2_asg_operator import EC2ASGOperator  # noqa: E402
+from sre_agent.adapters.cloud.aws.ecs_operator import ECSOperator  # noqa: E402
+from sre_agent.adapters.cloud.aws.lambda_operator import LambdaOperator  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def localstack():
@@ -44,6 +44,7 @@ def localstack():
     container = build_localstack_pro_container(LocalStackContainer)
     with container as c:
         yield c
+
 
 @pytest.fixture(scope="module")
 def asg_client(localstack):
@@ -55,6 +56,7 @@ def asg_client(localstack):
         aws_secret_access_key="test",
     )
 
+
 @pytest.fixture(scope="module")
 def ecs_client(localstack):
     return boto3.client(
@@ -64,6 +66,7 @@ def ecs_client(localstack):
         aws_access_key_id="test",
         aws_secret_access_key="test",
     )
+
 
 @pytest.fixture(scope="module")
 def lambda_client(localstack):
@@ -75,28 +78,32 @@ def lambda_client(localstack):
         aws_secret_access_key="test",
     )
 
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_ec2_asg_operator_integration(asg_client):
     operator = EC2ASGOperator(asg_client)
-    
+
     # Test health check against live (localstack) API
     is_healthy = await operator.health_check()
     assert is_healthy is True
 
+
 @pytest.mark.asyncio
 async def test_ecs_operator_integration(ecs_client):
     operator = ECSOperator(ecs_client)
-    
+
     is_healthy = await operator.health_check()
     assert is_healthy is True
+
 
 @pytest.mark.asyncio
 async def test_lambda_operator_integration(lambda_client):
     operator = LambdaOperator(lambda_client)
-    
+
     is_healthy = await operator.health_check()
     assert is_healthy is True

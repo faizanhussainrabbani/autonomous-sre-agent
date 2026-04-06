@@ -7,11 +7,12 @@ Validates: AC-1.5.1 through AC-1.5.5
 from __future__ import annotations
 
 import pytest
-from datetime import datetime
-from typing import Any
 
 from sre_agent.config.provider_registry import ProviderRegistry, ProviderRegistryError
-from sre_agent.domain.models.canonical import EventTypes
+from sre_agent.domain.models.canonical import (
+    EventTypes,
+    ServiceGraph,
+)
 from sre_agent.events.in_memory import InMemoryEventBus
 from sre_agent.ports.telemetry import (
     DependencyGraphQuery,
@@ -20,43 +21,57 @@ from sre_agent.ports.telemetry import (
     TelemetryProvider,
     TraceQuery,
 )
-from sre_agent.domain.models.canonical import (
-    CanonicalLogEntry,
-    CanonicalMetric,
-    CanonicalTrace,
-    ServiceGraph,
-)
-
 
 # ---------------------------------------------------------------------------
 # Stub provider for testing
 # ---------------------------------------------------------------------------
 
+
 class StubMetricsQuery(MetricsQuery):
     async def query(self, service, metric, start_time, end_time, labels=None, step_seconds=15):
         return []
+
     async def query_instant(self, service, metric, timestamp=None, labels=None):
         return None
+
     async def list_metrics(self, service):
         return []
+
 
 class StubTraceQuery(TraceQuery):
     async def get_trace(self, trace_id):
         return None
-    async def query_traces(self, service, start_time, end_time, limit=100, min_duration_ms=None, status_code=None):
+
+    async def query_traces(
+        self, service, start_time, end_time, limit=100, min_duration_ms=None, status_code=None
+    ):
         return []
 
+
 class StubLogQuery(LogQuery):
-    async def query_logs(self, service, start_time, end_time, severity=None, trace_id=None, search_text=None, limit=1000):
+    async def query_logs(
+        self,
+        service,
+        start_time,
+        end_time,
+        severity=None,
+        trace_id=None,
+        search_text=None,
+        limit=1000,
+    ):
         return []
+
     async def query_by_trace_id(self, trace_id, start_time=None, end_time=None):
         return []
+
 
 class StubDepGraphQuery(DependencyGraphQuery):
     async def get_graph(self):
         return ServiceGraph()
+
     async def get_service_dependencies(self, service, include_transitive=False):
         return ServiceGraph()
+
     async def get_service_health(self, service):
         return {"is_healthy": True}
 
@@ -99,6 +114,7 @@ class StubProvider(TelemetryProvider):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestProviderRegistration:
     """AC-1.5.5: New providers can be registered."""

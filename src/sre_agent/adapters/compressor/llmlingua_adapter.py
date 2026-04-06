@@ -15,18 +15,42 @@ from __future__ import annotations
 
 import structlog
 
-from sre_agent.ports.compressor import CompressorPort, CompressionResult
+from sre_agent.ports.compressor import CompressionResult, CompressorPort
 
 logger = structlog.get_logger(__name__)
 
 # SRE-critical tokens that must survive compression
 _SRE_FORCE_TOKENS = [
-    "OOM", "kill", "restart", "latency", "p99", "p50", "p95",
-    "CPU", "memory", "disk", "threshold", "deployment",
-    "rollback", "scale", "pod", "container", "node",
-    "certificate", "expired", "connection", "timeout",
-    "error", "5xx", "4xx", "health", "readiness",
-    "service", "namespace", "replica", "crashloop",
+    "OOM",
+    "kill",
+    "restart",
+    "latency",
+    "p99",
+    "p50",
+    "p95",
+    "CPU",
+    "memory",
+    "disk",
+    "threshold",
+    "deployment",
+    "rollback",
+    "scale",
+    "pod",
+    "container",
+    "node",
+    "certificate",
+    "expired",
+    "connection",
+    "timeout",
+    "error",
+    "5xx",
+    "4xx",
+    "health",
+    "readiness",
+    "service",
+    "namespace",
+    "replica",
+    "crashloop",
 ]
 
 _DEFAULT_INSTRUCTION = (
@@ -66,6 +90,7 @@ class LLMLinguaCompressor(CompressorPort):
         self._init_attempted = True
         try:
             from llmlingua import PromptCompressor
+
             self._compressor = PromptCompressor(
                 model_name=self._model_name,
                 use_llmlingua2=self._use_llmlingua2,
@@ -73,7 +98,7 @@ class LLMLinguaCompressor(CompressorPort):
             )
             self._available = True
             logger.info("llmlingua_compressor_initialized", model=self._model_name)
-        except (ImportError, Exception) as exc:
+        except (ImportError, Exception) as exc:  # noqa: BLE001
             logger.warning(
                 "llmlingua_unavailable_using_fallback",
                 error=str(exc),
@@ -118,6 +143,7 @@ class LLMLinguaCompressor(CompressorPort):
         instruction: str,
     ) -> CompressionResult:
         """Compress using LLMLingua."""
+        assert self._compressor is not None
         result = self._compressor.compress_prompt(
             [text],
             instruction=instruction or _DEFAULT_INSTRUCTION,
@@ -162,9 +188,7 @@ class LLMLinguaCompressor(CompressorPort):
         scored: list[tuple[float, str]] = []
         for sentence in sentences:
             lower = sentence.lower()
-            keyword_hits = sum(
-                1 for kw in _SRE_FORCE_TOKENS if kw.lower() in lower
-            )
+            keyword_hits = sum(1 for kw in _SRE_FORCE_TOKENS if kw.lower() in lower)
             # Bonus for sentences with numbers (metrics, thresholds)
             has_numbers = any(c.isdigit() for c in sentence)
             score = keyword_hits + (0.5 if has_numbers else 0)

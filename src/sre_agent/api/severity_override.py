@@ -10,7 +10,7 @@ Phase 2: Intelligence Layer — Sprint 3 (Severity & Safety Classification)
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import structlog
@@ -29,7 +29,7 @@ class SeverityOverride:
     override_severity: Severity
     operator: str
     reason: str
-    applied_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    applied_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     halts_pipeline: bool = False
 
 

@@ -7,23 +7,25 @@ Includes retry with exponential backoff and circuit breaker.
 
 from __future__ import annotations
 
-import structlog
 from typing import Any
+
+import structlog
 
 try:
     from azure.core.exceptions import HttpResponseError as _AzureHttpError
+
     _AZURE_ERRORS = (_AzureHttpError, ConnectionError, TimeoutError)
 except ImportError:
     _AZURE_ERRORS = (Exception,)  # type: ignore[assignment]
 
-from sre_agent.domain.models.canonical import ComputeMechanism
-from sre_agent.ports.cloud_operator import CloudOperatorPort
 from sre_agent.adapters.cloud.azure.error_mapper import map_azure_error
 from sre_agent.adapters.cloud.resilience import (
     CircuitBreaker,
     RetryConfig,
     retry_with_backoff,
 )
+from sre_agent.domain.models.canonical import ComputeMechanism
+from sre_agent.ports.cloud_operator import CloudOperatorPort
 
 logger = structlog.get_logger(__name__)
 
@@ -57,14 +59,16 @@ class AppServiceOperator(CloudOperatorPort):
         return [ComputeMechanism.CONTAINER_INSTANCE, ComputeMechanism.VIRTUAL_MACHINE]
 
     async def restart_compute_unit(
-        self, resource_id: str, metadata: dict[str, Any] | None = None,
+        self,
+        resource_id: str,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Restart an Azure App Service web app."""
         meta = metadata or {}
         resource_group = meta.get("resource_group", "")
         app_name = _resource_name(resource_id)
 
-        async def _do_restart():
+        async def _do_restart() -> dict[str, Any]:
             logger.info("app_service_restart", app=app_name, rg=resource_group)
             try:
                 self._web.web_apps.restart(resource_group, app_name)
@@ -79,7 +83,9 @@ class AppServiceOperator(CloudOperatorPort):
         )
 
     async def scale_capacity(
-        self, resource_id: str, desired_count: int,
+        self,
+        resource_id: str,
+        desired_count: int,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Modify the App Service Plan instance count."""
@@ -87,7 +93,7 @@ class AppServiceOperator(CloudOperatorPort):
         resource_group = meta.get("resource_group", "")
         plan_name = meta.get("plan_name", resource_id)
 
-        async def _do_scale():
+        async def _do_scale() -> dict[str, Any]:
             logger.info("app_service_scale", plan=plan_name, desired=desired_count)
             try:
                 plan = self._web.app_service_plans.get(resource_group, plan_name)
