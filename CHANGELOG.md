@@ -14,6 +14,48 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [2026-04-11] Prometheus Observability Demo and Lambda/DynamoDB Saturation Demo
+
+Expanded the live demo suite with two new scenarios: a full end-to-end Prometheus
+observability loop and a compound Lambda cold-start + DynamoDB saturation failure
+using the LocalStack Pro Chaos API.
+
+### What changed and why
+
+* Added `scripts/demo/live_demo_p6_full_observability.py` — the most comprehensive
+  observability demo in the suite. Exposes a `prometheus_client` metrics server on
+  port 8080, runs 3 cascade failure diagnoses + 1 novel incident injection + a full
+  circuit breaker state machine cycle, waits for a Prometheus scrape cycle, then
+  issues 7 live PromQL instant queries against the Prometheus TSDB and evaluates
+  loaded alert rules via the Prometheus API. Degrades gracefully when Prometheus
+  is not running.
+
+* Added `scripts/demo/live_demo_lambda_dynamodb_saturation.py` — a compound failure
+  scenario where Lambda cold-start concurrency thrashing and DynamoDB provisioned
+  throughput exhaustion produce a non-obvious diagnosis requiring multi-signal RAG
+  correlation. Uses the LocalStack Pro Chaos API for clean, code-free fault
+  injection; includes a human approval gate before the concurrency remediation
+  action executes.
+
+* Updated `docs/operations/live_demo_guide.md` — added inventory rows, prerequisite
+  sections, detailed expected-behavior documentation, and troubleshooting entries
+  for both new demos. Demo count updated from 18 to 20. Added Prometheus
+  prerequisites and a dedicated Prometheus alert rule table for Demo P6.
+
+### Key files affected
+
+* `scripts/demo/live_demo_p6_full_observability.py` (new)
+* `scripts/demo/live_demo_lambda_dynamodb_saturation.py` (new)
+* `docs/operations/live_demo_guide.md` (updated)
+
+### Validation outcomes
+
+* Demo P6 validated end-to-end with Prometheus running via `docker compose -f docker-compose.deps.yml up -d prometheus`
+* All 7 PromQL queries returned live TSDB data; `sre_agent:diagnosis_latency:p99` recording rule requires a second scrape window to populate
+* Novel incident counter verified: `sre_agent_diagnosis_errors_total{error_type="novel_incident"} = 1`
+* Circuit breaker state transitions confirmed: `CLOSED (0) → OPEN (2) → HALF_OPEN (1) → CLOSED (0)`
+* Demo 25 structure validated; full execution requires LocalStack Pro (not run in this session)
+
 ## [2026-04-06] Lint, Type Safety, and Test Gate Stabilization
 
 Closed the remaining quality-gate debt by driving Ruff and mypy to clean state,

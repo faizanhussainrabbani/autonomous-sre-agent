@@ -26,7 +26,7 @@ services:
     environment:
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:?LOCALSTACK_AUTH_TOKEN is required for LocalStack Pro}
       - DEBUG=0
-      - SERVICES=autoscaling,cloudwatch,ec2,ecs,events,iam,lambda,logs,s3,secretsmanager,sns,sts
+      - SERVICES=autoscaling,cloudwatch,dynamodb,ec2,ecs,events,iam,lambda,logs,s3,secretsmanager,sns,sts
       - DEFAULT_REGION=us-east-1
       - LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=120
       - EAGER_SERVICE_LOADING=1

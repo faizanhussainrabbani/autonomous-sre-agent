@@ -1,7 +1,7 @@
 ---
 title: Live Incident Response Demonstrations
-description: Execution-validated guide for running all Autonomous SRE Agent live demos across AWS, Azure, HTTP, EventBridge, Kubernetes operations, and multi-agent lock coordination.
-ms.date: 2026-03-31
+description: Execution-validated guide for running all Autonomous SRE Agent live demos across AWS, Azure, HTTP, EventBridge, Kubernetes operations, multi-agent lock coordination, and Prometheus observability.
+ms.date: 2026-04-11
 ms.topic: how-to
 status: APPROVED
 keywords:
@@ -10,6 +10,8 @@ keywords:
   - incident response
   - kubernetes
   - multi-agent locks
+  - prometheus
+  - observability
 ---
 
 ## Overview
@@ -18,7 +20,10 @@ This guide is the canonical index for the live demo suite. It documents every `.
 
 Validation scope for this revision:
 
-* Canonical suite now includes 18 executable demos after retiring low-value overlap and placeholder entries
+* Canonical suite now includes 20 executable demos after retiring low-value overlap and placeholder entries
+* Demo 2 (`live_demo_cascade_failure.py`) re-validated end-to-end with Anthropic adapter
+* Demo 25 (`live_demo_lambda_dynamodb_saturation.py`) added — Lambda Cold-Start Avalanche + DynamoDB Saturation using LocalStack Pro Chaos API; requires Pro for full execution
+* Demo P6 (`live_demo_p6_full_observability.py`) added — Full Prometheus observability loop validated end-to-end; all 7 PromQL queries returned live TSDB data
 * Kubernetes Demo 12 was validated in both simulation mode and live `kubectl` mode
 * Demo 19 (`live_demo_rag_error_evaluation.py`) was validated in non-interactive mode (`SKIP_PAUSES=1`)
 * Demos 20-23 were validated in non-interactive mode (`SKIP_PAUSES=1`)
@@ -47,6 +52,8 @@ Validation scope for this revision:
 | 22 | [../../scripts/demo/live_demo_22_change_event_causality.py](../../scripts/demo/live_demo_22_change_event_causality.py) | EventBridge-style change events correlated into diagnosis context | Community | Yes (Anthropic) |
 | 23 | [../../scripts/demo/live_demo_23_ai_says_no_before_it_acts.py](../../scripts/demo/live_demo_23_ai_says_no_before_it_acts.py) | Guardrail-first remediation: deny risky plan, allow safe plan | Community | No |
 | 24 | [../../scripts/demo/live_demo_kubernetes_log_aggregation_scale.py](../../scripts/demo/live_demo_kubernetes_log_aggregation_scale.py) | K8s pod log aggregation, RAG diagnosis, and horizontal scale remediation | No (K8s cluster for live mode) | Yes (Anthropic) |
+| 25 | [../../scripts/demo/live_demo_lambda_dynamodb_saturation.py](../../scripts/demo/live_demo_lambda_dynamodb_saturation.py) | Lambda cold-start avalanche + DynamoDB saturation via LocalStack Chaos API | Pro (required) | Yes (Anthropic) |
+| P6 | [../../scripts/demo/live_demo_p6_full_observability.py](../../scripts/demo/live_demo_p6_full_observability.py) | Full Prometheus observability loop — scrape, PromQL, and alert rule evaluation | No | Yes (Anthropic) |
 
 Retired demos:
 
@@ -69,8 +76,8 @@ pip install -e .[dev]
 ### LocalStack
 
 * Community demos: 1, 7, 9, 19, 20, 21, 22, 23
-* Pro demos: 8, plus full-feature execution for Demo 4
-* No LocalStack required: 2, 3, 6, 10, 11, 12, 13, 18, 24
+* Pro demos: 8, 25, plus full-feature execution for Demo 4
+* No LocalStack required: 2, 3, 6, 10, 11, 12, 13, 18, 24, P6
 
 Community quick start:
 
@@ -81,12 +88,25 @@ docker run --rm -d -p 4566:4566 localstack/localstack:latest
 Pro quick start:
 
 ```bash
-localstack start -d --services=ecs,ec2,lambda,cloudwatch,sns,logs --pro --region=us-east-1
+localstack start -d --services=ecs,ec2,lambda,cloudwatch,dynamodb,events,sns,logs --pro --region=us-east-1
 ```
+
+### Prometheus
+
+Demo P6 requires a running Prometheus instance configured to scrape the agent's `/metrics` endpoint. The repository ships a ready-to-use configuration in `infra/prometheus/`.
+
+```bash
+docker compose -f docker-compose.deps.yml up -d prometheus
+```
+
+Prometheus will be available at `http://localhost:9090`. It is pre-configured (via `infra/prometheus/prometheus.yml`) to scrape `host.docker.internal:8080` every 15 s and load the SLO alert rules from `infra/prometheus/rules/sre_agent_slo.yaml`.
+
+> [!NOTE]
+> Port 8080 must be free before running Demo P6. The demo exposes the process-local Prometheus registry on that port for Prometheus to scrape.
 
 ### LLM credentials
 
-The LLM-driven demos (2, 3, 6, 7, 8, 19, 20, 21, 22, 24) require a valid Anthropic API key.
+The LLM-driven demos (2, 3, 6, 7, 8, 19, 20, 21, 22, 24, 25, P6) require a valid Anthropic API key.
 
 ```bash
 export ANTHROPIC_API_KEY=<your-key>
@@ -346,17 +366,105 @@ k3d cluster create sre-local --agents 2
 kubectl create namespace sre-demo
 ```
 
+### Demo 25: Lambda cold-start avalanche and DynamoDB saturation
+
+```bash
+SKIP_PAUSES=1 python3 ../../scripts/demo/live_demo_lambda_dynamodb_saturation.py
+```
+
+Required environment variables:
+
+```bash
+export ANTHROPIC_API_KEY=<your-key>
+export LOCALSTACK_AUTH_TOKEN=<pro-token>
+```
+
+Optional environment variables:
+
+* `LOCALSTACK_ENDPOINT` — LocalStack endpoint (default: `http://localhost:4566`)
+* `AGENT_PORT` — SRE Agent port (default: `8181`)
+* `BRIDGE_PORT` — Incident bridge webhook port (default: `8080`)
+* `BRIDGE_HOST` — Hostname LocalStack uses to reach the bridge (default: `host.docker.internal`)
+
+Expected behavior:
+
+* Deploys two Lambda functions (`order-processor`, `inventory-updater`) and a shared DynamoDB `orders` table via LocalStack Pro
+* Creates an EventBridge rule to fan-out order events to both Lambdas
+* Wires CloudWatch alarms for Lambda error rate and DynamoDB throttle events to SNS topics
+* Starts the SRE Agent FastAPI server (port 8181) and the incident bridge webhook (port 8080)
+* Subscribes the bridge to both SNS alert topics
+* Seeds the knowledge base with Lambda cold-start and DynamoDB throughput runbooks
+* Induces chaos via the LocalStack Chaos API: 70% `ProvisionedThroughputExceededException` on DynamoDB and 2000 ms artificial latency on all Lambda invocations
+* Triggers the alarm chain: Lambda errors → SNS → bridge → agent diagnosis
+* Displays first diagnosis (Lambda cold-start concurrency thrashing)
+* Triggers the DynamoDB throttling alarm independently and displays the compound failure confirmation
+* Presents a human approval gate before the concurrency limit remediation action executes
+* Tears down all Chaos API rules and cleans up AWS resources on exit
+
+> [!NOTE]
+> LocalStack Pro is required for the Chaos API (`chaos/faults` endpoint). Demo 25 will not function with the Community edition.
+
+### Demo P6: Full Prometheus observability loop
+
+```bash
+# Start Prometheus first
+docker compose -f docker-compose.deps.yml up -d prometheus
+
+# Run the demo
+source .env && source .venv/bin/activate
+python3 ../../scripts/demo/live_demo_p6_full_observability.py
+```
+
+Expected behavior:
+
+* Starts a `prometheus_client` HTTP server on port 8080, exposing the process-local Prometheus registry at `GET /metrics` — the endpoint that `prometheus.yml` is configured to scrape
+* Confirms Prometheus is healthy at `http://localhost:9090`
+* Ingests 4 cascade-failure runbooks (order-service OOM post-mortem, checkout-service 503 runbook, api-gateway latency runbook, flash-sale cascade pattern) into a fresh ChromaDB collection
+* Runs the 3-service Black Friday cascade failure scenario, emitting `sre_agent_diagnosis_duration_seconds`, `sre_agent_severity_assigned_total`, `sre_agent_evidence_relevance_score`, `sre_agent_llm_call_duration_seconds`, and `sre_agent_llm_tokens_total`
+* Injects a novel GraphQL federation incident against an empty knowledge base, verifying `sre_agent_diagnosis_errors_total{error_type="novel_incident"}` increments to 1
+* Drives a circuit breaker through its full state machine: `CLOSED (0) → OPEN (2) → HALF_OPEN (1) → CLOSED (0)`, emitting `sre_agent_circuit_breaker_state` at each transition
+* Waits 20 seconds for at least one Prometheus scrape cycle to complete
+* Queries Prometheus via 7 instant PromQL expressions against the live TSDB and prints results:
+  * `sre_agent_severity_assigned_total`
+  * `sre_agent_llm_tokens_total`
+  * `sre_agent_diagnosis_errors_total`
+  * `sre_agent_circuit_breaker_state`
+  * `sre_agent:diagnosis_latency:p99` (recording rule)
+  * `histogram_quantile(0.50, rate(sre_agent_evidence_relevance_score_bucket[5m]))`
+  * `rate(sre_agent_llm_call_duration_seconds_count[5m]) * 60`
+* Fetches loaded rule groups from `GET /api/v1/rules` and lists all alert definitions with their current state
+* Fetches active alerts from `GET /api/v1/alerts` and surfaces any PENDING or FIRING conditions
+* Prints a final local registry snapshot across all 12 Prometheus metrics
+
+> [!NOTE]
+> If Prometheus is not running, Demo P6 degrades gracefully: all diagnostic phases execute normally and local registry values are printed as a fallback. PromQL and alert phases display an offline warning instead of failing.
+
+Prometheus alert rules evaluated during Demo P6 (defined in `infra/prometheus/rules/sre_agent_slo.yaml`):
+
+| Alert | Threshold | Duration | Severity |
+|---|---|---|---|
+| `DiagnosisLatencySLOBreach` | P99 latency > 30 s | 5 m | critical |
+| `LLMAPIErrors` | Error-to-call ratio > 10 % | 5 m | warning |
+| `LLMParseFailureSpike` | > 5 failures/min | 2 m | warning |
+| `ThrottleQueueSaturation` | Queue depth > 20 | 3 m | warning |
+| `EvidenceQualityDrop` | P50 relevance score < 0.4 | 10 m | warning |
+| `LLMTokenRateTooHigh` | > 100 k tokens/min | 5 m | warning |
+| `EmbeddingColdStartHigh` | Cold-start > 60 s | immediate | info |
+| `CircuitBreakerOpen` | State == 2 (OPEN) | 1 m | critical |
+
 ## Execution notes from validation runs
 
 Observed during this guide update:
 
-* Full batch execution across all `live_demo_*.py` scripts completed successfully (`25/25` pass)
+* Full batch execution across all `live_demo_*.py` scripts completed successfully (`25/25` pass for prior suite; new Demos 25 and P6 validated independently)
 * Single canonical script entry point is maintained per demo under `../../scripts/demo/`
 * HTTP Demo 6 is stable in non-interactive mode (`SKIP_PAUSES=1`)
 * Demo 12 live mode failed with `connection refused` when no reachable cluster context was configured
 * Demo 19 completed successfully end to end, including retrieval-miss fallback path and per-error RAG scorecard output
 * Demos 20, 21, and 22 completed against live API routes with LocalStack-backed incident/change context in non-interactive mode
 * Demo 23 completed deterministic deny-then-allow remediation flow with LocalStack Lambda operator execution in non-interactive mode
+* Demo P6 completed end-to-end with Prometheus running via Docker Compose: all 6 of 7 PromQL queries returned live TSDB data; the `sre_agent:diagnosis_latency:p99` recording rule requires a second scrape interval (30 s evaluation window) to populate after a fresh run
+* Demo 25 requires LocalStack Pro and has not been validated in this session; the script structure and utility imports follow the established patterns from Demos 7, 8, and 19
 
 ## Troubleshooting
 
@@ -393,11 +501,59 @@ Fix:
 * `BRIDGE_HOST=127.0.0.1` for native LocalStack
 * `BRIDGE_HOST=host.docker.internal` for Docker LocalStack
 
+### Demo P6: Prometheus not reachable
+
+Symptom: Phase 6 (PromQL queries) and Phase 7 (alert rules) print `Prometheus is NOT reachable` and show local fallback values instead of TSDB data.
+
+Fix: Start Prometheus before running the demo.
+
+```bash
+docker compose -f docker-compose.deps.yml up -d prometheus
+```
+
+Verify it is healthy before running the demo:
+
+```bash
+curl -s http://localhost:9090/-/healthy
+```
+
+### Demo P6: Port 8080 already in use
+
+Symptom: Phase 0 prints `Could not bind :8080` and the metrics HTTP server does not start.
+
+Fix: Identify and stop the process occupying port 8080.
+
+```bash
+lsof -i :8080
+kill -9 <PID>
+```
+
+If Demo 7 or Demo 25 was run recently without cleanup, the incident bridge webhook may still be running on port 8080.
+
+### Demo P6: `sre_agent:diagnosis_latency:p99` returns no data
+
+Symptom: The recording rule query returns `(no data yet — may need another scrape interval)`.
+
+Root cause: The recording rule evaluates over a 5-minute rate window (`rate(...[5m])`). After a single demo run, fewer than two scrape intervals have passed, so the rolling rate returns `NaN`.
+
+Fix: Wait 30 additional seconds and re-query, or run the demo a second time against the same Prometheus instance to accumulate more samples.
+
+### Demo 25: LocalStack Chaos API unavailable
+
+Symptom: Phase 8 (chaos injection) fails with a 404 or connection error when calling the Chaos API.
+
+Root cause: The LocalStack Chaos API is a Pro-only feature. Community edition does not support `POST /chaos/faults`.
+
+Fix: Ensure `LOCALSTACK_AUTH_TOKEN` is set and that `localstack/localstack-pro:latest` is running.
+
 ## Cross-reference alignment
 
 * Demo 7 behavior here matches script reality and recent runtime validation. The separate `localstack_live_incident_demo.md` document contains both Community and Pro-oriented instructions. For this guide, LocalStack requirement is based on services used by the script itself.
 * Validation outcomes align with `docs/reports/verification/live_demo_verification_report.md` and expand it with explicit runtime caveats observed during full-suite execution.
 * Troubleshooting entries include issues highlighted in `docs/reports/analysis/live_demo_review_report.md` and issues observed during current execution.
+* Demo P6 Prometheus configuration is defined in `infra/prometheus/prometheus.yml` (scrape config) and `infra/prometheus/rules/sre_agent_slo.yaml` (8 alert rules + 1 recording rule). These files are loaded automatically when Prometheus is started via `docker compose -f docker-compose.deps.yml up -d prometheus`.
+* Demo 25 follows the same Pro-required pattern as Demo 8 (`live_demo_ecs_multi_service.py`). LocalStack Pro authentication is documented in `docs/testing/localstack_pro_usage_standard.md`.
+* Prometheus metrics registry and metric definitions are centralized in `src/sre_agent/observability/metrics.py`. The `src/sre_agent/adapters/telemetry/metrics.py` re-exports all symbols for backward compatibility.
 
 ## References
 
@@ -406,5 +562,7 @@ Fix:
 * [Live demo verification report](../reports/verification/live_demo_verification_report.md)
 * [Live demo critical review](../reports/analysis/live_demo_review_report.md)
 * [LocalStack Pro guide](../testing/localstack_pro_guide.md)
+* [LocalStack Pro usage standard](../testing/localstack_pro_usage_standard.md)
 * [Incident taxonomy and severity model](../architecture/models/incident_taxonomy.md)
+* [Observability layer architecture](../architecture/layers/observability_layer.md)
 * [Multi-agent coordination contract](../../AGENTS.md)
