@@ -132,6 +132,16 @@ class LockConfig:
     etcd_port: int = 2379
 
 
+@dataclass
+class PersistenceConfig:
+    """Persistence layer configuration."""
+
+    enabled: bool = False
+    postgres_dsn: str = ""
+    pool_min_size: int = 2
+    pool_max_size: int = 10
+
+
 # DetectionConfig is domain-owned (§1.1 — domain never imports config)
 # Re-exported here so the config layer can populate it from YAML.
 from sre_agent.domain.models.detection_config import DetectionConfig  # noqa: F401, E402
@@ -188,6 +198,7 @@ class AgentConfig:
     enrichment: EnrichmentConfig = field(default_factory=EnrichmentConfig)
     aws_health: AWSHealthConfig = field(default_factory=AWSHealthConfig)
     lock: LockConfig = field(default_factory=LockConfig)
+    persistence: PersistenceConfig = field(default_factory=PersistenceConfig)
 
     # Detection & performance
     detection: DetectionConfig = field(default_factory=DetectionConfig)
@@ -244,6 +255,8 @@ class AgentConfig:
             if "backend" in raw_lock:
                 raw_lock["backend"] = LockBackendType(raw_lock["backend"])
             config.lock = LockConfig(**raw_lock)
+        if "persistence" in data:
+            config.persistence = PersistenceConfig(**data["persistence"])
         if "enrichment" in data:
             config.enrichment = EnrichmentConfig(**data["enrichment"])
         if "aws_health" in data:

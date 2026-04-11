@@ -161,7 +161,7 @@ class RemediationEngine:
                 metrics_after=metrics_after, baseline=baseline
             )
 
-            cooldown_key = self._cooldown.record_action(
+            cooldown_key = await self._cooldown.record_action(
                 resource_id=plan.target_resource,
                 compute_mechanism=plan.compute_mechanism,
                 provider=plan.provider,

@@ -194,7 +194,7 @@ class TestPhase2ActionLockE2E:
         _planner, _diagnosis, plan = await _build_plan(_make_alert())
         plan.safety_constraints = replace(plan.safety_constraints, cooldown_ttl_seconds=3)
 
-        cooldown.record_action(
+        await cooldown.record_action(
             resource_id=plan.target_resource,
             compute_mechanism=plan.compute_mechanism,
             provider=plan.provider,

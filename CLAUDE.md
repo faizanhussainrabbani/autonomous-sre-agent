@@ -80,8 +80,13 @@ Intelligence stack:
 
 * LangChain-style orchestration patterns for RAG workflows
 * OpenAI and Anthropic LLM adapters
-* Embedding adapters and ChromaDB vector storage
+* Embedding adapters with pgvector for production and ChromaDB for local development
 * Token-aware reasoning and evidence reranking pipeline components
+
+Eventing and coordination stack:
+
+* Redis Streams as the current internal event bus
+* Kafka or NATS as future split-gate options at higher scale
 
 Cloud operators:
 
@@ -104,7 +109,7 @@ Focus areas to understand quickly:
 * src/sre_agent/adapters/
   * llm/: OpenAI and Anthropic LLM adapters
   * embedding/: sentence-transformer embedding adapter
-  * vectordb/: ChromaDB vector store adapter
+  * vectordb/: ChromaDB adapter (current) with pgvector production target
   * cloud/kubernetes/: Kubernetes operator adapter
   * cloud/aws/: ECS, EC2 ASG, and Lambda operator adapters
   * cloud/azure/: App Service and Functions operator adapters

@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.ports.lock_manager import DistributedLockManagerPort, LockRequest, LockResult
+
+if TYPE_CHECKING:
+    from sre_agent.ports.persistence import CoordinationAuditPort
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -20,9 +27,10 @@ class _ActiveLock:
 class InMemoryDistributedLockManager(DistributedLockManagerPort):
     """Deterministic lock manager implementation for unit and local integration tests."""
 
-    def __init__(self) -> None:
+    def __init__(self, audit: CoordinationAuditPort | None = None) -> None:
         self._locks: dict[str, _ActiveLock] = {}
         self._fencing_counter = 0
+        self._audit = audit
 
     async def acquire_lock(self, request: LockRequest) -> LockResult:
         lock_key = self._lock_key(request)

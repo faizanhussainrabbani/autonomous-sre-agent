@@ -535,7 +535,7 @@ async def act6_full_autonomous_loop(
         fail(f"Loop failed: {result.error_message}")
 
     # Verify cooldown was recorded
-    in_cd, remaining = cooldown.is_in_cooldown(
+    in_cd, remaining = await cooldown.is_in_cooldown(
         resource_id=plan.target_resource,
         compute_mechanism=plan.compute_mechanism,
         provider=plan.provider,

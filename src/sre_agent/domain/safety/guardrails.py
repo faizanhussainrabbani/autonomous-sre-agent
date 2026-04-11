@@ -56,7 +56,7 @@ class GuardrailOrchestrator:
             )
             return GuardrailResult(allowed=False, reason=blast_reason or "blast_radius_exceeded")
 
-        in_cd, remaining = self._cooldown.is_in_cooldown(
+        in_cd, remaining = await self._cooldown.is_in_cooldown(
             resource_id=plan.target_resource,
             compute_mechanism=plan.compute_mechanism,
             provider=plan.provider,

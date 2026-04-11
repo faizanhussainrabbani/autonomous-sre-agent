@@ -92,7 +92,7 @@
 | **etcd** or **Redis** | Distributed locking for multi-agent coordination | 4 | Mutual exclusion on remediated resources; lock TTLs |
 | **PostgreSQL** or **MySQL** | Relational metadata: incident records, audit logs, configuration, phase state | 3 | Stores severity classifications, phase transitions, agent state |
 | **Object Storage** (S3/GCS/MinIO) | Long-term storage of audit logs, incident records, post-mortems | 3 | Immutable, tamper-evident audit trail |
-| **Apache Kafka** or **NATS** | Event streaming for telemetry pipeline and inter-component communication | 1 | High-throughput message bus between collection → detection → diagnostics |
+| **Redis Streams** (current) | Internal event streaming for outbox relay and inter-component communication | 1.5 | Leverages existing Redis infrastructure for lock/cooldown coordination; Kafka or NATS is a future threshold-triggered split option (see [ADR-006](../../docs/project/ADRs/006-persistence-authority-reconciliation.md), C-06 split gates) |
 
 ---
 
@@ -208,11 +208,11 @@ The agent uses a **provider-agnostic architecture** with adapters for different 
 | Decision | Options | Criteria | When to Decide |
 |----------|---------|----------|---------------|
 | **LLM Provider** | GPT-4o/5, Claude, Llama 3 (self-hosted) | Latency, cost, data privacy, model quality | Before Phase 2 (Month 4) |
-| **Vector Database** | Pinecone, Weaviate, Chroma | Scale, operational preference, self-hosted vs. managed | Before Phase 2 (Month 4) |
+| **Vector Database** | ~~Pinecone, Weaviate, Chroma~~ → **pgvector** (production), **Chroma** (development) | Operational consolidation within PostgreSQL surface | ✅ Resolved — [ADR-006](../../docs/project/ADRs/006-persistence-authority-reconciliation.md) C-02 |
 | **Embedding Model** | OpenAI, Cohere, sentence-transformers | Cost, quality, self-hosted requirement | Before Phase 2 (Month 4) |
 | **Log Backend** | Loki vs. Elasticsearch | Query complexity needs, operational cost | Phase 1 (Month 1) |
 | **Trace Backend** | Jaeger vs. Grafana Tempo | Scale, integration with existing Grafana stack | Phase 1 (Month 1) |
-| **Event Streaming** | Kafka vs. NATS | Throughput needs, operational complexity | Phase 1 (Month 1) |
+| **Event Streaming** | ~~Kafka vs. NATS~~ → **Redis Streams** (current); Kafka/NATS (future split gate) | Volume < 10K events/day; Redis already in stack | ✅ Resolved — [ADR-006](../../docs/project/ADRs/006-persistence-authority-reconciliation.md) C-03 |
 
 ---
 

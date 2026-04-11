@@ -89,7 +89,7 @@ def test_bootstrap_lock_manager_redis_selected(monkeypatch):
     from sre_agent.config.settings import LockBackendType
 
     class _FakeRedisLockManager:
-        def __init__(self, config=None):
+        def __init__(self, config=None, **kwargs):
             self.config = config
 
     class _FakeRedisLockConfig:
@@ -446,7 +446,7 @@ def test_bootstrap_lock_manager_etcd_selected(monkeypatch):
     from sre_agent.config.settings import LockBackendType
 
     class _FakeEtcdLockManager:
-        def __init__(self, config=None):
+        def __init__(self, config=None, **kwargs):
             self.config = config
 
     class _FakeEtcdLockConfig:

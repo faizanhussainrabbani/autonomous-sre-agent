@@ -24,6 +24,7 @@ from sre_agent.ports.telemetry import LogQuery, TelemetryProvider
 
 if TYPE_CHECKING:
     from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
+    from sre_agent.ports.persistence import CoordinationAuditPort
     from sre_agent.ports.telemetry import eBPFQuery
 
 logger = structlog.get_logger(__name__)
@@ -259,7 +260,48 @@ def bootstrap_cloud_operators(config: AgentConfig) -> CloudOperatorRegistry:
     return registry
 
 
-def bootstrap_lock_manager(config: AgentConfig) -> DistributedLockManagerPort:
+async def bootstrap_coordination_audit(
+    config: AgentConfig,
+) -> CoordinationAuditPort | None:
+    """Bootstrap the coordination audit store if persistence is enabled.
+
+    Returns None when persistence is disabled (in-memory / local dev mode).
+    """
+    if not config.persistence.enabled or not config.persistence.postgres_dsn:
+        logger.info("coordination_audit_disabled", reason="persistence not configured")
+        return None
+
+    try:
+        import asyncpg
+
+        from sre_agent.adapters.persistence.coordination_store import (
+            PostgresCoordinationAuditStore,
+        )
+
+        pool = await asyncpg.create_pool(
+            dsn=config.persistence.postgres_dsn,
+            min_size=config.persistence.pool_min_size,
+            max_size=config.persistence.pool_max_size,
+        )
+        logger.info(
+            "coordination_audit_bootstrapped",
+            pool_min=config.persistence.pool_min_size,
+            pool_max=config.persistence.pool_max_size,
+        )
+        return PostgresCoordinationAuditStore(pool=pool)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "coordination_audit_bootstrap_failed",
+            error=str(exc),
+            fallback="disabled",
+        )
+        return None
+
+
+def bootstrap_lock_manager(
+    config: AgentConfig,
+    audit: CoordinationAuditPort | None = None,
+) -> DistributedLockManagerPort:
     """Bootstrap lock manager backend based on configuration."""
     backend = config.lock.backend
 
@@ -270,12 +312,17 @@ def bootstrap_lock_manager(config: AgentConfig) -> DistributedLockManagerPort:
                 RedisLockConfig,
             )
 
-            logger.info("lock_manager_bootstrapped", backend="redis")
+            logger.info(
+                "lock_manager_bootstrapped",
+                backend="redis",
+                audit_enabled=audit is not None,
+            )
             return RedisDistributedLockManager(
                 config=RedisLockConfig(
                     url=config.lock.redis_url,
                     key_prefix=config.lock.key_prefix,
-                )
+                ),
+                audit=audit,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
@@ -292,13 +339,18 @@ def bootstrap_lock_manager(config: AgentConfig) -> DistributedLockManagerPort:
                 EtcdLockConfig,
             )
 
-            logger.info("lock_manager_bootstrapped", backend="etcd")
+            logger.info(
+                "lock_manager_bootstrapped",
+                backend="etcd",
+                audit_enabled=audit is not None,
+            )
             return EtcdDistributedLockManager(
                 config=EtcdLockConfig(
                     host=config.lock.etcd_host,
                     port=config.lock.etcd_port,
                     key_prefix=config.lock.key_prefix,
-                )
+                ),
+                audit=audit,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
@@ -308,5 +360,5 @@ def bootstrap_lock_manager(config: AgentConfig) -> DistributedLockManagerPort:
                 fallback="in_memory",
             )
 
-    logger.info("lock_manager_bootstrapped", backend="in_memory")
-    return InMemoryDistributedLockManager()
+    logger.info("lock_manager_bootstrapped", backend="in_memory", audit_enabled=audit is not None)
+    return InMemoryDistributedLockManager(audit=audit)

@@ -182,7 +182,7 @@ Certain technology choices are considered **locked in** for all future phases:
 | Python 3.11+ | Phase 1 | Language stability, ecosystem maturity |
 | FastAPI for REST API | Phase 1 | Async-first, high performance |
 | Pydantic for data validation | Phase 1 | Type safety, serialization |
-| ChromaDB for embeddings | Phase 1 | Vector semantic search for runbooks |
+| **pgvector** for production embeddings; **ChromaDB** for development | Phase 1 / 4.0 | pgvector consolidates vector persistence within PostgreSQL operational surface (backup, security, monitoring); Chroma retained for zero-setup local development. See [ADR-006](../../project/ADRs/006-persistence-authority-reconciliation.md) C-02 |
 | Anthropic Claude for LLM | Phase 1 | Extended context window, reasoning capability |
 | PostgreSQL for incident DB | Phase 1.5 | Complex incident queries, time-series |
 | Redis for coordination | Phase 1.5 | Distributed locks, cache, pub/sub |

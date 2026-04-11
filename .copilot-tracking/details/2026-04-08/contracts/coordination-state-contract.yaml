@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2020-12/schema
+# markdownlint-disable-file
+contract_id: coordination-state-v1
+description: Canonical lock and cooldown key schema aligned with AGENTS policy.
+lock_key_format:
+  kubernetes: lock:{namespace}:{resource_type}:{resource_name}
+  non_kubernetes: lock:{provider}:{compute_mechanism}:{resource_id}
+cooldown_key_format:
+  kubernetes: cooldown:{namespace}:{resource_type}:{resource_name}
+  non_kubernetes: cooldown:{provider}:{compute_mechanism}:{resource_id}
+key_resolution_rules:
+  - condition: provider == kubernetes
+    apply_format: kubernetes
+  - condition: provider in [aws, azure]
+    apply_format: non_kubernetes
+backward_compatibility:
+  kubernetes_key_format_preserved: true
+  non_kubernetes_key_format_preserved: true
+lock_payload:
+  type: object
+  required:
+    - agent_id
+    - resource_type
+    - resource_name
+    - resource_id
+    - provider
+    - compute_mechanism
+    - priority_level
+    - acquired_at
+    - ttl_seconds
+    - fencing_token
+  properties:
+    agent_id:
+      type: string
+      minLength: 1
+    resource_type:
+      type: string
+      minLength: 1
+    resource_name:
+      type: string
+      minLength: 1
+    namespace:
+      type: string
+      default: ""
+    resource_id:
+      type: string
+      minLength: 1
+    provider:
+      type: string
+      enum: [kubernetes, aws, azure]
+    compute_mechanism:
+      type: string
+      enum: [KUBERNETES, SERVERLESS, VIRTUAL_MACHINE, CONTAINER_INSTANCE]
+    priority_level:
+      type: integer
+      minimum: 1
+      maximum: 3
+    acquired_at:
+      type: string
+      format: date-time
+    ttl_seconds:
+      type: integer
+      minimum: 1
+    fencing_token:
+      type: integer
+      minimum: 1
+cooldown_payload:
+  type: object
+  required:
+    - last_actor
+    - action
+    - compute_mechanism
+    - timestamp
+  properties:
+    last_actor:
+      type: string
+      minLength: 1
+    action:
+      type: string
+      minLength: 1
+    compute_mechanism:
+      type: string
+      enum: [KUBERNETES, SERVERLESS, VIRTUAL_MACHINE, CONTAINER_INSTANCE]
+    timestamp:
+      type: string
+      format: date-time
+human_override_contract:
+  behavior: agent_yields_immediately
+  audit_required: true
+  event_type: human.override.detected

@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2020-12/schema
+# markdownlint-disable-file
+contract_id: incident-outbox-v1
+description: Contract for publishing incident events from PostgreSQL outbox to Redis Streams.
+producer: sre_agent.outbox_relay
+consumer_groups:
+  - diagnostics
+  - remediation
+  - audit
+semantics:
+  delivery: at_least_once
+  ordering: per_incident_id
+  idempotency_key: required
+topic: incident.events
+payload_schema:
+  type: object
+  required:
+    - event_id
+    - incident_id
+    - event_type
+    - occurred_at
+    - provider
+    - compute_mechanism
+    - resource_id
+    - payload
+    - idempotency_key
+  properties:
+    event_id:
+      type: string
+      format: uuid
+    incident_id:
+      type: string
+      format: uuid
+    event_type:
+      type: string
+      minLength: 1
+    occurred_at:
+      type: string
+      format: date-time
+    provider:
+      type: string
+      enum:
+        - kubernetes
+        - aws
+        - azure
+    compute_mechanism:
+      type: string
+      enum:
+        - KUBERNETES
+        - SERVERLESS
+        - VIRTUAL_MACHINE
+        - CONTAINER_INSTANCE
+    resource_id:
+      type: string
+      minLength: 1
+    payload:
+      type: object
+      description: >
+        Event-specific data. Maps to `payload_json` (JSONB) in the
+        `incident_events` and `event_outbox` PostgreSQL tables.
+        The stream wire format uses `payload` (plain JSON object);
+        the database uses the `_json` suffix per PostgreSQL JSONB
+        column naming convention.
+    idempotency_key:
+      type: string
+      minLength: 1
+failure_contract:
+  retry_policy:
+    max_retries: 10
+    backoff: exponential_jitter
+  dead_letter:
+    enabled: true
+    stream: incident.events.dlq
+observability:
+  metrics:
+    - outbox_pending_rows
+    - outbox_dispatch_latency_ms
+    - stream_consumer_lag_seconds
+field_mapping:
+  description: >
+    Naming convention: PostgreSQL JSONB columns use a `_json` suffix
+    (e.g. `payload_json`, `labels_json`). Redis Streams wire-format
+    fields use plain names (e.g. `payload`). The outbox relay is
+    responsible for this translation during XADD serialization.
+  stream_to_db:
+    - stream_field: payload
+      db_column: payload_json
+      db_table: incident_events
+      notes: "relay reads incident_events.payload_json → publishes as stream field 'payload'"
+    - stream_field: payload
+      db_column: payload_json
+      db_table: event_outbox
+      notes: "outbox row stores the same payload_json for relay retry"

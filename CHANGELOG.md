@@ -1,7 +1,7 @@
 ---
 title: Changelog
 description: Historical record of notable project changes with references to plans, criteria, and verification artifacts.
-ms.date: 2026-04-06
+ms.date: 2026-04-09
 ms.topic: reference
 author: SRE Agent Engineering Team
 ---
@@ -55,6 +55,109 @@ using the LocalStack Pro Chaos API.
 * Novel incident counter verified: `sre_agent_diagnosis_errors_total{error_type="novel_incident"} = 1`
 * Circuit breaker state transitions confirmed: `CLOSED (0) → OPEN (2) → HALF_OPEN (1) → CLOSED (0)`
 * Demo 25 structure validated; full execution requires LocalStack Pro (not run in this session)
+## [2026-04-09] Phase 4.0 — Clarification Gate Resolution Application (C-01 through C-06)
+
+Formally approved and applied all six clarification gate resolutions to downstream
+architecture documents, unblocking the persistence migration for implementation.
+
+### Resolutions applied
+
+| Gate | Resolution | Target |
+|---|---|---|
+| **C-01** Document Authority | `persistence_architecture.md` is canonical implementation authority | ADR-006 created |
+| **C-02** Vector Backend | pgvector production, ChromaDB development | `roadmap.md` line 185 updated |
+| **C-03** Event Bus | Redis Streams now; Kafka/NATS future split gate | `Technology_Stack.md` lines 95, 211, 215 updated |
+| **C-04** Delivery Semantics | At-least-once + idempotent consumer | Already correct in `persistence_architecture.md` |
+| **C-05** Safety State Scope | Cooldown, kill-switch, override in first migration wave | Codified in OpenSpec Phase 4.0 tasks T030–T033 |
+| **C-06** Split Gate Thresholds | Six measurable thresholds with duration windows | Codified in OpenSpec Phase 4.0 tasks T043–T045 |
+
+### Key files affected
+
+* `docs/project/ADRs/006-persistence-authority-reconciliation.md` [NEW] — Formal ADR with ACCEPTED status
+* `docs/architecture/Technology_Stack.md` — Event bus converged to Redis Streams; Vector DB and Event Streaming marked resolved in Open Decisions
+* `docs/architecture/evolution/roadmap.md` — ChromaDB locked entry replaced with pgvector/Chroma split
+* `.copilot-tracking/research/2026-04-08/persistence-architecture-reconciliation-research.md` — Resolution Application Status table added
+* `.copilot-tracking/changes/2026-04-08/persistence-architecture-reconciliation-changes.md` — Resolution application section appended
+* `.copilot-tracking/plans/logs/2026-04-08/persistence-architecture-reconciliation-log.md` — WI-04 marked partially resolved
+* `openspec/changes/phase-4-0-persistence-reconciliation/tasks.md` — Gate 1 tasks T006–T012 marked completed
+* `CHANGELOG.md`
+
+### Remaining convergence
+
+* `CLAUDE.md` vector backend reference update (WI-04 remainder)
+
+---
+
+Created the formal OpenSpec change package for Phase 4.0 Persistence Architecture
+Reconciliation, converting planning artifacts from the `.copilot-tracking/` directory
+into an implementation-ready specification suite.
+
+### Context
+
+A comprehensive four-artifact architecture review (2026-04-07) and reconciliation
+exercise (2026-04-08) identified six critical clarification gates blocking the
+persistence migration: document authority conflicts, vector backend selection,
+event bus finalization, delivery semantics ambiguity, safety state scope, and
+missing quantitative split thresholds. All six gates were resolved and the
+outcomes formalized into this OpenSpec package.
+
+### What changed and why
+
+* **OpenSpec change package created:** Established `openspec/changes/phase-4-0-persistence-reconciliation/`
+  with `.openspec.yaml`, `proposal.md`, `design.md`, `specs/persistence-reconciliation/spec.md`,
+  and `tasks.md` (53 tasks across 10 gates).
+
+* **Architecture reconciliation formalized:** Consolidated six clarification gate
+  resolutions (C-01 through C-06) into BDD specifications with GIVEN/WHEN/THEN
+  scenarios covering data model, outbox contract, coordination contract, split
+  gates, extension readiness, Redis degraded-mode, and projection replay.
+
+* **Data model specified:** 10 durable entities (incident events, incidents projection,
+  diagnosis results, remediation actions, event outbox, telemetry metrics, baseline
+  snapshots, vector embeddings, coordination audit) with state transitions and
+  validation rules mapped to AGENTS.md policy tokens.
+
+* **Interface contracts preserved:** Outbox delivery contract (at-least-once +
+  idempotency key + DLQ) and coordination state contract (lock/cooldown schema
+  aligned to AGENTS.md `compute_mechanism` enum) referenced from `.copilot-tracking/`
+  source artifacts with full traceability.
+
+* **Implementation tasks structured:** 53 tasks organized into dependency-ordered
+  gates following the speckit checklist format with task IDs (T001–T053),
+  parallelizability markers, user story labels, file paths, and traceability
+  anchors to the 2026-04-07 research base.
+
+### Key files affected
+
+* `openspec/changes/phase-4-0-persistence-reconciliation/.openspec.yaml` [NEW]
+* `openspec/changes/phase-4-0-persistence-reconciliation/proposal.md` [NEW]
+* `openspec/changes/phase-4-0-persistence-reconciliation/design.md` [NEW]
+* `openspec/changes/phase-4-0-persistence-reconciliation/specs/persistence-reconciliation/spec.md` [NEW]
+* `openspec/changes/phase-4-0-persistence-reconciliation/tasks.md` [NEW]
+* `CHANGELOG.md`
+
+### Research and planning artifacts (source material)
+
+* `.copilot-tracking/research/2026-04-07/persistence-architecture-review-research.md`
+* `.copilot-tracking/research/subagents/2026-04-07/persistence-alignment-research.md`
+* `.copilot-tracking/research/subagents/2026-04-07/persistence-gap-analysis-research.md`
+* `.copilot-tracking/research/subagents/2026-04-07/persistence-adr-best-practices-research.md`
+* `.copilot-tracking/research/2026-04-08/persistence-architecture-reconciliation-research.md`
+* `.copilot-tracking/details/2026-04-08/persistence-architecture-reconciliation-data-model.md`
+* `.copilot-tracking/details/2026-04-08/contracts/incident-outbox-contract.yaml`
+* `.copilot-tracking/details/2026-04-08/contracts/coordination-state-contract.yaml`
+* `.copilot-tracking/plans/2026-04-08/persistence-architecture-reconciliation-plan.instructions.md`
+
+### Validation outcomes
+
+* No production code changes — this is a planning/specification-only phase
+* All existing tests remain unaffected (no `src/` or `tests/` modifications)
+* Specification traceability verified: all six clarification gates (C-01–C-06)
+  have corresponding BDD scenarios in `spec.md`
+* AGENTS.md policy alignment verified: `compute_mechanism` enum values match
+  exactly in contracts and spec scenarios
+
+---
 
 ## [2026-04-06] Lint, Type Safety, and Test Gate Stabilization
 
