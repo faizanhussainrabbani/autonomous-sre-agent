@@ -36,7 +36,7 @@ azure = ["azure-identity>=1.15", "azure-keyvault-secrets>=4.8", "azure-storage-b
 vault = ["hvac>=2.1"]
 coordination = ["redis>=5.0", "etcd3>=0.12"]
 persistence = ["asyncpg>=0.29"]
-kubernetes = ["kubernetes>=29.0.0,<30.0.0"]
+kubernetes = ["kubernetes>=35.0.0,<36.0.0"]
 intelligence = [
     "chromadb>=0.4",
     "sentence-transformers>=2.2",
