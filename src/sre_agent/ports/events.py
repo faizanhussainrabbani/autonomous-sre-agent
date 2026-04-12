@@ -11,8 +11,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from sre_agent.domain.models.canonical import DomainEvent
+
+if TYPE_CHECKING:
+    import anyio.abc
 
 # Type alias for event handlers
 EventHandler = Callable[[DomainEvent], Awaitable[None]]
@@ -44,6 +48,22 @@ class EventBus(ABC):
     async def unsubscribe(self, event_type: str, handler: EventHandler) -> None:
         """Remove a subscription for a specific event type and handler."""
         ...
+
+    async def start(self, task_group: anyio.abc.TaskGroup) -> None:  # noqa: B027
+        """Start background reader loops inside the caller's task group.
+
+        Intentionally non-abstract hook. Implementations that require background
+        I/O (e.g., Redis Streams) override this method to spawn reader tasks.
+        The default is a no-op so ``InMemoryEventBus`` and similar adapters need
+        not override.
+
+        Callers **must** invoke this method during application lifespan startup
+        when using a bus that has I/O reader loops (e.g., RedisStreamsEventBus).
+        Subscriptions added after ``start()`` are also started immediately.
+
+        Args:
+            task_group: The anyio task group that owns reader task lifetimes.
+        """
 
 
 class EventStore(ABC):

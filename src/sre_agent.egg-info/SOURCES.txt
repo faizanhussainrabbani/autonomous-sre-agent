@@ -33,6 +33,8 @@ src/sre_agent/adapters/coordination/in_memory_lock_manager.py
 src/sre_agent/adapters/coordination/redis_lock_manager.py
 src/sre_agent/adapters/embedding/__init__.py
 src/sre_agent/adapters/embedding/sentence_transformers_adapter.py
+src/sre_agent/adapters/events/__init__.py
+src/sre_agent/adapters/events/redis_streams_event_bus.py
 src/sre_agent/adapters/llm/__init__.py
 src/sre_agent/adapters/llm/prompts.py
 src/sre_agent/adapters/llm/throttled_adapter.py
@@ -40,6 +42,11 @@ src/sre_agent/adapters/llm/anthropic/__init__.py
 src/sre_agent/adapters/llm/anthropic/adapter.py
 src/sre_agent/adapters/llm/openai/__init__.py
 src/sre_agent/adapters/llm/openai/adapter.py
+src/sre_agent/adapters/persistence/__init__.py
+src/sre_agent/adapters/persistence/coordination_store.py
+src/sre_agent/adapters/persistence/incident_store.py
+src/sre_agent/adapters/persistence/outbox_relay.py
+src/sre_agent/adapters/persistence/postgres_outbox.py
 src/sre_agent/adapters/reranker/__init__.py
 src/sre_agent/adapters/reranker/cross_encoder_adapter.py
 src/sre_agent/adapters/telemetry/__init__.py
@@ -65,6 +72,8 @@ src/sre_agent/adapters/telemetry/otel/provider.py
 src/sre_agent/adapters/vectordb/__init__.py
 src/sre_agent/adapters/vectordb/chroma/__init__.py
 src/sre_agent/adapters/vectordb/chroma/adapter.py
+src/sre_agent/adapters/vectordb/pgvector/__init__.py
+src/sre_agent/adapters/vectordb/pgvector/adapter.py
 src/sre_agent/api/__init__.py
 src/sre_agent/api/cli.py
 src/sre_agent/api/main.py
@@ -105,6 +114,7 @@ src/sre_agent/domain/models/__init__.py
 src/sre_agent/domain/models/canonical.py
 src/sre_agent/domain/models/detection_config.py
 src/sre_agent/domain/models/diagnosis.py
+src/sre_agent/domain/models/persistence.py
 src/sre_agent/domain/remediation/__init__.py
 src/sre_agent/domain/remediation/engine.py
 src/sre_agent/domain/remediation/models.py
@@ -129,6 +139,7 @@ src/sre_agent/ports/embedding.py
 src/sre_agent/ports/events.py
 src/sre_agent/ports/llm.py
 src/sre_agent/ports/lock_manager.py
+src/sre_agent/ports/persistence.py
 src/sre_agent/ports/remediation.py
 src/sre_agent/ports/reranker.py
 src/sre_agent/ports/telemetry.py

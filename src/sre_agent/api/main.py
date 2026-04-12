@@ -82,9 +82,45 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
             "Install it with: pip install 'sre-agent[api]'"
         )
 
+    from collections.abc import AsyncGenerator
+    from contextlib import asynccontextmanager
+
     import structlog as _structlog
 
     _log = _structlog.get_logger(__name__)
+
+    # ── Application lifespan ──────────────────────────────────────────────────
+    @asynccontextmanager
+    async def lifespan(_app: Any) -> AsyncGenerator[None, None]:
+        """Manage startup and shutdown of background services.
+
+        TODO(phase-2): Wire OutboxRelay and RedisStreamsEventBus reader loops here.
+        When the persistence layer is active, replace this stub with:
+
+            import anyio
+            from sre_agent.adapters.bootstrap import bootstrap_event_bus
+            from sre_agent.adapters.persistence.outbox_relay import OutboxRelay
+            from sre_agent.adapters.persistence.postgres_outbox import PostgresOutbox
+            from sre_agent.config.settings import load_config
+
+            config = load_config()
+            event_bus = bootstrap_event_bus(config)
+            outbox = PostgresOutbox(pool=...)   # inject from bootstrap
+
+            async with anyio.create_task_group() as tg:
+                await event_bus.start(tg)       # starts Redis reader loops (F3/F4 fix)
+                tg.start_soon(relay.run)        # starts outbox drain loop
+                yield                           # FastAPI serves requests inside this scope
+                relay.stop()                    # graceful shutdown on exit
+
+        NOTE: The outbox table accumulates pending rows on every save_event() call.
+        These rows will be processed in bulk when the relay is first enabled —
+        ensure migration 004 has been applied and test with a bounded batch_size
+        before enabling in production.
+        """
+        _log.info("sre_agent.startup", phase="1.5")
+        yield
+        _log.info("sre_agent.shutdown")
 
     app = FastAPI(
         title="Autonomous SRE Agent",
@@ -92,6 +128,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # ── Request logging middleware (OBS-004) ─────────────────────────────────

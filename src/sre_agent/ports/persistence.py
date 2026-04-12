@@ -17,6 +17,19 @@ from typing import Any
 from uuid import UUID
 
 # ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
+
+
+class DuplicateEventError(Exception):
+    """Raised when an incident event with the same idempotency_key already exists.
+
+    Callers must treat this as an idempotent success — the event was previously
+    persisted and the duplicate write is a safe no-op for at-least-once producers.
+    """
+
+
+# ---------------------------------------------------------------------------
 # Coordination Audit Port — DTOs
 # ---------------------------------------------------------------------------
 
@@ -245,6 +258,10 @@ class IncidentStorePort(ABC):
         incident_id: UUID,
         status: str,
         latest_event_id: UUID,
+        *,
+        provider: str,
+        compute_mechanism: str,
+        resource_id: str,
         severity: str | None = None,
     ) -> None:
         """Update the incident projection from committed events.
@@ -253,7 +270,14 @@ class IncidentStorePort(ABC):
             incident_id: The incident to update.
             status: New status value.
             latest_event_id: Most recent event ID.
-            severity: Optional severity update.
+            provider: Cloud provider token ('kubernetes', 'aws', 'azure').
+            compute_mechanism: Compute token ('KUBERNETES', 'SERVERLESS',
+                'VIRTUAL_MACHINE', 'CONTAINER_INSTANCE').
+            resource_id: Canonical resource identifier.
+            severity: Optional severity update (kept if None).
+
+        Raises:
+            ValueError: If provider or compute_mechanism violate DB constraints.
         """
         ...
 
@@ -300,12 +324,56 @@ class OutboxPort(ABC):
 
     @abstractmethod
     async def get_pending(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Retrieve pending outbox entries for relay processing.
+        """Retrieve pending outbox entries (read-only, for monitoring).
+
+        Does NOT lock rows. Use ``claim_pending`` in relay workers to
+        atomically acquire entries for processing.
 
         Args:
             limit: Maximum entries to return.
 
         Returns:
             List of pending outbox entries as dicts.
+        """
+        ...
+
+    @abstractmethod
+    async def claim_pending(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Atomically claim pending entries for relay processing.
+
+        Changes status from 'pending' to 'processing' in a single
+        ``UPDATE … RETURNING`` statement. Entries returned are exclusively
+        owned by this caller — no other worker will pick them up.
+
+        Args:
+            limit: Maximum entries to claim.
+
+        Returns:
+            List of claimed outbox entries as dicts (same schema as
+            ``get_pending``).
+        """
+        ...
+
+    @abstractmethod
+    async def release_claim(self, outbox_id: UUID) -> None:
+        """Release a previously claimed entry back to 'pending'.
+
+        Called when publish fails and the entry should be retried on the
+        next relay cycle.
+
+        Args:
+            outbox_id: The outbox entry to release.
+        """
+        ...
+
+    @abstractmethod
+    async def increment_retry(self, outbox_id: UUID) -> int:
+        """Atomically increment the persisted retry count for an entry.
+
+        Args:
+            outbox_id: The outbox entry whose retry_count to increment.
+
+        Returns:
+            The new retry_count value after incrementing.
         """
         ...

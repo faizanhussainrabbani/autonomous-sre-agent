@@ -14,6 +14,227 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [2026-04-12] Phase 4.0 — Persistence Findings Remediation (F1–F10)
+
+Addressed all 10 findings from the Phase 4.0 persistence layer code review.
+Fixes span three critical defects (invalid DB defaults, outbox concurrency race,
+reader loops never started) and seven high/medium severity issues covering
+vector store correctness, durable retries, event identity, and lint compliance.
+
+### What changed and why
+
+**F1 — Invalid provider default in `update_projection` (Critical)**
+`update_projection()` defaulted `provider = "unknown"` on the first INSERT path,
+violating the DB CHECK constraint (`provider IN ('kubernetes', 'aws', 'azure')`).
+Changed port and adapter signature to require `provider`, `compute_mechanism`,
+and `resource_id` as explicit keyword-only parameters. The caller always holds
+the triggering event and must supply valid constrained values.
+
+**F2 — Outbox row locking ineffective (Critical)**
+`get_pending()` used `FOR UPDATE SKIP LOCKED` inside a short transaction that
+committed before publish. Another relay worker could pick the same rows in the
+gap. Added `claim_pending()` to `OutboxPort` and `PostgresOutboxStore` using a
+single `UPDATE … SET status = 'processing' … RETURNING` statement for atomic
+ownership. Added `release_claim()` to reset on publish failure.
+Migration 004 extends the `event_outbox` CHECK constraint to include
+`'processing'`.
+
+**F3 — Reader loops never started (Critical)**
+`subscribe()` queued readers but nothing called `run_readers()` in bootstrap
+or app lifespan. Added `async def start(task_group)` concrete no-op hook to
+`EventBus` port; `RedisStreamsEventBus.start()` stores the task group and spawns
+all pending readers immediately. `InMemoryEventBus` inherits the no-op.
+
+**F4 — Late subscriptions silently dropped (High)**
+`run_readers()` cleared `_pending_readers` once; subscriptions added after start
+never got a reader. `subscribe()` now checks `_task_group` and spawns immediately
+if the bus has already started.
+
+**F5 — pgvector upsert broken for non-UUID doc_ids (High)**
+Both INSERT SQL statements used `ON CONFLICT (embedding_id)` where
+`embedding_id = uuid4()` on every call, so non-UUID doc_ids always inserted
+new rows. Changed to `ON CONFLICT (source_type, source_id)` — the stable
+business key. Migration 004 adds `CONSTRAINT uq_vector_source UNIQUE
+(source_type, source_id)` to `vector_embeddings`.
+
+**F6 — Document content not persisted (High)**
+`store()` added `source` to metadata but not `content`. Search always returned
+`content=""`. Added `meta["content"] = document.content` in `store()`.
+
+**F7 — Collection isolation missing in queries (High)**
+All read/delete/count SQL lacked `WHERE source_type = <collection>` filters.
+Added collection scoping to `_SEARCH_VEC`, `_FETCH_ALL_JSON`, `_COUNT`,
+`_DELETE_STALE`, and `_GET_BY_SOURCE_ID` with `self._collection` passed as a
+positional parameter.
+
+**F8 — Retry counts volatile (High)**
+`OutboxRelay._retry_counts` was an in-memory dict that reset on process restart.
+Added `increment_retry(outbox_id) -> int` to `OutboxPort` and `PostgresOutboxStore`
+(`UPDATE event_outbox SET retry_count = retry_count + 1 … RETURNING retry_count`).
+Relay now drives retry decisions from the persisted count. Removed `_retry_counts`.
+
+**F9 — Event identity lost in relay/dispatch (Medium)**
+Both `OutboxRelay.run_once()` and `RedisStreamsEventBus._dispatch()` created a
+fresh `event_id` and `timestamp` for every `DomainEvent`, breaking traceability.
+Both now extract `event_id` and `occurred_at`/`timestamp` from the payload and
+pass them explicitly to `DomainEvent(event_id=..., timestamp=...)`, with safe
+fallbacks when fields are absent or malformed.
+
+**F10 — Ruff lint violations in test files (Medium)**
+`ruff check` found 15 violations in the Phase 4.0 test files (`UP017`, `UP037`,
+`I001`). All fixed via `ruff --fix` and manual corrections. Ruff scope extended
+to `tests/unit/adapters/` to catch future regressions.
+
+### Key files affected
+
+| File | Status |
+|---|---|
+| `migrations/004_relay_vector_fixes.sql` | new |
+| `ports/persistence.py` | extended (`claim_pending`, `release_claim`, `increment_retry`, `update_projection` signature) |
+| `ports/events.py` | extended (`start()` concrete hook) |
+| `adapters/persistence/incident_store.py` | updated (F1) |
+| `adapters/persistence/postgres_outbox.py` | extended (F2, F8) |
+| `adapters/persistence/outbox_relay.py` | updated (F2, F8, F9) |
+| `adapters/events/redis_streams_event_bus.py` | updated (F3, F4, F9) |
+| `adapters/vectordb/pgvector/adapter.py` | rewritten (F5, F6, F7) |
+| `tests/unit/adapters/persistence/conftest.py` | fixed (F10) |
+| `tests/unit/adapters/persistence/test_incident_store.py` | updated (F1, F10) |
+| `tests/unit/adapters/persistence/test_postgres_outbox.py` | extended (F2, F8, F10) |
+| `tests/unit/adapters/persistence/test_outbox_relay.py` | rewritten (F2, F8, F9) |
+| `tests/unit/adapters/events/test_redis_streams_event_bus.py` | extended (F3, F4, F9, F10) |
+| `tests/unit/adapters/vectordb/test_pgvector_adapter.py` | extended (F5, F6, F7, F10) |
+
+### Validation outcomes
+
+* **430/430 unit tests pass** (`pytest tests/unit/adapters/ -q` — 7.85 s)
+* **0 ruff violations** (`ruff check src/ tests/unit/adapters/` — all checks passed)
+* **Import smoke test passed** — all port contracts, SQL constants, and relay
+  invariants verified programmatically
+
+### References
+
+* Plan: `docs/project/plans/persistence_findings_remediation_plan.md`
+* Acceptance criteria: `docs/project/plans/persistence_findings_acceptance_criteria.md`
+
+---
+
+## [2026-04-11] Phase 4.0 — Persistence Architecture Implementation (asyncpg, IncidentStore, OutboxRelay, Redis Streams, pgvector)
+
+Completed all five persistence layer work items defined in the Phase 4.0
+reconciliation plan. The implementation adds production-grade event-sourced
+incident persistence, a transactional outbox pattern for at-least-once stream
+delivery, a Redis Streams event bus adapter, and a dual-mode pgvector/JSONB
+vector store — all wired through hexagonal ports with zero domain-layer changes.
+
+### What changed and why
+
+* **`pyproject.toml`** — Added `persistence = ["asyncpg>=0.29"]` optional
+  dependency group and included it in the `dev` extras so CI and local
+  environments pull the driver automatically without affecting base installs.
+
+* **`src/sre_agent/ports/persistence.py`** — Added `DuplicateEventError`
+  exception class to give callers a typed signal when an idempotency key
+  collision is detected, without coupling them to asyncpg internals.
+
+* **`src/sre_agent/config/settings.py`** — Extended with three new dataclasses
+  (`PersistenceConfig`, `OutboxConfig`, `EventBusConfig`) and an
+  `EventBusBackendType` enum (`in_memory` / `redis_streams`). `AgentConfig`
+  now carries `outbox` and `event_bus` fields; `_from_dict` parses them.
+
+* **`src/sre_agent/adapters/persistence/incident_store.py`** (new) —
+  `PostgresIncidentStore` implements `IncidentStorePort`. Every `save_event()`
+  atomically appends to `incident_events` and enqueues a row in `event_outbox`
+  inside a single asyncpg transaction, satisfying the transactional outbox
+  contract. `update_projection()` upserts the `incidents` read model. Idempotency
+  is enforced via the `idempotency_key` UNIQUE constraint; collisions surface as
+  `DuplicateEventError` without importing asyncpg at module level.
+
+* **`src/sre_agent/adapters/persistence/postgres_outbox.py`** (new) —
+  `PostgresOutboxStore` implements `OutboxPort`. `get_pending()` uses
+  `FOR UPDATE SKIP LOCKED` so multiple relay instances can run concurrently
+  without double-processing the same row.
+
+* **`src/sre_agent/adapters/persistence/outbox_relay.py`** (new) —
+  `OutboxRelay` background service. Polls `OutboxPort.get_pending()`, publishes
+  each entry to `EventBus`, and marks rows sent or failed. Retry ceiling is
+  configurable (`max_retries`). `run_once()` is the testable unit; `run()` is
+  the anyio daemon loop. Depends only on injected ports (DIP).
+
+* **`src/sre_agent/adapters/events/redis_streams_event_bus.py`** (new) —
+  `RedisStreamsEventBus` implements `EventBus` using Redis Streams
+  XADD / XREADGROUP. Consumer groups are created with MKSTREAM on first
+  subscribe; BUSYGROUP errors on restart are silently swallowed. Reader loops
+  are deferred to `run_readers()` so callers own the anyio task group. Handler
+  exceptions are caught and logged without stopping the reader (AC-4.5).
+
+* **`src/sre_agent/adapters/vectordb/pgvector/adapter.py`** (new) —
+  `PgVectorStoreAdapter` implements `VectorStorePort` in dual mode. At
+  initialisation it probes for the `vector` PostgreSQL extension; if present it
+  uses HNSW `<=>` cosine distance for O(log n) ANN search; if absent it falls
+  back to JSONB storage and Python cosine similarity. Vectors are passed as
+  formatted strings (`'[0.1,...]'`) and cast in SQL (`$1::vector` /
+  `$1::jsonb`) — no Python `pgvector` package required.
+
+* **`src/sre_agent/adapters/bootstrap.py`** — Five new bootstrap helpers
+  (`bootstrap_asyncpg_pool`, `bootstrap_incident_store`, `bootstrap_outbox_store`,
+  `bootstrap_event_bus`, `bootstrap_vector_store`) wired behind
+  `TYPE_CHECKING`-guarded port imports to avoid circular imports at runtime.
+
+### Key files affected
+
+| File | Status |
+|---|---|
+| `pyproject.toml` | updated |
+| `src/sre_agent/ports/persistence.py` | updated |
+| `src/sre_agent/config/settings.py` | updated |
+| `src/sre_agent/adapters/persistence/incident_store.py` | new |
+| `src/sre_agent/adapters/persistence/postgres_outbox.py` | new |
+| `src/sre_agent/adapters/persistence/outbox_relay.py` | new |
+| `src/sre_agent/adapters/events/redis_streams_event_bus.py` | new |
+| `src/sre_agent/adapters/vectordb/pgvector/adapter.py` | new |
+| `src/sre_agent/adapters/bootstrap.py` | updated |
+| `tests/unit/adapters/persistence/conftest.py` | new |
+| `tests/unit/adapters/persistence/test_incident_store.py` | new |
+| `tests/unit/adapters/persistence/test_postgres_outbox.py` | new |
+| `tests/unit/adapters/persistence/test_outbox_relay.py` | new |
+| `tests/unit/adapters/events/test_redis_streams_event_bus.py` | new |
+| `tests/unit/adapters/vectordb/test_pgvector_adapter.py` | new |
+| `tests/integration/test_incident_store_integration.py` | new |
+
+### Design decisions and compliance corrections
+
+Five compliance corrections were applied during the Step 2 review pass before
+implementation began:
+
+* **C-1** Removed Python `pgvector` package dependency; embeddings are cast at
+  the SQL level (`$1::vector`) instead.
+* **C-2** `EventBusBackendType` implemented as `Enum`, not `StrEnum` (Python
+  3.11 only), for compatibility with the 3.11+ baseline.
+* **C-3** All async sleep calls use `anyio.sleep()` not `asyncio.sleep()` to
+  stay consistent with the anyio-first I/O policy.
+* **C-4** Bootstrap port return types moved to `TYPE_CHECKING` block to satisfy
+  ruff `UP037`/`F821` rules without string annotations.
+* **C-5** `SIM108` noqa suppression added on the pgvector mode selector line
+  where the ternary contains an `await` expression (ruff false-positive).
+
+### Validation outcomes
+
+* **72/72 unit tests pass** (`pytest tests/unit/ -q` — 0.39 s)
+* **0 ruff lint violations** (`ruff check src/ tests/` — all checks passed)
+* **Import smoke test passed** — all new adapters import cleanly; config
+  dataclasses initialise with correct defaults; `DuplicateEventError` and
+  `EventBusBackendType` reflect correct base types
+* Integration tests (`tests/integration/test_incident_store_integration.py`)
+  skip gracefully when Docker is unavailable; full execution requires a running
+  PostgreSQL container with migrations applied
+
+### References
+
+* Plan: `docs/project/plans/persistence_phase_completion_plan.md`
+* Acceptance criteria: `docs/project/plans/persistence_phase_acceptance_criteria.md`
+
+---
+
 ## [2026-04-11] Prometheus Observability Demo and Lambda/DynamoDB Saturation Demo
 
 Expanded the live demo suite with two new scenarios: a full end-to-end Prometheus

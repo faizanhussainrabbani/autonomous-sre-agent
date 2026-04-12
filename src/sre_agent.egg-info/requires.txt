@@ -32,6 +32,7 @@ testcontainers>=3.7
 fakeredis>=2.23
 ruff>=0.3
 mypy>=1.8
+sre-agent[persistence]
 
 [intelligence]
 chromadb>=0.4
@@ -50,6 +51,9 @@ tiktoken>=0.5
 
 [newrelic]
 newrelic-telemetry-sdk>=0.5
+
+[persistence]
+asyncpg>=0.29
 
 [vault]
 hvac>=2.1

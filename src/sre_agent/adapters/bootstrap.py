@@ -24,8 +24,10 @@ from sre_agent.ports.telemetry import LogQuery, TelemetryProvider
 
 if TYPE_CHECKING:
     from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
-    from sre_agent.ports.persistence import CoordinationAuditPort
+    from sre_agent.ports.events import EventBus
+    from sre_agent.ports.persistence import CoordinationAuditPort, IncidentStorePort, OutboxPort
     from sre_agent.ports.telemetry import eBPFQuery
+    from sre_agent.ports.vector_store import VectorStorePort
 
 logger = structlog.get_logger(__name__)
 
@@ -362,3 +364,163 @@ def bootstrap_lock_manager(
 
     logger.info("lock_manager_bootstrapped", backend="in_memory", audit_enabled=audit is not None)
     return InMemoryDistributedLockManager(audit=audit)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4.0 — Persistence adapter bootstrap
+# ---------------------------------------------------------------------------
+
+
+async def bootstrap_asyncpg_pool(config: AgentConfig) -> object | None:
+    """Create and return a shared asyncpg connection pool.
+
+    Returns None when persistence is disabled or asyncpg is unavailable.
+    The pool is shared across IncidentStore, OutboxStore, and VectorStore adapters.
+    """
+    if not config.persistence.enabled or not config.persistence.postgres_dsn:
+        logger.info("asyncpg_pool_skipped", reason="persistence not configured")
+        return None
+
+    try:
+        import asyncpg  # type: ignore[import]
+
+        pool = await asyncpg.create_pool(
+            dsn=config.persistence.postgres_dsn,
+            min_size=config.persistence.pool_min_size,
+            max_size=config.persistence.pool_max_size,
+        )
+        logger.info(
+            "asyncpg_pool_created",
+            pool_min=config.persistence.pool_min_size,
+            pool_max=config.persistence.pool_max_size,
+        )
+        return pool
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("asyncpg_pool_failed", error=str(exc), fallback="disabled")
+        return None
+
+
+def bootstrap_incident_store(pool: object | None) -> IncidentStorePort | None:
+    """Bootstrap the PostgreSQL incident event store.
+
+    Args:
+        pool: Shared asyncpg pool from bootstrap_asyncpg_pool().
+
+    Returns:
+        PostgresIncidentStore when a pool is available, None otherwise.
+    """
+    if pool is None:
+        logger.info("incident_store_disabled", reason="no database pool")
+        return None
+
+    from sre_agent.adapters.persistence.incident_store import PostgresIncidentStore
+
+    logger.info("incident_store_bootstrapped")
+    return PostgresIncidentStore(pool=pool)
+
+
+def bootstrap_outbox_store(pool: object | None) -> OutboxPort | None:
+    """Bootstrap the PostgreSQL outbox store.
+
+    Args:
+        pool: Shared asyncpg pool from bootstrap_asyncpg_pool().
+
+    Returns:
+        PostgresOutboxStore when a pool is available, None otherwise.
+    """
+    if pool is None:
+        logger.info("outbox_store_disabled", reason="no database pool")
+        return None
+
+    from sre_agent.adapters.persistence.postgres_outbox import PostgresOutboxStore
+
+    logger.info("outbox_store_bootstrapped")
+    return PostgresOutboxStore(pool=pool)
+
+
+def bootstrap_event_bus(config: AgentConfig) -> EventBus:
+    """Bootstrap the event bus backend.
+
+    Returns RedisStreamsEventBus when configured and redis available;
+    falls back to InMemoryEventBus gracefully.
+    """
+    from sre_agent.config.settings import EventBusBackendType
+    from sre_agent.events.in_memory import InMemoryEventBus
+
+    if config.event_bus.backend == EventBusBackendType.REDIS_STREAMS:
+        try:
+            import redis.asyncio as aioredis  # type: ignore[import]
+
+            from sre_agent.adapters.events.redis_streams_event_bus import (
+                RedisStreamsEventBus,
+            )
+
+            client = aioredis.from_url(config.event_bus.redis_url)
+            bus = RedisStreamsEventBus(
+                redis_client=client,
+                stream_prefix=config.event_bus.stream_prefix,
+                consumer_group=config.event_bus.consumer_group,
+                consumer_name=config.event_bus.consumer_name,
+                block_ms=config.event_bus.block_ms,
+                batch_size=config.event_bus.batch_size,
+            )
+            logger.info("event_bus_bootstrapped", backend="redis_streams")
+            return bus
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "event_bus_backend_failed",
+                backend="redis_streams",
+                error=str(exc),
+                fallback="in_memory",
+            )
+
+    logger.info("event_bus_bootstrapped", backend="in_memory")
+    return InMemoryEventBus()
+
+
+def bootstrap_vector_store(
+    config: AgentConfig,
+    pool: object | None = None,
+) -> VectorStorePort:
+    """Bootstrap the vector store adapter.
+
+    Returns PgVectorStoreAdapter when persistence is enabled and a pool is
+    provided; falls back to ChromaVectorStoreAdapter for dev/test.
+    """
+    from sre_agent.ports.vector_store import VectorStorePort  # noqa: F401
+
+    if config.persistence.enabled and pool is not None:
+        try:
+            from sre_agent.adapters.vectordb.pgvector.adapter import PgVectorStoreAdapter
+
+            adapter = PgVectorStoreAdapter(
+                pool=pool,
+                embedding_dim=config.persistence.vector_embedding_dim,
+                collection=config.persistence.vector_collection,
+            )
+            logger.info(
+                "vector_store_bootstrapped",
+                backend="pgvector",
+                dim=config.persistence.vector_embedding_dim,
+                collection=config.persistence.vector_collection,
+            )
+            return adapter
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "vector_store_pgvector_failed",
+                error=str(exc),
+                fallback="chromadb",
+            )
+
+    # Dev/test fallback
+    try:
+        from sre_agent.adapters.vectordb.chroma.adapter import ChromaVectorStoreAdapter
+
+        adapter_chroma = ChromaVectorStoreAdapter(
+            collection_name=config.persistence.vector_collection,
+        )
+        logger.info("vector_store_bootstrapped", backend="chromadb")
+        return adapter_chroma
+    except Exception as exc:  # noqa: BLE001
+        logger.error("vector_store_bootstrap_failed", error=str(exc))
+        raise

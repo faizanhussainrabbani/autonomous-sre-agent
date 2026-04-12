@@ -31,6 +31,8 @@ Requires-Dist: hvac>=2.1; extra == "vault"
 Provides-Extra: coordination
 Requires-Dist: redis>=5.0; extra == "coordination"
 Requires-Dist: etcd3>=0.12; extra == "coordination"
+Provides-Extra: persistence
+Requires-Dist: asyncpg>=0.29; extra == "persistence"
 Provides-Extra: kubernetes
 Requires-Dist: kubernetes<30.0.0,>=29.0.0; extra == "kubernetes"
 Provides-Extra: intelligence
@@ -53,4 +55,5 @@ Requires-Dist: testcontainers>=3.7; extra == "dev"
 Requires-Dist: fakeredis>=2.23; extra == "dev"
 Requires-Dist: ruff>=0.3; extra == "dev"
 Requires-Dist: mypy>=1.8; extra == "dev"
+Requires-Dist: sre-agent[persistence]; extra == "dev"
 Dynamic: license-file

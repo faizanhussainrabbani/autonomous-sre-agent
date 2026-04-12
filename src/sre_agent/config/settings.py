@@ -140,6 +140,37 @@ class PersistenceConfig:
     postgres_dsn: str = ""
     pool_min_size: int = 2
     pool_max_size: int = 10
+    vector_embedding_dim: int = 1536
+    vector_collection: str = "sre_knowledge_base"
+
+
+@dataclass
+class OutboxConfig:
+    """Transactional outbox relay configuration."""
+
+    poll_interval_s: float = 1.0
+    max_retries: int = 10
+    batch_size: int = 100
+
+
+class EventBusBackendType(Enum):
+    """Supported event bus backends."""
+
+    IN_MEMORY = "in_memory"
+    REDIS_STREAMS = "redis_streams"
+
+
+@dataclass
+class EventBusConfig:
+    """Event bus backend configuration."""
+
+    backend: EventBusBackendType = EventBusBackendType.IN_MEMORY
+    redis_url: str = "redis://localhost:6379/0"
+    stream_prefix: str = "sre-agent:events"
+    consumer_group: str = "sre-agent-consumers"
+    consumer_name: str = "sre-agent-worker-1"
+    block_ms: int = 1000
+    batch_size: int = 10
 
 
 # DetectionConfig is domain-owned (§1.1 — domain never imports config)
@@ -199,6 +230,8 @@ class AgentConfig:
     aws_health: AWSHealthConfig = field(default_factory=AWSHealthConfig)
     lock: LockConfig = field(default_factory=LockConfig)
     persistence: PersistenceConfig = field(default_factory=PersistenceConfig)
+    outbox: OutboxConfig = field(default_factory=OutboxConfig)
+    event_bus: EventBusConfig = field(default_factory=EventBusConfig)
 
     # Detection & performance
     detection: DetectionConfig = field(default_factory=DetectionConfig)
@@ -257,6 +290,13 @@ class AgentConfig:
             config.lock = LockConfig(**raw_lock)
         if "persistence" in data:
             config.persistence = PersistenceConfig(**data["persistence"])
+        if "outbox" in data:
+            config.outbox = OutboxConfig(**data["outbox"])
+        if "event_bus" in data:
+            raw_bus = dict(data["event_bus"])
+            if "backend" in raw_bus:
+                raw_bus["backend"] = EventBusBackendType(raw_bus["backend"])
+            config.event_bus = EventBusConfig(**raw_bus)
         if "enrichment" in data:
             config.enrichment = EnrichmentConfig(**data["enrichment"])
         if "aws_health" in data:
