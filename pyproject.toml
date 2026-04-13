@@ -52,7 +52,7 @@ dev = [
     "pytest-cov>=5.0",
     "testcontainers>=3.7",
     "fakeredis>=2.23",
-    "ruff>=0.3",
+    "ruff>=0.15.10",
     "mypy>=1.8",
     "sre-agent[persistence]",
 ]
