@@ -55,6 +55,21 @@ otel:
 #   blob_container: "audit-logs"
 #   keyvault_name: "sre-agent-kv"
 
+# Persistence config
+persistence:
+  enabled: true
+  postgres_dsn: "postgresql://sre_agent:sre_agent@localhost:5432/sre_agent"
+  pool_min_size: 2
+  pool_max_size: 10
+
+# Optional Redis-backed runtimes (defaults remain in-memory until switched)
+# lock:
+#   backend: in_memory          # in_memory | redis | etcd
+#   redis_url: "redis://localhost:6379/0"
+# event_bus:
+#   backend: in_memory          # in_memory | redis_streams
+#   redis_url: "redis://localhost:6379/0"
+
 # Anomaly detection thresholds
 detection:
   latency_sigma_threshold: 3.0

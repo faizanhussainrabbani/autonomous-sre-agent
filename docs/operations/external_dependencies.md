@@ -9,6 +9,8 @@
 | Dependency | Required For | Default Port | Install Method |
 |---|---|---|---|
 | **Docker** | Integration/E2E tests, dep services | — | [docker.com](https://docs.docker.com/get-docker/) |
+| **PostgreSQL** | Persistence store (incident lifecycle, outbox, vector metadata) | 5432 | Docker (via `docker-compose.deps.yml`) or Homebrew |
+| **Redis** | Distributed locks and Redis Streams event bus | 6379 | Docker (via `docker-compose.deps.yml`) or Homebrew |
 | **LocalStack Pro** | AWS integration tests | 4566 | Docker (via `docker-compose.deps.yml`) |
 | **Prometheus** | Metric queries, OTel adapter tests | 9090 | Docker (via `docker-compose.deps.yml`) |
 | **Jaeger** | Trace ingestion tests | 16686 | Docker (via `docker-compose.deps.yml`) |
@@ -24,7 +26,7 @@
 The fastest way to start all development dependencies:
 
 ```bash
-# Start LocalStack, Prometheus, Jaeger
+# Start PostgreSQL, Redis, LocalStack, Prometheus, Jaeger
 ../../scripts/dev/setup_deps.sh start
 
 # Check health
@@ -35,6 +37,11 @@ The fastest way to start all development dependencies:
 ```
 
 This uses `docker-compose.deps.yml` in the project root.
+
+Local connection strings:
+
+* PostgreSQL: `postgresql://sre_agent:sre_agent@localhost:5432/sre_agent`
+* Redis: `redis://localhost:6379/0`
 
 ---
 
@@ -57,7 +64,44 @@ docker compose version
 
 ---
 
-### 2. LocalStack Pro
+### 2. PostgreSQL
+
+**Required:** For persistence mode (`persistence.enabled: true`)
+
+PostgreSQL is the primary durable store for incident lifecycle events, outbox
+delivery state, coordination audit entries, and vector metadata.
+
+**Local credentials (default):**
+
+* user: `sre_agent`
+* password: `sre_agent`
+* database: `sre_agent`
+* host: `localhost`
+* port: `5432`
+
+**Connection strings:**
+
+* `postgresql://sre_agent:sre_agent@localhost:5432/sre_agent`
+* `postgresql+asyncpg://sre_agent:sre_agent@localhost:5432/sre_agent`
+
+**Note:** pgvector support is automatic when the extension is available; the
+migration layer falls back to JSONB vector storage when it is not.
+
+---
+
+### 3. Redis
+
+**Required:** For Redis lock backend and Redis Streams event bus backend
+
+Redis is used for distributed lock coordination and optional event streaming.
+
+**Connection URL:**
+
+* `redis://localhost:6379/0`
+
+---
+
+### 4. LocalStack Pro
 
 **Required:** For integration tests (`test_chaos_specs.py`, `test_iam_specs.py`, `test_pod_specs.py`)
 
@@ -90,7 +134,7 @@ curl http://localhost:4566/_localstack/health | python3 -m json.tool
 
 ---
 
-### 3. ChromaDB (Vector Store)
+### 5. ChromaDB (Vector Store)
 
 **Required:** For Phase 2 RAG diagnostics pipeline
 
@@ -106,7 +150,7 @@ pip install -e ".[intelligence]"    # includes chromadb
 
 ---
 
-### 4. LLM APIs (OpenAI / Anthropic)
+### 6. LLM APIs (OpenAI / Anthropic)
 
 **Required:** For live LLM hypothesis generation
 
@@ -131,7 +175,7 @@ ANTHROPIC_API_KEY=<ANTHROPIC_API_KEY>
 
 ---
 
-### 5. Prometheus
+### 7. Prometheus
 
 **Required:** For OTel adapter tests and metric querying
 
@@ -148,7 +192,7 @@ Prometheus collects and queries time-series metrics from the agent.
 
 ---
 
-### 6. Jaeger
+### 8. Jaeger
 
 **Required:** For distributed trace ingestion and querying
 
@@ -168,7 +212,7 @@ Jaeger receives OTLP traces from the OTel Collector and provides distributed tra
 
 ---
 
-### 7. k3d + Colima (Phase 3+)
+### 9. k3d + Colima (Phase 3+)
 
 **Required:** For Kubernetes remediation testing (Phase 3)
 

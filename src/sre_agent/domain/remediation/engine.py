@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -25,6 +26,9 @@ from sre_agent.domain.safety.kill_switch import KillSwitch
 from sre_agent.ports.events import EventBus, EventStore
 from sre_agent.ports.lock_manager import DistributedLockManagerPort, LockRequest
 
+if TYPE_CHECKING:
+    from sre_agent.ports.persistence import RemediationStorePort
+
 logger = structlog.get_logger(__name__)
 
 
@@ -43,6 +47,7 @@ class RemediationEngine:
         verifier: RemediationVerifier | None = None,
         event_bus: EventBus | None = None,
         event_store: EventStore | None = None,
+        remediation_store: RemediationStorePort | None = None,
     ) -> None:
         self._registry = cloud_operator_registry
         self._guardrails = guardrails
@@ -54,6 +59,7 @@ class RemediationEngine:
         self._verifier = verifier or RemediationVerifier()
         self._event_bus = event_bus
         self._event_store = event_store
+        self._remediation_store = remediation_store
 
     async def execute(self, plan: RemediationPlan) -> RemediationResult:
         started = time.monotonic()
@@ -131,6 +137,8 @@ class RemediationEngine:
             ),
         )
 
+        await self._persist_planned_actions(plan)
+
         try:
             for action in plan.actions:
                 if lock_result is not None:
@@ -146,6 +154,9 @@ class RemediationEngine:
                     )
 
                 action.status = ActionStatus.EXECUTING
+                action_started = datetime.now(UTC)
+                await self._persist_status(action, started_at=action_started)
+
                 canary_size = self._calculate_canary_batch_size(
                     action.total_targets,
                     plan.safety_constraints.canary_percentage,
@@ -154,6 +165,9 @@ class RemediationEngine:
                 await self._execute_action(operator, action, canary_size=canary_size)
                 action.status = ActionStatus.VERIFYING
                 action.status = ActionStatus.COMPLETED
+                await self._persist_status(
+                    action, completed_at=datetime.now(UTC),
+                )
 
             metrics_after = {"latency": 1.0, "error_rate": 0.0, "throughput": 1.0}
             baseline = {"latency": 1.0, "error_rate": 0.0, "throughput": 1.0}
@@ -191,6 +205,7 @@ class RemediationEngine:
             )
         except Exception as exc:  # noqa: BLE001
             logger.error("remediation_execution_failed", error=str(exc))
+            await self._persist_failure(plan, str(exc))
             await self._emit(
                 DomainEvent(
                     event_type=EventTypes.REMEDIATION_FAILED,
@@ -213,6 +228,86 @@ class RemediationEngine:
                     agent_id=self._agent_id,
                     fencing_token=token,
                 )
+
+    # ------------------------------------------------------------------
+    # Remediation store persistence helpers (best-effort)
+    # ------------------------------------------------------------------
+
+    async def _persist_planned_actions(self, plan: RemediationPlan) -> None:
+        """Persist all plan actions as 'planned' rows. Best-effort."""
+        if self._remediation_store is None or plan.incident_id is None:
+            return
+
+        from sre_agent.ports.persistence import RemediationActionRecord
+
+        approval = "auto"
+        if plan.safety_constraints.requires_human_approval:
+            approval = "human"
+
+        for action in plan.actions:
+            try:
+                record = RemediationActionRecord(
+                    action_id=action.id,
+                    incident_id=plan.incident_id,
+                    action_type=action.action_type.value,
+                    action_status="planned",
+                    approval_mode=approval,
+                    requested_at=plan.created_at,
+                )
+                await self._remediation_store.save_action(record)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "remediation_store.persist_planned_failed",
+                    action_id=str(action.id),
+                    error=str(exc),
+                )
+
+    async def _persist_status(
+        self,
+        action: RemediationAction,
+        *,
+        started_at: datetime | None = None,
+        completed_at: datetime | None = None,
+        execution_result: dict[str, Any] | None = None,
+    ) -> None:
+        """Update a single action's status in the store. Best-effort."""
+        if self._remediation_store is None:
+            return
+        try:
+            await self._remediation_store.update_status(
+                action_id=action.id,
+                status=action.status.value,
+                started_at=started_at,
+                completed_at=completed_at,
+                execution_result=execution_result,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "remediation_store.persist_status_failed",
+                action_id=str(action.id),
+                status=action.status.value,
+                error=str(exc),
+            )
+
+    async def _persist_failure(self, plan: RemediationPlan, error: str) -> None:
+        """Mark executing actions as failed. Best-effort."""
+        if self._remediation_store is None:
+            return
+        for action in plan.actions:
+            if action.status in (ActionStatus.EXECUTING, ActionStatus.VERIFYING):
+                try:
+                    await self._remediation_store.update_status(
+                        action_id=action.id,
+                        status="failed",
+                        completed_at=datetime.now(UTC),
+                        execution_result={"error": error},
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "remediation_store.persist_failure_failed",
+                        action_id=str(action.id),
+                        error=str(exc),
+                    )
 
     async def _execute_action(
         self,

@@ -6,7 +6,7 @@
 #   ./scripts/run.sh <command> [options]
 #
 # Commands:
-#   setup          Install all Python dependencies (dev + intelligence)
+#   setup          Install all Python dependencies (dev + intelligence + coordination)
 #   server         Start the FastAPI API server
 #   validate       Validate agent configuration
 #   status         Print agent version and status
@@ -161,9 +161,12 @@ cmd_setup() {
         python3 -m venv "$VENV_DIR"
     fi
 
-    info "Installing all dependencies (dev + intelligence + aws + azure)..."
+    info "Installing all dependencies (dev + intelligence + aws + azure + coordination)..."
     "$VENV_DIR/bin/pip" install --upgrade pip
-    "$VENV_DIR/bin/pip" install -e ".[dev,intelligence,aws,azure]"
+    "$VENV_DIR/bin/pip" install -e ".[dev,intelligence,aws,azure,coordination]"
+
+    info "Installing API runtime dependencies (fastapi + uvicorn)..."
+    "$VENV_DIR/bin/pip" install fastapi uvicorn
 
     info "Setup complete! Activate with: source .venv/bin/activate"
 }
@@ -282,7 +285,7 @@ Environment Variables:
   VENV_DIR   Path to virtual environment (default: .venv)
 
 A .env file in the project root is auto-loaded if present.
-Copy .env.example to .env and fill in your secrets.
+Ensure .env exists and includes your required secrets.
 EOF
 }
 

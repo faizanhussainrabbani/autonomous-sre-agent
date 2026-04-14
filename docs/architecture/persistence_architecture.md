@@ -28,7 +28,7 @@ True exactly-once across a message bus and a database boundary requires distribu
 
 **The standard pattern used in production (Stripe, Uber, and this plan):**
 1. Each `DomainEvent` carries a stable `event_id` (UUID, set at creation time, never regenerated on retry).
-2. The `OutboxRelay` publishes with `XADD` and marks `DELIVERED` — if it crashes between the two, the row is re-published on the next poll cycle.
+2. The `OutboxRelay` publishes with `XADD` and marks rows `sent` in `event_outbox` — if it crashes between the two, the row is re-published on the next poll cycle.
 3. Each consumer checks `event_id` against a `processed_events` table (or an idempotency column on the target row) before executing side effects. If already processed, it skips and acknowledges.
 4. The consumer's `processed_events` INSERT and the business write happen in the same database transaction.
 
@@ -42,8 +42,8 @@ The following gates are based on TimescaleDB production benchmarks, pgvector HNS
 
 | Metric | Threshold | Measurement method |
 |---|---|---|
-| Total vector count | > 2M embeddings | `SELECT count(*) FROM vector_documents` |
-| p95 search latency | > 50ms sustained over 1h | Prometheus `sre_agent_db_query_duration_seconds{table="vector_documents",quantile="0.95"}` |
+| Total vector count | > 2M embeddings | `SELECT count(*) FROM vector_embeddings` |
+| p95 search latency | > 50ms sustained over 1h | Prometheus `sre_agent_db_query_duration_seconds{table="vector_embeddings",quantile="0.95"}` |
 | HNSW build time | > 10 min for full index rebuild | Measured during maintenance window |
 
 **TimescaleDB (shared) → dedicated TimescaleDB node**
@@ -51,7 +51,7 @@ The following gates are based on TimescaleDB production benchmarks, pgvector HNS
 | Metric | Threshold | Measurement method |
 |---|---|---|
 | Active metric series | > 50M | TimescaleDB `timescaledb_information.chunks` cardinality estimate |
-| p99 ingest latency | > 500ms sustained over 5m | Prometheus histogram on `metric_snapshots` INSERT |
+| p99 ingest latency | > 500ms sustained over 5m | Prometheus histogram on `telemetry_metrics` INSERT |
 | Hypertable chunk count | > 10,000 | `SELECT count(*) FROM timescaledb_information.chunks` |
 | Shared PostgreSQL I/O wait | > 20% CPU time consistently | `pg_stat_activity` I/O wait ratio |
 
@@ -224,8 +224,8 @@ The Node.js BFF pattern is appropriate if a React or Next.js frontend needs a se
 **Rationale:**
 - The current `InMemoryEventBus` has no delivery guarantees across process restarts or failures.
 - Dual-write bugs (database write succeeds, event publish fails) corrupt the audit trail.
-- The outbox pattern: write the event to both `incident_events` and an `outbox` table in a single PostgreSQL transaction. A background relay worker (`OutboxRelay`) polls for committed `PENDING` rows (PostgreSQL `READ COMMITTED` isolation — only committed rows are visible) and publishes them to Redis Streams, then marks them `DELIVERED`.
-- Delivery guarantee: **at-least-once to Redis Streams**. The relay may publish a row more than once if it crashes between `XADD` and marking `DELIVERED`. Consumers must be idempotent: deduplicate on `event_id` before side-effecting (check-and-skip if already processed). This is the standard industry model — see Section 4 decision log.
+- The outbox pattern: write the event to both `incident_events` and `event_outbox` in a single PostgreSQL transaction. A background relay worker (`OutboxRelay`) polls committed `pending` rows (PostgreSQL `READ COMMITTED` isolation — only committed rows are visible) and publishes them to Redis Streams, then marks them `sent`.
+- Delivery guarantee: **at-least-once to Redis Streams**. The relay may publish a row more than once if it crashes between `XADD` and updating `event_outbox` status. Consumers must be idempotent: deduplicate on `event_id` before side-effecting (check-and-skip if already processed). This is the standard industry model — see Section 4 decision log.
 
 ---
 
@@ -287,14 +287,14 @@ The Node.js BFF pattern is appropriate if a React or Next.js frontend needs a se
   │   PostgreSQL 16  │    │   Redis 7        │   │   TimescaleDB        │
   │   + pgvector     │    │   (existing)     │   │   (PG extension)     │
   │                  │    │                  │   │                      │
-  │  incidents       │    │  Locks           │   │  metric_snapshots    │
-  │  incident_events │    │  Cooldowns       │   │  detection_baselines │
-  │  diagnoses       │    │  Kill switch     │   │  anomaly_alerts_ts   │
-  │  remediations    │    │  DiagCache TTL   │   │                      │
-  │  audit_log       │    │                  │   │  (continuous agg.    │
-  │  vector_docs     │    │  Streams:        │   │   for baselines)     │
-  │  outbox          │    │  domain_events   │   │                      │
-  │  agent_runs      │    │  (event bus)     │   └──────────────────────┘
+    │  incidents          │    │  Locks           │   │  telemetry_metrics   │
+    │  incident_events    │    │  Cooldowns       │   │  detection_baselines │
+    │  diagnosis_results  │    │  Kill switch     │   │  anomaly_alerts_ts   │
+    │  remediations       │    │  DiagCache TTL   │   │                      │
+    │  coordination_audit │    │                  │   │  (continuous agg.    │
+    │  vector_embeddings  │    │  Streams:        │   │   for baselines)     │
+    │  event_outbox       │    │  domain_events   │   │                      │
+    │  agent_runs         │    │  (event bus)     │   └──────────────────────┘
   │  tool_calls      │    │                  │
   │  retrieved_ctx   │    │  (outbox relay   │
   │                  │    │   publishes here)│
@@ -305,12 +305,12 @@ The Node.js BFF pattern is appropriate if a React or Next.js frontend needs a se
 
 | Application component | Target store | Adapter location |
 |---|---|---|
-| `InMemoryEventStore` | PostgreSQL `incident_events` table | `adapters/events/postgres_event_store.py` |
+| `InMemoryEventStore` | PostgreSQL `incident_events` table | `adapters/persistence/incident_store.py` |
 | `InMemoryEventBus` | Redis Streams | `adapters/events/redis_event_bus.py` |
 | `DiagnosticCache` | Redis with TTL | `adapters/cache/redis_diagnostic_cache.py` |
 | `ChromaVectorStoreAdapter` (production) | PostgreSQL + pgvector | `adapters/vectordb/pgvector/adapter.py` |
 | Baseline computation (in-memory) | TimescaleDB continuous aggregates | `adapters/telemetry/timescale/baseline_adapter.py` |
-| Incident state (none today) | PostgreSQL `incidents` projection table | `adapters/persistence/postgres_incident_store.py` |
+| Incident state (none today) | PostgreSQL `incidents` projection table | `adapters/persistence/incident_store.py` |
 | Agent reasoning traces (none today) | PostgreSQL `agent_runs` + `tool_calls` | `adapters/persistence/postgres_agent_run_store.py` |
 
 ---
@@ -321,11 +321,11 @@ The Node.js BFF pattern is appropriate if a React or Next.js frontend needs a se
 
 **Owns:** Everything that must survive process restarts and be queryable.
 
-- **Incident lifecycle data:** `incidents` (mutable projection), `incident_events` (append-only log), `diagnoses`, `remediation_plans`, `remediation_actions`.
-- **Audit trail:** `audit_log` — immutable record of every agent action, human override, kill-switch activation, and severity change. Directly maps to `AuditEntry` model.
+- **Incident lifecycle data:** `incidents` (mutable projection), `incident_events` (append-only log), `diagnosis_results`, `remediation_plans`, `remediation_actions`.
+- **Audit trail:** `coordination_audit` — immutable record of every agent action, human override, kill-switch activation, and severity change. Directly maps to `AuditEntry` model.
 - **Agent intelligence traces:** `agent_runs`, `tool_calls`, `retrieved_contexts`, `reasoning_steps` — structured audit for every LLM call, tool invocation, and evidence retrieval. Required for postmortem analysis ("why did the agent restart that pod?").
-- **Vector embeddings:** `vector_documents` table via pgvector HNSW index. Replaces ChromaDB in production.
-- **Outbox table:** Transient staging for events awaiting relay to Redis Streams.
+- **Vector embeddings:** `vector_embeddings` table via pgvector HNSW index. Replaces ChromaDB in production.
+- **Outbox table:** `event_outbox` transient staging for events awaiting relay to Redis Streams.
 
 **Not responsible for:** Sub-second TTL state (use Redis), raw metric streams (use TimescaleDB), or ephemeral per-request context (use in-process memory).
 
@@ -335,8 +335,8 @@ The Node.js BFF pattern is appropriate if a React or Next.js frontend needs a se
 
 **Owns:** Time-ordered numerical data with high write rates and time-range query patterns.
 
-- **`metric_snapshots`:** Stores `CanonicalMetric` values as they arrive from telemetry adapters — the raw material for anomaly detection. Hypertable partitioned by time.
-- **`detection_baselines`:** Continuous aggregate over `metric_snapshots` computing rolling mean and standard deviation. Replaces the in-memory `BaselineStorage` class. The `BaselineQuery` port implementation reads from this table.
+- **`telemetry_metrics`:** Stores `CanonicalMetric` values as they arrive from telemetry adapters — the raw material for anomaly detection. Hypertable partitioned by time.
+- **`detection_baselines`:** Continuous aggregate over `telemetry_metrics` computing rolling mean and standard deviation. Replaces the in-memory `BaselineStorage` class. The `BaselineQuery` port implementation reads from this table.
 - **`anomaly_alerts_ts`:** Time-series copy of alert events for correlation window queries.
 
 **Decision point:** Start with TimescaleDB as an extension on the same PostgreSQL instance. The operational surface does not change. Migrate to a dedicated TimescaleDB node or VictoriaMetrics only when:
@@ -377,9 +377,9 @@ This pattern prevents the dual-write bug between database persistence and event 
 │  Application (e.g., DiagnosisService.run_diagnosis())          │
 │                                                                 │
 │  BEGIN TRANSACTION                                              │
-│    INSERT INTO diagnoses (...)        -- persist state         │
+│    INSERT INTO diagnosis_results (...) -- persist state        │
 │    INSERT INTO incident_events (...)  -- append to audit log   │
-│    INSERT INTO outbox (event_type, payload, status='PENDING')  │
+│    INSERT INTO event_outbox (event_id, topic, payload_json, status='pending') │
 │  COMMIT                                                         │
 │                                                                 │
 │  ← transaction commits atomically or rolls back entirely       │
@@ -389,15 +389,14 @@ This pattern prevents the dual-write bug between database persistence and event 
                     │   OutboxRelay        │
                     │   (background task) │
                     │                     │
-                    │  Poll outbox WHERE  │
-                    │  status='PENDING'   │
+                    │  Poll event_outbox  │
+                    │  WHERE status='pending' │
                     │  XADD → Redis Stream│
-                    │  UPDATE status=     │
-                    │    'DELIVERED'      │
+                    │  UPDATE status='sent' │
                     └─────────────────────┘
 ```
 
-The outbox relay runs as an `anyio` background task inside the FastAPI lifespan. It is deliberately simple: poll interval of 100ms, retry up to 5 times with exponential backoff, dead-letter to a `failed_outbox` table after exhaustion.
+The outbox relay runs as an `anyio` background task inside the FastAPI lifespan. It is deliberately simple: poll interval of 100ms, persisted retry counters, and DLQ transition (`status='dlq'`, `dlq_at`, `dlq_reason`) after exhaustion.
 
 ---
 
@@ -406,26 +405,25 @@ The outbox relay runs as an `anyio` background task inside the FastAPI lifespan.
 ```sql
 -- Append-only: never UPDATE or DELETE
 CREATE TABLE incident_events (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    incident_id UUID NOT NULL REFERENCES incidents(id),
-    event_type  TEXT NOT NULL,           -- e.g. 'remediation.started'
-    actor       TEXT NOT NULL,           -- 'sre-agent-01' or 'human:faizan'
-    payload     JSONB NOT NULL,
-    occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    event_id         UUID PRIMARY KEY,
+    incident_id      UUID NOT NULL,
+    event_type       TEXT NOT NULL,           -- e.g. 'remediation.started'
+    payload_json     JSONB NOT NULL,
+    idempotency_key  TEXT NOT NULL UNIQUE,
+    occurred_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX ON incident_events (incident_id, occurred_at);
+CREATE INDEX ON incident_events (incident_id, occurred_at ASC);
 
 -- Mutable projection: reflects current state
 CREATE TABLE incidents (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    alert_id     TEXT NOT NULL,
-    service      TEXT NOT NULL,
-    namespace    TEXT,
-    status       TEXT NOT NULL DEFAULT 'open',   -- open, mitigating, resolved
-    severity     TEXT,
-    opened_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    resolved_at  TIMESTAMPTZ,
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    incident_id      UUID PRIMARY KEY,
+    service          TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'open',   -- open, mitigating, resolved
+    severity         TEXT,
+    opened_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    closed_at        TIMESTAMPTZ,
+    latest_event_id  UUID NOT NULL,
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 
@@ -479,21 +477,29 @@ CREATE TABLE retrieved_contexts (
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 
-CREATE TABLE vector_documents (
-    doc_id      TEXT PRIMARY KEY,
-    content     TEXT NOT NULL,
-    embedding   vector(384),   -- sentence-transformers all-MiniLM-L6-v2 dimension
-    source      TEXT NOT NULL,
-    metadata    JSONB,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE vector_embeddings (
+    embedding_id    UUID PRIMARY KEY,
+    source_type     TEXT NOT NULL,
+    source_id       TEXT NOT NULL,
+    embedding       vector(1536),
+    embedding_json  JSONB,
+    metadata_json   JSONB NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    embedding_dim   INTEGER GENERATED ALWAYS AS (
+        CASE
+            WHEN embedding IS NOT NULL THEN vector_dims(embedding)
+            WHEN embedding_json IS NOT NULL THEN jsonb_array_length(embedding_json)
+            ELSE 0
+        END
+    ) STORED
 );
 
 -- HNSW index: fast approximate nearest-neighbour search
-CREATE INDEX ON vector_documents USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
+CREATE INDEX ON vector_embeddings USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 24, ef_construction = 200);
 ```
 
-The `pgvector` adapter implements `VectorStorePort` using `asyncpg` for connection management. The `search()` method maps to `ORDER BY embedding <=> $1 LIMIT $2` with an optional metadata filter applied as a `WHERE metadata @> $3` clause.
+The `pgvector` adapter implements `VectorStorePort` using `asyncpg` for connection management. The `search()` method maps to `ORDER BY embedding <=> $1 LIMIT $2` with an optional metadata filter applied as a `WHERE metadata_json @> $3` clause.
 
 ---
 
@@ -505,16 +511,16 @@ The `pgvector` adapter implements `VectorStorePort` using `asyncpg` for connecti
 |---|---|---|---|
 | `incidents` | PostgreSQL | Mutable projection | `AnomalyAlert` + lifecycle state |
 | `incident_events` | PostgreSQL | Append-only log | `DomainEvent` |
-| `diagnoses` | PostgreSQL | Mutable + versioned | `Diagnosis` |
+| `diagnosis_results` | PostgreSQL | Mutable + versioned | `Diagnosis` |
 | `remediation_plans` | PostgreSQL | Mutable | `RemediationPlan` |
 | `remediation_actions` | PostgreSQL | Mutable | `RemediationAction` |
-| `audit_log` | PostgreSQL | Append-only | `AuditEntry` |
+| `coordination_audit` | PostgreSQL | Append-only | `AuditEntry` |
 | `agent_runs` | PostgreSQL | Mutable | (new) |
 | `tool_calls` | PostgreSQL | Append-only | (new) |
 | `retrieved_contexts` | PostgreSQL | Append-only | `EvidenceCitation` |
-| `vector_documents` | PostgreSQL (pgvector) | Mutable | `VectorDocument` |
-| `outbox` | PostgreSQL | Transient (delivered rows deleted) | Internal |
-| `metric_snapshots` | TimescaleDB hypertable | Append-only | `CanonicalMetric` |
+| `vector_embeddings` | PostgreSQL (pgvector) | Mutable | `VectorDocument` |
+| `event_outbox` | PostgreSQL | Transient (status-tracked) | Internal |
+| `telemetry_metrics` | TimescaleDB hypertable | Append-only | `CanonicalMetric` |
 | `detection_baselines` | TimescaleDB cont. aggregate | Derived | `BaselineStorage` |
 | `domain_events` stream | Redis Streams | TTL-bounded | `DomainEvent` (bus) |
 | `diagcache:*` | Redis (HASH + TTL) | Cache | `DiagnosticCache` |
@@ -523,36 +529,33 @@ The `pgvector` adapter implements `VectorStorePort` using `asyncpg` for connecti
 
 ---
 
-### 8.2 TimescaleDB metric snapshots
+### 8.2 TimescaleDB telemetry metrics
 
 ```sql
-CREATE TABLE metric_snapshots (
-    time            TIMESTAMPTZ NOT NULL,
+CREATE TABLE telemetry_metrics (
+    ts              TIMESTAMPTZ NOT NULL,
     service         TEXT NOT NULL,
-    namespace       TEXT,
     metric_name     TEXT NOT NULL,
     value           DOUBLE PRECISION NOT NULL,
-    unit            TEXT,
-    quality         TEXT,
-    provider_source TEXT,
-    labels          JSONB
+    labels_json     JSONB NOT NULL,
+    label_hash      TEXT NOT NULL
 );
 
 -- TimescaleDB hypertable: partitioned by time, 1-day chunks
-SELECT create_hypertable('metric_snapshots', 'time', chunk_time_interval => INTERVAL '1 day');
-CREATE INDEX ON metric_snapshots (service, metric_name, time DESC);
+SELECT create_hypertable('telemetry_metrics', 'ts', chunk_time_interval => INTERVAL '1 day');
+CREATE INDEX ON telemetry_metrics (service, metric_name, ts DESC);
 
 -- Continuous aggregate: 5-minute rolling baseline
 CREATE MATERIALIZED VIEW metric_baselines
 WITH (timescaledb.continuous) AS
 SELECT
-    time_bucket('5 minutes', time) AS bucket,
+    time_bucket('5 minutes', ts) AS bucket,
     service,
     metric_name,
     AVG(value) AS mean,
     STDDEV(value) AS stddev,
     COUNT(*) AS sample_count
-FROM metric_snapshots
+FROM telemetry_metrics
 GROUP BY bucket, service, metric_name;
 ```
 
@@ -583,14 +586,14 @@ The `BaselineQuery` port adapts this continuous aggregate view. `query_baseline(
 
 **Target:** Durable audit trail for all `DomainEvent` instances.
 
-1. Implement Alembic migration: create `incidents`, `incident_events`, `outbox` tables.
-2. Implement `PostgresEventStore` adapter in `src/sre_agent/adapters/events/postgres_event_store.py`.
-   - `append(event)` → INSERT into `incident_events` + INSERT into `outbox` in one transaction.
+1. Implement Alembic migration: create `incidents`, `incident_events`, `event_outbox` tables.
+2. Implement `PostgresIncidentStore` adapter in `src/sre_agent/adapters/persistence/incident_store.py`.
+   - `append(event)` → INSERT into `incident_events` + INSERT into `event_outbox` in one transaction.
    - `get_events(aggregate_id, event_types)` → SELECT from `incident_events`.
 3. Implement `RedisEventBus` adapter in `src/sre_agent/adapters/events/redis_event_bus.py`.
    - `publish(event)` → `XADD domain_events * …`
    - `subscribe(event_type, handler)` → consumer group read loop.
-4. Implement `OutboxRelay` background task in `src/sre_agent/adapters/events/outbox_relay.py`.
+4. Implement `PostgresOutboxStore` and `OutboxRelay` in `src/sre_agent/adapters/persistence/postgres_outbox.py` and `src/sre_agent/adapters/persistence/outbox_relay.py`.
 5. Wire new adapters through `src/sre_agent/config/bootstrap.py` behind `USE_POSTGRES_EVENTS=true` feature flag.
 6. Unit tests: mock PostgreSQL via `pytest-asyncio` + testcontainers. Integration tests against real PostgreSQL via Docker Compose.
 
@@ -600,7 +603,7 @@ The `BaselineQuery` port adapts this continuous aggregate view. `query_baseline(
 
 **Target:** Queryable incident history that survives restarts.
 
-1. Alembic migration: create `diagnoses`, `remediation_plans`, `remediation_actions`, `audit_log` tables.
+1. Alembic migration: create `diagnosis_results`, `remediation_plans`, `remediation_actions`, `coordination_audit` tables.
 2. Implement `PostgresIncidentStore` adapter. Expose via a new `IncidentStorePort` in `src/sre_agent/ports/incident_store.py`.
 3. Update `DiagnosticsService` to write `Diagnosis` records after each successful RAG pipeline run.
 4. Update `RemediationExecutor` to write `RemediationPlan` and `RemediationAction` records.
@@ -635,7 +638,7 @@ The `BaselineQuery` port adapts this continuous aggregate view. `query_baseline(
 
 **Target:** Durable, production-grade vector embeddings without a separate ChromaDB process.
 
-1. Alembic migration: `CREATE EXTENSION vector`, create `vector_documents` table with HNSW index.
+1. Alembic migration: `CREATE EXTENSION vector`, create `vector_embeddings` table with HNSW index.
 2. Implement `PgvectorAdapter` in `src/sre_agent/adapters/vectordb/pgvector/adapter.py` implementing `VectorStorePort`.
 3. Add `VECTOR_STORE_BACKEND=pgvector` to production `.env`.
 4. Migrate existing ChromaDB embeddings via a one-time CLI script: `scripts/migrate_chroma_to_pgvector.py`.
@@ -647,9 +650,9 @@ The `BaselineQuery` port adapts this continuous aggregate view. `query_baseline(
 **Target:** Persistent anomaly detection baselines; query-able metric history for incident correlation.
 
 1. Enable TimescaleDB extension on PostgreSQL instance.
-2. Alembic migration: create `metric_snapshots` hypertable, `metric_baselines` continuous aggregate, `anomaly_alerts_ts` hypertable.
+2. Alembic migration: create `telemetry_metrics` hypertable, `metric_baselines` continuous aggregate, `anomaly_alerts_ts` hypertable.
 3. Implement `TimescaleBaselineAdapter` replacing in-memory `BaselineStorage`.
-4. Add telemetry ingestion path: `CanonicalMetric` objects written to `metric_snapshots` after each telemetry poll cycle.
+4. Add telemetry ingestion path: `CanonicalMetric` objects written to `telemetry_metrics` after each telemetry poll cycle.
 5. Update `DetectionConfig` thresholds to be persisted and editable via API.
 
 ---
@@ -665,13 +668,13 @@ All schema changes go through Alembic migration files committed to `alembic/vers
 ### Retention policy
 | Data | Retention | Mechanism |
 |---|---|---|
-| `metric_snapshots` | 90 days | TimescaleDB `add_retention_policy` |
+| `telemetry_metrics` | 90 days | TimescaleDB `add_retention_policy` |
 | `incident_events` | 2 years | Application-level archive to S3 Parquet |
-| `audit_log` | 7 years | Application-level archive to S3 Parquet (compliance) |
-| `diagnoses`, `remediation_*` | 1 year | Soft-delete (archived flag) |
+| `coordination_audit` | 7 years | Application-level archive to S3 Parquet (compliance) |
+| `diagnosis_results`, `remediation_*` | 1 year | Soft-delete (archived flag) |
 | `agent_runs`, `tool_calls` | 180 days | Scheduled DELETE job |
 | `retrieved_contexts` | 180 days | Scheduled DELETE job |
-| `vector_documents` | Indefinite | Manual curation |
+| `vector_embeddings` | Indefinite | Manual curation |
 | Redis Streams (`domain_events`) | 7 days maxlen | `MAXLEN ~10000` on stream |
 | Redis diagnostic cache | 4 hours | `EXPIRE` per key |
 

@@ -17,8 +17,14 @@ Design notes:
 - ``run()`` is the daemon loop; uses ``anyio.sleep()`` (not asyncio.sleep)
   per the project's async-first standard.
 - ``stop()`` sets a flag; the loop exits cleanly on the next iteration.
-- Entries that fail publish increment their retry count in memory; after
-  ``max_retries`` the entry is marked failed in the DB.
+- Entries that fail publish increment their retry count in the database; after
+    ``max_retries`` the entry is moved to DLQ in the DB.
+
+Consumer idempotency:
+- Before publish, the relay checks ``processed_events`` for
+    ``(consumer_name, event_id)``.
+- If already present, the row is marked sent without re-publishing.
+- After successful publish, the marker row is inserted idempotently.
 
 Phase 4.0 — Persistence Architecture Reconciliation
 Engineering Standards §2.1 (SRP), §2.3 (DIP)
@@ -48,8 +54,10 @@ class OutboxRelay:
         poll_interval_s: Seconds to sleep between batches when the outbox
             is empty (or after each batch).
         max_retries: Number of publish failures before an entry is marked
-            permanently failed.
+            as dead-lettered.
         batch_size: Maximum entries to process per ``run_once()`` call.
+        consumer_name: Consumer identity used in ``processed_events``
+            deduplication markers.
     """
 
     def __init__(
@@ -59,13 +67,29 @@ class OutboxRelay:
         poll_interval_s: float = 1.0,
         max_retries: int = 10,
         batch_size: int = 100,
+        consumer_name: str = "outbox-relay",
     ) -> None:
         self._outbox = outbox
         self._event_bus = event_bus
         self._poll_interval_s = poll_interval_s
         self._max_retries = max_retries
         self._batch_size = batch_size
+        self._consumer_name = consumer_name
         self._running = False
+
+    async def _refresh_outbox_metrics(self) -> None:
+        """Refresh outbox backlog gauges when supported by the outbox adapter."""
+        refresh = getattr(self._outbox, "refresh_backlog_metrics", None)
+        if not callable(refresh):
+            return
+
+        try:
+            await refresh()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "outbox_relay.metrics_refresh_failed",
+                error=str(exc),
+            )
 
     async def run_once(self) -> int:
         """Process one batch of pending outbox entries.
@@ -73,12 +97,14 @@ class OutboxRelay:
         Atomically claims entries via ``claim_pending()`` (status → 'processing')
         so concurrent relay workers cannot process the same row.
 
-        For each claimed entry:
+                For each claimed entry:
         - Preserves the original event_id and occurred_at timestamp from the
           outbox payload so downstream consumers can correlate events.
+                - Skips duplicate publish when the event is already marked in
+                    ``processed_events`` for this relay consumer.
         - On publish success: marks the entry as 'sent'.
         - On publish failure: increments the persisted retry_count; resets status
-          to 'pending' for retry, or marks 'failed' when max_retries exceeded.
+                    to 'pending' for retry, or marks 'dlq' when max_retries exceeded.
 
         Returns:
             The number of entries claimed and processed in this batch.
@@ -113,7 +139,27 @@ class OutboxRelay:
             except (ValueError, AttributeError):
                 agg_uuid = None
 
+            raw_source_event_id = entry.get("event_id", raw_event_id)
             try:
+                source_event_id: UUID = UUID(str(raw_source_event_id))
+            except (ValueError, AttributeError):
+                source_event_id = preserved_event_id
+
+            try:
+                already_processed = await self._outbox.is_event_processed(
+                    consumer=self._consumer_name,
+                    event_id=source_event_id,
+                )
+                if already_processed:
+                    await self._outbox.mark_sent(outbox_id_uuid)
+                    logger.info(
+                        "outbox_relay.duplicate_publish_skipped",
+                        outbox_id=outbox_id,
+                        event_id=event_id_str,
+                        consumer=self._consumer_name,
+                    )
+                    continue
+
                 domain_event = DomainEvent(
                     event_id=preserved_event_id,
                     timestamp=preserved_ts,
@@ -122,6 +168,10 @@ class OutboxRelay:
                     payload=payload,
                 )
                 await self._event_bus.publish(domain_event)
+                await self._outbox.mark_event_processed(
+                    consumer=self._consumer_name,
+                    event_id=source_event_id,
+                )
                 await self._outbox.mark_sent(outbox_id_uuid)
                 logger.info(
                     "outbox_relay.entry_sent",
@@ -141,16 +191,18 @@ class OutboxRelay:
                     error=str(exc),
                 )
                 if new_count >= self._max_retries:
-                    await self._outbox.mark_failed(outbox_id_uuid)
+                    await self._outbox.mark_dlq(outbox_id_uuid, str(exc))
                     logger.error(
-                        "outbox_relay.entry_permanently_failed",
+                        "outbox_relay.entry_moved_to_dlq",
                         outbox_id=outbox_id,
                         event_id=event_id_str,
+                        reason=str(exc),
                     )
                 else:
                     # Return to pending so the next cycle can retry.
                     await self._outbox.release_claim(outbox_id_uuid)
 
+        await self._refresh_outbox_metrics()
         return len(entries)
 
     async def run(self) -> None:
@@ -164,6 +216,7 @@ class OutboxRelay:
             poll_interval_s=self._poll_interval_s,
             batch_size=self._batch_size,
             max_retries=self._max_retries,
+            consumer=self._consumer_name,
         )
         while self._running:
             try:

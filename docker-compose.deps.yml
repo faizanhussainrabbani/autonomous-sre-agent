@@ -1,5 +1,3 @@
-version: "3.8"
-
 # ===========================================================================
 # SRE Agent — Development Dependencies
 #
@@ -13,6 +11,44 @@ version: "3.8"
 # ===========================================================================
 
 services:
+
+  # ── PostgreSQL (Persistence + pgvector) ───────────────────────────────────
+  # Primary durable store for incident lifecycle, outbox, and vector documents.
+  # Uses a pgvector-enabled Postgres image; vector extension remains optional
+  # because migration 002 falls back to JSONB when unavailable.
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: sre-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=sre_agent
+      - POSTGRES_PASSWORD=sre_agent
+      - POSTGRES_DB=sre_agent
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sre_agent -d sre_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  # Optional runtime backing service for RedisStreamsEventBus and distributed
+  # lock manager when lock/event bus backends are configured to Redis.
+  redis:
+    image: redis:7-alpine
+    container_name: sre-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── LocalStack Pro ────────────────────────────────────────────────────────
   # Emulates AWS APIs locally (ECS, EC2, Lambda, IAM, S3, SecretsManager).
@@ -76,3 +112,5 @@ services:
 
 volumes:
   localstack_data:
+  postgres_data:
+  redis_data:

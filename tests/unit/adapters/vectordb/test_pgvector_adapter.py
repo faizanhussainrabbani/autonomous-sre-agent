@@ -11,10 +11,12 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import sre_agent.adapters.vectordb.pgvector.adapter as pg_adapter
 from sre_agent.adapters.vectordb.pgvector.adapter import (
     PgVectorStoreAdapter,
     _cosine_similarity,
 )
+from sre_agent.observability.metrics import VECTOR_FALLBACK_TRUNCATED
 from sre_agent.ports.vector_store import (
     SearchQuery,
     VectorDocument,
@@ -51,10 +53,17 @@ def _make_query(dim: int = 4, top_k: int = 5, min_score: float = 0.0) -> SearchQ
     )
 
 
-def _pgvector_pool(has_extension: bool = True) -> FakePool:
+def _pgvector_pool(has_extension: bool = True, unified_schema: bool | None = None) -> FakePool:
     """Return a FakePool pre-loaded with pgvector probe result."""
     pool = FakePool()
     pool.conn.queue_fetchrow({"?column?": 1} if has_extension else None)
+    if unified_schema is not None:
+        pool.conn.queue_fetchrow(
+            {
+                "has_embedding": bool(unified_schema),
+                "has_embedding_json": bool(unified_schema),
+            }
+        )
     return pool
 
 
@@ -147,6 +156,18 @@ async def test_store_persists_content_in_metadata(  ) -> None:
     )
 
 
+async def test_store_uses_unified_schema_query_when_columns_present() -> None:
+    """store() should null alternate representation in unified dual-mode schema."""
+    pool = _pgvector_pool(has_extension=True, unified_schema=True)
+    adapter = PgVectorStoreAdapter(pool=pool, embedding_dim=4)
+
+    await adapter.store(_make_doc())
+
+    sqls = [stmt for stmt, _ in pool.conn.executed if "INSERT INTO vector_embeddings" in stmt]
+    assert sqls, "Expected INSERT query"
+    assert "embedding_json" in sqls[0], "Unified schema query must include embedding_json"
+
+
 # ---------------------------------------------------------------------------
 # store_batch — AC-5.3
 # ---------------------------------------------------------------------------
@@ -189,6 +210,19 @@ async def test_search_pgvector_uses_cosine_operator() -> None:
 
     sqls = [stmt for stmt, _ in pool.conn.executed]
     assert any("<=>" in s for s in sqls), "Expected <=> cosine operator in pgvector mode"
+
+
+async def test_search_pgvector_sets_local_ef_search() -> None:
+    """search() in pgvector mode must set LOCAL hnsw.ef_search = 100 per query session."""
+    pool = _pgvector_pool(has_extension=True)
+    adapter = PgVectorStoreAdapter(pool=pool, embedding_dim=4)
+
+    pool.conn.queue_fetch([])
+
+    await adapter.search(_make_query())
+
+    sqls = [stmt for stmt, _ in pool.conn.executed]
+    assert any("SET LOCAL hnsw.ef_search = 100" in s for s in sqls)
 
 
 async def test_search_pgvector_scoped_to_collection() -> None:
@@ -252,6 +286,38 @@ async def test_search_jsonb_computes_python_cosine() -> None:
 
     assert len(results) == 1
     assert abs(results[0].score - 1.0) < 1e-6, "Identical vectors should score 1.0"
+
+
+async def test_search_jsonb_applies_fallback_safety_cap(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """JSON fallback must cap in-memory scan size to avoid unbounded loads."""
+    monkeypatch.setattr(pg_adapter, "_JSONB_FALLBACK_MAX_ROWS", 2)
+    monkeypatch.setattr(pg_adapter, "_JSONB_FALLBACK_FETCH_LIMIT", 3)
+
+    counter = VECTOR_FALLBACK_TRUNCATED.labels(collection="sre_knowledge_base")
+    before = counter._value.get()
+
+    pool = _pgvector_pool(has_extension=False)
+    row_template = {
+        "embedding_id": uuid4(),
+        "source_type": "test",
+        "embedding_json": json.dumps([1.0, 0.0, 0.0, 0.0]),
+        "metadata_json": json.dumps({"content": "txt", "source": "s"}),
+    }
+    pool.conn.queue_fetch(
+        [
+            {**row_template, "source_id": "doc-1"},
+            {**row_template, "source_id": "doc-2"},
+            {**row_template, "source_id": "doc-3"},
+        ]
+    )
+
+    adapter = PgVectorStoreAdapter(pool=pool, embedding_dim=4)
+    results = await adapter.search(
+        SearchQuery(embedding=[1.0, 0.0, 0.0, 0.0], top_k=10, min_score=0.0)
+    )
+
+    assert len(results) == 2, "Result set should be capped by JSON fallback guard"
+    assert counter._value.get() == before + 1
 
 
 async def test_search_returns_content_from_metadata() -> None:

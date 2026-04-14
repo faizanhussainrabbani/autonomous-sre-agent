@@ -142,6 +142,32 @@ LLM_QUEUE_WAIT: Histogram = _get_or_create(
 )
 
 # ---------------------------------------------------------------------------
+# Persistence metrics
+# ---------------------------------------------------------------------------
+
+# Number of JSONB fallback scans truncated by the in-memory safety cap.
+VECTOR_FALLBACK_TRUNCATED: Counter = _get_or_create(
+    Counter,
+    "sre_agent_vector_fallback_truncated_total",
+    "Total JSONB fallback search scans truncated by the safety cap.",
+    labelnames=["collection"],
+)
+
+# Current number of pending rows in event_outbox.
+OUTBOX_PENDING_ROWS: Gauge = _get_or_create(
+    Gauge,
+    "sre_agent_outbox_pending_rows",
+    "Current number of pending rows in the transactional outbox.",
+)
+
+# Current number of dead-lettered rows in event_outbox.
+OUTBOX_DLQ_ROWS: Gauge = _get_or_create(
+    Gauge,
+    "sre_agent_outbox_dlq_rows",
+    "Current number of outbox rows in dead-letter state.",
+)
+
+# ---------------------------------------------------------------------------
 # Embedding metrics (OBS-001)
 # ---------------------------------------------------------------------------
 
@@ -185,6 +211,9 @@ __all__ = [
     "LLM_QUEUE_DEPTH",
     "LLM_QUEUE_WAIT",
     "LLM_TOKENS_USED",
+    "OUTBOX_DLQ_ROWS",
+    "OUTBOX_PENDING_ROWS",
     "SEVERITY_ASSIGNED",
+    "VECTOR_FALLBACK_TRUNCATED",
     "_current_alert_id",
 ]

@@ -25,7 +25,13 @@ from sre_agent.ports.telemetry import LogQuery, TelemetryProvider
 if TYPE_CHECKING:
     from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
     from sre_agent.ports.events import EventBus
-    from sre_agent.ports.persistence import CoordinationAuditPort, IncidentStorePort, OutboxPort
+    from sre_agent.ports.persistence import (
+        CoordinationAuditPort,
+        DiagnosisStorePort,
+        IncidentStorePort,
+        OutboxPort,
+        RemediationStorePort,
+    )
     from sre_agent.ports.telemetry import eBPFQuery
     from sre_agent.ports.vector_store import VectorStorePort
 
@@ -436,6 +442,44 @@ def bootstrap_outbox_store(pool: object | None) -> OutboxPort | None:
 
     logger.info("outbox_store_bootstrapped")
     return PostgresOutboxStore(pool=pool)
+
+
+def bootstrap_diagnosis_store(pool: object | None) -> DiagnosisStorePort | None:
+    """Bootstrap the PostgreSQL diagnosis result store.
+
+    Args:
+        pool: Shared asyncpg pool from bootstrap_asyncpg_pool().
+
+    Returns:
+        PostgresDiagnosisStore when a pool is available, None otherwise.
+    """
+    if pool is None:
+        logger.info("diagnosis_store_disabled", reason="no database pool")
+        return None
+
+    from sre_agent.adapters.persistence.diagnosis_store import PostgresDiagnosisStore
+
+    logger.info("diagnosis_store_bootstrapped")
+    return PostgresDiagnosisStore(pool=pool)
+
+
+def bootstrap_remediation_store(pool: object | None) -> RemediationStorePort | None:
+    """Bootstrap the PostgreSQL remediation action store.
+
+    Args:
+        pool: Shared asyncpg pool from bootstrap_asyncpg_pool().
+
+    Returns:
+        PostgresRemediationStore when a pool is available, None otherwise.
+    """
+    if pool is None:
+        logger.info("remediation_store_disabled", reason="no database pool")
+        return None
+
+    from sre_agent.adapters.persistence.remediation_store import PostgresRemediationStore
+
+    logger.info("remediation_store_bootstrapped")
+    return PostgresRemediationStore(pool=pool)
 
 
 def bootstrap_event_bus(config: AgentConfig) -> EventBus:

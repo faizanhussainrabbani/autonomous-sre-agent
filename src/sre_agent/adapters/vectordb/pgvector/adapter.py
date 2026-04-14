@@ -6,9 +6,11 @@ Mode detection:
 - At initialisation the adapter checks whether the ``vector`` PostgreSQL extension
   is installed (``SELECT 1 FROM pg_extension WHERE extname = 'vector'``).
 - **pgvector mode** (extension present): embeddings stored as ``vector(N)`` with
-  HNSW index; search uses the cosine distance operator ``<=>`` for O(log n) ANN.
+    HNSW index; search uses the cosine distance operator ``<=>`` for O(log n) ANN.
+    Each search query sets ``SET LOCAL hnsw.ef_search = 100`` for recall/latency tuning.
 - **JSONB fallback mode** (extension absent): embeddings stored as ``JSONB``; search
-  fetches all rows and computes cosine similarity in Python. Suitable for dev/CI.
+    fetches rows with a safety cap of 10,000 and computes cosine similarity in Python.
+    Suitable for dev/CI.
 
 Vector format:
 Embeddings are passed to asyncpg as formatted strings ``'[0.1,0.2,...]'``
@@ -43,6 +45,7 @@ from uuid import uuid4
 
 import structlog
 
+from sre_agent.observability.metrics import VECTOR_FALLBACK_TRUNCATED
 from sre_agent.ports.vector_store import (
     SearchQuery,
     SearchResult,
@@ -58,13 +61,31 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _CHECK_PGVECTOR = "SELECT 1 FROM pg_extension WHERE extname = 'vector'"
 
+_CHECK_VECTOR_TABLE_COLUMNS = """
+SELECT
+        EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                    AND table_name = 'vector_embeddings'
+                    AND column_name = 'embedding'
+        ) AS has_embedding,
+        EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                    AND table_name = 'vector_embeddings'
+                    AND column_name = 'embedding_json'
+        ) AS has_embedding_json
+"""
+
 # ---------------------------------------------------------------------------
 # pgvector mode SQL
 # ---------------------------------------------------------------------------
 
 # Uses ON CONFLICT (source_type, source_id) — requires migration 004 unique
 # constraint uq_vector_source. embedding_id is always a fresh uuid4 (synthetic PK).
-_INSERT_VEC = """
+_INSERT_VEC_LEGACY = """
 INSERT INTO vector_embeddings
     (embedding_id, source_type, source_id, embedding, metadata_json, created_at)
 VALUES ($1, $2, $3, $4::vector, $5::jsonb, $6)
@@ -72,6 +93,25 @@ ON CONFLICT (source_type, source_id) DO UPDATE SET
     embedding     = EXCLUDED.embedding,
     metadata_json = EXCLUDED.metadata_json,
     created_at    = EXCLUDED.created_at
+"""
+
+_INSERT_VEC_UNIFIED = """
+INSERT INTO vector_embeddings
+    (
+        embedding_id,
+        source_type,
+        source_id,
+        embedding,
+        embedding_json,
+        metadata_json,
+        created_at
+    )
+VALUES ($1, $2, $3, $4::vector, NULL, $5::jsonb, $6)
+ON CONFLICT (source_type, source_id) DO UPDATE SET
+    embedding      = EXCLUDED.embedding,
+    embedding_json = NULL,
+    metadata_json  = EXCLUDED.metadata_json,
+    created_at     = EXCLUDED.created_at
 """
 
 # $1 = query vector, $2 = collection (source_type), $3 = limit
@@ -84,11 +124,13 @@ ORDER BY embedding <=> $1::vector
 LIMIT $3
 """
 
+_SET_LOCAL_HNSW_EF_SEARCH = "SET LOCAL hnsw.ef_search = 100"
+
 # ---------------------------------------------------------------------------
 # JSONB fallback SQL
 # ---------------------------------------------------------------------------
 
-_INSERT_JSON = """
+_INSERT_JSON_LEGACY = """
 INSERT INTO vector_embeddings
     (embedding_id, source_type, source_id, embedding_json, metadata_json, created_at)
 VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6)
@@ -98,12 +140,36 @@ ON CONFLICT (source_type, source_id) DO UPDATE SET
     created_at     = EXCLUDED.created_at
 """
 
-# $1 = collection (source_type)
+_INSERT_JSON_UNIFIED = """
+INSERT INTO vector_embeddings
+    (
+        embedding_id,
+        source_type,
+        source_id,
+        embedding,
+        embedding_json,
+        metadata_json,
+        created_at
+    )
+VALUES ($1, $2, $3, NULL, $4::jsonb, $5::jsonb, $6)
+ON CONFLICT (source_type, source_id) DO UPDATE SET
+    embedding      = NULL,
+    embedding_json = EXCLUDED.embedding_json,
+    metadata_json  = EXCLUDED.metadata_json,
+    created_at     = EXCLUDED.created_at
+"""
+
+# $1 = collection (source_type), $2 = fetch limit
 _FETCH_ALL_JSON = """
 SELECT embedding_id, source_type, source_id, embedding_json, metadata_json
 FROM vector_embeddings
 WHERE source_type = $1
+ORDER BY created_at DESC
+LIMIT $2
 """
+
+_JSONB_FALLBACK_MAX_ROWS = 10000
+_JSONB_FALLBACK_FETCH_LIMIT = _JSONB_FALLBACK_MAX_ROWS + 1
 
 # ---------------------------------------------------------------------------
 # Shared SQL
@@ -174,6 +240,7 @@ class PgVectorStoreAdapter(VectorStorePort):
         self._dim = embedding_dim
         self._collection = collection
         self._pgvector_mode: bool | None = None  # detected lazily
+        self._unified_schema: bool | None = None
 
     async def _is_pgvector_mode(self) -> bool:
         """Detect pgvector availability once; cache the result."""
@@ -187,6 +254,25 @@ class PgVectorStoreAdapter(VectorStorePort):
                 collection=self._collection,
             )
         return self._pgvector_mode
+
+    async def _is_unified_schema(self) -> bool:
+        """Detect whether vector_embeddings has both embedding and embedding_json."""
+        if self._unified_schema is None:
+            async with self._pool.acquire() as conn:
+                row = await conn.fetchrow(_CHECK_VECTOR_TABLE_COLUMNS)
+
+            has_embedding = bool(row and row["has_embedding"])
+            has_embedding_json = bool(row and row["has_embedding_json"])
+            self._unified_schema = has_embedding and has_embedding_json
+
+            logger.info(
+                "pgvector_store.schema_detected",
+                unified=self._unified_schema,
+                has_embedding=has_embedding,
+                has_embedding_json=has_embedding_json,
+            )
+
+        return self._unified_schema
 
     # ------------------------------------------------------------------
     # Helpers
@@ -231,7 +317,13 @@ class PgVectorStoreAdapter(VectorStorePort):
         meta_str = json.dumps(meta)
         vec_str = self._vec_to_str(document.embedding)
 
-        sql = _INSERT_VEC if await self._is_pgvector_mode() else _INSERT_JSON  # noqa: SIM108
+        pgvector_mode = await self._is_pgvector_mode()
+        unified_schema = await self._is_unified_schema()
+
+        if pgvector_mode:
+            sql = _INSERT_VEC_UNIFIED if unified_schema else _INSERT_VEC_LEGACY
+        else:
+            sql = _INSERT_JSON_UNIFIED if unified_schema else _INSERT_JSON_LEGACY
 
         async with self._pool.acquire() as conn:
             await conn.execute(
@@ -266,8 +358,8 @@ class PgVectorStoreAdapter(VectorStorePort):
         """Perform semantic similarity search scoped to this collection (F7).
 
         pgvector mode: uses HNSW ``<=>`` cosine operator (AC-5.12).
-        JSONB mode: fetches all rows for this collection, computes cosine in
-        Python (AC-5.13).
+        JSONB mode: fetches at most 10,000 rows for this collection, computes
+        cosine in Python (AC-5.13).
         """
         vec_str = self._vec_to_str(query.embedding)
 
@@ -278,7 +370,8 @@ class PgVectorStoreAdapter(VectorStorePort):
     async def _search_pgvector(
         self, vec_str: str, query: SearchQuery
     ) -> list[SearchResult]:
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire() as conn, conn.transaction():
+            await conn.execute(_SET_LOCAL_HNSW_EF_SEARCH)
             rows = await conn.fetch(_SEARCH_VEC, vec_str, self._collection, query.top_k)
 
         results = []
@@ -301,7 +394,21 @@ class PgVectorStoreAdapter(VectorStorePort):
 
     async def _search_jsonb(self, query: SearchQuery) -> list[SearchResult]:
         async with self._pool.acquire() as conn:
-            rows = await conn.fetch(_FETCH_ALL_JSON, self._collection)
+            rows = await conn.fetch(
+                _FETCH_ALL_JSON,
+                self._collection,
+                _JSONB_FALLBACK_FETCH_LIMIT,
+            )
+
+        truncated = len(rows) > _JSONB_FALLBACK_MAX_ROWS
+        if truncated:
+            rows = rows[:_JSONB_FALLBACK_MAX_ROWS]
+            VECTOR_FALLBACK_TRUNCATED.labels(collection=self._collection).inc()
+            logger.warning(
+                "pgvector_store.jsonb_fallback_truncated",
+                collection=self._collection,
+                max_rows=_JSONB_FALLBACK_MAX_ROWS,
+            )
 
         scored: list[tuple[float, Any]] = []
         for row in rows:

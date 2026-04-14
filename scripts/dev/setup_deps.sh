@@ -3,6 +3,8 @@
 # SRE Agent — External Dependencies Manager
 #
 # Manages Docker containers for local development dependencies:
+#   - PostgreSQL (durable persistence + pgvector extension support)
+#   - Redis (distributed locks + Redis Streams event bus)
 #   - LocalStack Pro (AWS API emulation)
 #   - Prometheus (metrics)
 #   - Jaeger (traces)
@@ -25,6 +27,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.deps.yml"
 LOCALSTACK_HEALTH_URL="http://localhost:4566/_localstack/health"
 LOCALSTACK_REQUIRED_SERVICES="autoscaling,cloudwatch,ec2,ecs,events,iam,lambda,logs,s3,secretsmanager,sns,sts"
+POSTGRES_USER="sre_agent"
+POSTGRES_DB="sre_agent"
 
 # Colors
 GREEN='\033[0;32m'
@@ -133,10 +137,13 @@ cmd_start() {
     echo ""
     info "Services starting..."
     echo ""
+    echo "  PostgreSQL:  localhost:5432"
+    echo "  Redis:       localhost:6379"
     echo "  LocalStack:  http://localhost:4566  (AWS API gateway)"
     echo "  Prometheus:  http://localhost:9090"
     echo "  Jaeger UI:   http://localhost:16686"
     echo ""
+    echo "  DSN:         postgresql://sre_agent:sre_agent@localhost:5432/sre_agent"
     echo "  Check status:  ./scripts/dev/setup_deps.sh status"
     echo "  View logs:     ./scripts/dev/setup_deps.sh logs"
 }
@@ -182,6 +189,23 @@ cmd_health() {
         all_healthy=false
     fi
 
+    # PostgreSQL
+    if docker compose -f "$COMPOSE_FILE" exec -T postgres \
+        pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+        info "PostgreSQL:   healthy"
+    else
+        warn "PostgreSQL:   not reachable"
+        all_healthy=false
+    fi
+
+    # Redis
+    if docker compose -f "$COMPOSE_FILE" exec -T redis redis-cli ping >/dev/null 2>&1; then
+        info "Redis:        healthy"
+    else
+        warn "Redis:        not reachable"
+        all_healthy=false
+    fi
+
     # Prometheus
     if curl -sf http://localhost:9090/-/healthy >/dev/null 2>&1; then
         info "Prometheus:   healthy"
@@ -213,7 +237,7 @@ cmd_help() {
 Usage:  ./scripts/dev/setup_deps.sh <command>
 
 Commands:
-  start    Start all dependency services (LocalStack, Prometheus, Jaeger)
+    start    Start all dependency services (PostgreSQL, Redis, LocalStack, Prometheus, Jaeger)
   stop     Stop all services
   status   Show running containers and their status
   logs     Tail logs from all services
@@ -239,5 +263,5 @@ case "$COMMAND" in
     clean)   cmd_clean ;;
     health)  cmd_health ;;
     help|--help|-h) cmd_help ;;
-    *)       error "Unknown command: $COMMAND. Run './scripts/setup_deps.sh help'" ;;
+    *)       error "Unknown command: $COMMAND. Run './scripts/dev/setup_deps.sh help'" ;;
 esac

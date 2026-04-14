@@ -9,6 +9,7 @@ from __future__ import annotations
 from uuid import UUID, uuid4
 
 from sre_agent.adapters.persistence.postgres_outbox import PostgresOutboxStore
+from sre_agent.observability.metrics import OUTBOX_DLQ_ROWS, OUTBOX_PENDING_ROWS
 from sre_agent.ports.persistence import OutboxPort
 from tests.unit.adapters.persistence.conftest import FakePool
 
@@ -98,6 +99,61 @@ async def test_mark_failed_updates_status(fake_pool: FakePool) -> None:
 
     _, args = fake_pool.conn.executed[0]
     assert outbox_id in args
+
+
+async def test_mark_dlq_updates_status_and_reason(fake_pool: FakePool) -> None:
+    """mark_dlq() must transition row to dlq with reason metadata."""
+    store = PostgresOutboxStore(pool=fake_pool)
+    outbox_id = uuid4()
+
+    await store.mark_dlq(outbox_id, "max retries exceeded")
+
+    sqls = [stmt for stmt, _ in fake_pool.conn.executed]
+    assert any("dlq" in s.lower() for s in sqls), "Expected UPDATE with 'dlq'"
+
+    _, args = fake_pool.conn.executed[0]
+    assert outbox_id in args
+    assert "max retries exceeded" in args
+
+
+async def test_is_event_processed_returns_true_when_marker_exists(fake_pool: FakePool) -> None:
+    """is_event_processed() returns True when processed_events row exists."""
+    fake_pool.conn.queue_fetchrow({"?column?": 1})
+    store = PostgresOutboxStore(pool=fake_pool)
+    event_id = uuid4()
+
+    result = await store.is_event_processed("relay-a", event_id)
+
+    assert result is True
+    sqls = [stmt for stmt, _ in fake_pool.conn.executed]
+    assert any("processed_events" in s for s in sqls), "Expected processed_events lookup"
+
+
+async def test_is_event_processed_returns_false_when_marker_missing(fake_pool: FakePool) -> None:
+    """is_event_processed() returns False when no row is found."""
+    store = PostgresOutboxStore(pool=fake_pool)
+    result = await store.is_event_processed("relay-a", uuid4())
+    assert result is False
+
+
+async def test_mark_event_processed_returns_true_on_insert(fake_pool: FakePool) -> None:
+    """mark_event_processed() returns True when insert succeeds."""
+    event_id = uuid4()
+    fake_pool.conn.queue_fetchrow({"event_id": event_id})
+    store = PostgresOutboxStore(pool=fake_pool)
+
+    inserted = await store.mark_event_processed("relay-a", event_id)
+
+    assert inserted is True
+    sqls = [stmt for stmt, _ in fake_pool.conn.executed]
+    assert any("INSERT INTO processed_events" in s for s in sqls)
+
+
+async def test_mark_event_processed_returns_false_on_conflict(fake_pool: FakePool) -> None:
+    """mark_event_processed() returns False when marker already exists."""
+    store = PostgresOutboxStore(pool=fake_pool)
+    inserted = await store.mark_event_processed("relay-a", uuid4())
+    assert inserted is False
 
 
 # ---------------------------------------------------------------------------
@@ -233,3 +289,14 @@ async def test_increment_retry_returns_zero_on_missing_row(fake_pool: FakePool) 
     store = PostgresOutboxStore(pool=fake_pool)
     new_count = await store.increment_retry(uuid4())
     assert new_count == 0
+
+
+async def test_refresh_backlog_metrics_sets_pending_and_dlq_gauges(fake_pool: FakePool) -> None:
+    """refresh_backlog_metrics() should update pending/DLQ gauges from DB counts."""
+    fake_pool.conn.queue_fetchrow({"pending_rows": 6, "dlq_rows": 2})
+    store = PostgresOutboxStore(pool=fake_pool)
+
+    await store.refresh_backlog_metrics()
+
+    assert OUTBOX_PENDING_ROWS._value.get() == 6
+    assert OUTBOX_DLQ_ROWS._value.get() == 2

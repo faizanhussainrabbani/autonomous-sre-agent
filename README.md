@@ -67,11 +67,17 @@ Detailed sequence and trust model:
 
 ```bash
 bash scripts/dev/run.sh setup
-cp .env.example .env
+# Ensure .env exists in the repo root and includes required keys
+# (LOCALSTACK_AUTH_TOKEN and one of OPENAI_API_KEY / ANTHROPIC_API_KEY)
 bash scripts/dev/setup_deps.sh start
 bash scripts/dev/run.sh test:unit
 bash scripts/dev/run.sh server --reload
 ```
+
+Local dependency stack started by `setup_deps.sh` includes PostgreSQL and Redis:
+
+* PostgreSQL DSN: `postgresql://sre_agent:sre_agent@localhost:5432/sre_agent`
+* Redis URL: `redis://localhost:6379/0`
 
 Open API docs at <http://localhost:8080/docs>.
 

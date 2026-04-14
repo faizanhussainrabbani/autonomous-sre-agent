@@ -6,7 +6,10 @@ The outbox pattern ensures at-least-once event delivery to the stream bus:
 1. Incident events are written to ``incident_events`` and ``event_outbox``
    in the same DB transaction (handled by PostgresIncidentStore.save_event).
 2. OutboxRelay polls this table, publishes to the event bus, and marks rows
-   as 'sent'. On repeated failure it marks them 'failed'.
+    as 'sent'. On repeated failure it eventually moves rows to 'dlq'.
+
+Consumer idempotency is backed by ``processed_events`` so relay workers can
+deduplicate already-published events safely when retries occur.
 
 ``get_pending`` uses ``FOR UPDATE SKIP LOCKED`` so multiple relay instances
 can run concurrently without double-processing the same row.
@@ -24,6 +27,7 @@ from uuid import UUID, uuid4
 
 import structlog
 
+from sre_agent.observability.metrics import OUTBOX_DLQ_ROWS, OUTBOX_PENDING_ROWS
 from sre_agent.ports.persistence import OutboxPort
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -40,13 +44,21 @@ VALUES ($1, $2, $3, $4::jsonb, 'pending', $5, 0)
 
 _UPDATE_SENT = """
 UPDATE event_outbox
-SET status = 'sent', sent_at = $2
+SET status = 'sent', sent_at = $2, dlq_at = NULL, dlq_reason = NULL
 WHERE outbox_id = $1
 """
 
 _UPDATE_FAILED = """
 UPDATE event_outbox
-SET status = 'failed'
+SET status = 'failed', dlq_at = NULL, dlq_reason = NULL
+WHERE outbox_id = $1
+"""
+
+_UPDATE_DLQ = """
+UPDATE event_outbox
+SET status = 'dlq',
+    dlq_at = $2,
+    dlq_reason = $3
 WHERE outbox_id = $1
 """
 
@@ -85,6 +97,28 @@ UPDATE event_outbox
 SET retry_count = retry_count + 1
 WHERE outbox_id = $1
 RETURNING retry_count
+"""
+
+_SELECT_PROCESSED_EVENT = """
+SELECT 1
+FROM processed_events
+WHERE consumer = $1
+    AND event_id = $2
+LIMIT 1
+"""
+
+_INSERT_PROCESSED_EVENT = """
+INSERT INTO processed_events (consumer, event_id)
+VALUES ($1, $2)
+ON CONFLICT (consumer, event_id) DO NOTHING
+RETURNING event_id
+"""
+
+_SELECT_BACKLOG_COUNTS = """
+SELECT
+    COUNT(*) FILTER (WHERE status = 'pending') AS pending_rows,
+    COUNT(*) FILTER (WHERE status = 'dlq') AS dlq_rows
+FROM event_outbox
 """
 
 
@@ -156,11 +190,45 @@ class PostgresOutboxStore(OutboxPort):
         logger.debug("outbox.marked_sent", outbox_id=str(outbox_id))
 
     async def mark_failed(self, outbox_id: UUID) -> None:
-        """Mark an outbox entry as failed after max retries exhausted."""
+        """Mark an outbox entry as failed (non-terminal retry bookkeeping)."""
         async with self._pool.acquire() as conn:
             await conn.execute(_UPDATE_FAILED, outbox_id)
 
         logger.warning("outbox.marked_failed", outbox_id=str(outbox_id))
+
+    async def mark_dlq(self, outbox_id: UUID, reason: str) -> None:
+        """Move an outbox row to DLQ terminal state with a diagnostic reason."""
+        now = datetime.now(tz=UTC)
+        async with self._pool.acquire() as conn:
+            await conn.execute(_UPDATE_DLQ, outbox_id, now, reason)
+
+        logger.error(
+            "outbox.marked_dlq",
+            outbox_id=str(outbox_id),
+            reason=reason,
+        )
+
+    async def is_event_processed(self, consumer: str, event_id: UUID) -> bool:
+        """Check whether this consumer already processed the event."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(_SELECT_PROCESSED_EVENT, consumer, event_id)
+        return row is not None
+
+    async def mark_event_processed(self, consumer: str, event_id: UUID) -> bool:
+        """Insert a consumer dedup marker row if absent.
+
+        Returns True when inserted, False when the marker already exists.
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(_INSERT_PROCESSED_EVENT, consumer, event_id)
+        inserted = row is not None
+        logger.debug(
+            "outbox.processed_marker_upserted",
+            consumer=consumer,
+            event_id=str(event_id),
+            inserted=inserted,
+        )
+        return inserted
 
     async def get_pending(self, limit: int = 100) -> list[dict[str, Any]]:
         """Retrieve pending outbox entries for relay processing.
@@ -232,3 +300,17 @@ class PostgresOutboxStore(OutboxPort):
         new_count: int = row["retry_count"] if row else 0
         logger.debug("outbox.retry_incremented", outbox_id=str(outbox_id), retry_count=new_count)
         return new_count
+
+    async def refresh_backlog_metrics(self) -> None:
+        """Refresh Prometheus gauges for outbox pending and DLQ backlog."""
+        try:
+            async with self._pool.acquire() as conn:
+                row = await conn.fetchrow(_SELECT_BACKLOG_COUNTS)
+
+            pending_rows = int(row["pending_rows"]) if row else 0
+            dlq_rows = int(row["dlq_rows"]) if row else 0
+
+            OUTBOX_PENDING_ROWS.set(pending_rows)
+            OUTBOX_DLQ_ROWS.set(dlq_rows)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("outbox.metrics_refresh_failed", error=str(exc))

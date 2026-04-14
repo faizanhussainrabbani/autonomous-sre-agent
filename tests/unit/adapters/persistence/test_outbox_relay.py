@@ -26,8 +26,11 @@ class FakeOutbox(OutboxPort):
         self._entries: list[dict[str, Any]] = entries or []
         self.sent: list[UUID] = []
         self.failed: list[UUID] = []
+        self.dlq: list[UUID] = []
         self.released: list[UUID] = []
         self._retry_counts: dict[str, int] = {}
+        self._processed: set[tuple[str, UUID]] = set()
+        self.metrics_refresh_calls = 0
 
     async def enqueue(self, event_id: UUID, topic: str, payload_json: dict[str, Any]) -> UUID:
         outbox_id = uuid4()
@@ -48,6 +51,19 @@ class FakeOutbox(OutboxPort):
     async def mark_failed(self, outbox_id: UUID) -> None:
         self.failed.append(outbox_id)
 
+    async def mark_dlq(self, outbox_id: UUID, reason: str) -> None:
+        del reason
+        self.dlq.append(outbox_id)
+
+    async def is_event_processed(self, consumer: str, event_id: UUID) -> bool:
+        return (consumer, event_id) in self._processed
+
+    async def mark_event_processed(self, consumer: str, event_id: UUID) -> bool:
+        key = (consumer, event_id)
+        inserted = key not in self._processed
+        self._processed.add(key)
+        return inserted
+
     async def get_pending(self, limit: int = 100) -> list[dict[str, Any]]:
         return list(self._entries[:limit])
 
@@ -64,6 +80,9 @@ class FakeOutbox(OutboxPort):
         key = str(outbox_id)
         self._retry_counts[key] = self._retry_counts.get(key, 0) + 1
         return self._retry_counts[key]
+
+    async def refresh_backlog_metrics(self) -> None:
+        self.metrics_refresh_calls += 1
 
 
 class FakeEventBus(EventBus):
@@ -171,6 +190,7 @@ async def test_run_once_returns_zero_when_no_entries() -> None:
 
     count = await relay.run_once()
     assert count == 0
+    assert outbox.metrics_refresh_calls == 1
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +212,7 @@ async def test_run_once_releases_claim_on_publish_failure() -> None:
 
 
 async def test_run_once_marks_failed_after_max_retries() -> None:
-    """After max_retries increments, entry is marked failed (AC-F8.5)."""
+    """After max_retries increments, entry is moved to DLQ (AC-F8.5)."""
     entry = _pending_entry()
     outbox = FakeOutbox(entries=[entry])
     bus = FakeEventBus(raise_on_publish=True)
@@ -203,11 +223,11 @@ async def test_run_once_marks_failed_after_max_retries() -> None:
         outbox._entries = [entry]
         await relay.run_once()
 
-    assert entry["outbox_id"] in outbox.failed, "Must be marked failed after max_retries"
+    assert entry["outbox_id"] in outbox.dlq, "Must be moved to DLQ after max_retries"
 
 
 async def test_run_once_does_not_mark_failed_before_max_retries() -> None:
-    """Entry must NOT be marked failed until max_retries is reached (AC-F8.6)."""
+    """Entry must NOT be moved to DLQ until max_retries is reached (AC-F8.6)."""
     entry = _pending_entry()
     outbox = FakeOutbox(entries=[entry])
     bus = FakeEventBus(raise_on_publish=True)
@@ -219,7 +239,23 @@ async def test_run_once_does_not_mark_failed_before_max_retries() -> None:
     outbox._entries = [entry]
     await relay.run_once()
 
-    assert entry["outbox_id"] not in outbox.failed
+    assert entry["outbox_id"] not in outbox.dlq
+
+
+async def test_run_once_skips_publish_when_event_already_processed() -> None:
+    """Relay must skip duplicate publish when processed_events already has marker."""
+    entry = _pending_entry()
+    outbox = FakeOutbox(entries=[entry])
+    event_id = entry["event_id"]
+    outbox._processed.add(("outbox-relay", event_id))
+    bus = FakeEventBus()
+    relay = OutboxRelay(outbox=outbox, event_bus=bus)
+
+    count = await relay.run_once()
+
+    assert count == 1
+    assert len(bus.published) == 0, "Duplicate event must not be re-published"
+    assert entry["outbox_id"] in outbox.sent, "Duplicate entry should be marked sent"
 
 
 # ---------------------------------------------------------------------------

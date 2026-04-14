@@ -14,7 +14,10 @@ from sre_agent.observability.metrics import (
     LLM_QUEUE_DEPTH,
     LLM_QUEUE_WAIT,
     LLM_TOKENS_USED,
+    OUTBOX_DLQ_ROWS,
+    OUTBOX_PENDING_ROWS,
     SEVERITY_ASSIGNED,
+    VECTOR_FALLBACK_TRUNCATED,
     _current_alert_id,
 )
 
@@ -30,6 +33,9 @@ __all__ = [
     "LLM_QUEUE_DEPTH",
     "LLM_QUEUE_WAIT",
     "LLM_TOKENS_USED",
+    "OUTBOX_DLQ_ROWS",
+    "OUTBOX_PENDING_ROWS",
     "SEVERITY_ASSIGNED",
+    "VECTOR_FALLBACK_TRUNCATED",
     "_current_alert_id",
 ]

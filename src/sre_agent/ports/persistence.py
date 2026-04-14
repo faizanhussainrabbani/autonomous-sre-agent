@@ -4,6 +4,8 @@ Defines abstract interfaces for:
 - Incident lifecycle event storage and projection
 - Transactional outbox for reliable stream publication
 - Coordination audit trail for lock, cooldown, and override events
+- Diagnosis result persistence
+- Remediation action persistence
 
 Implements: Phase 4.0 Persistence Architecture Reconciliation
 """
@@ -318,8 +320,28 @@ class OutboxPort(ABC):
         ...
 
     @abstractmethod
+    async def mark_dlq(self, outbox_id: UUID, reason: str) -> None:
+        """Move an outbox entry to dead-letter state with a terminal reason."""
+        ...
+
+    @abstractmethod
     async def mark_failed(self, outbox_id: UUID) -> None:
         """Mark an outbox entry as failed after max retries."""
+        ...
+
+    @abstractmethod
+    async def is_event_processed(self, consumer: str, event_id: UUID) -> bool:
+        """Return whether this consumer has already processed the event."""
+        ...
+
+    @abstractmethod
+    async def mark_event_processed(self, consumer: str, event_id: UUID) -> bool:
+        """Record consumer-side event processing idempotently.
+
+        Returns:
+            True when a new processed_events row was inserted.
+            False when the event was already marked processed.
+        """
         ...
 
     @abstractmethod
@@ -375,5 +397,158 @@ class OutboxPort(ABC):
 
         Returns:
             The new retry_count value after incrementing.
+        """
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Diagnosis Store Port
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DiagnosisResultRecord:
+    """Persisted diagnosis result record."""
+
+    diagnosis_id: UUID
+    incident_id: UUID
+    diagnosis_summary: str
+    confidence_score: float
+    evidence_refs: list[dict[str, Any]]
+    generated_at: datetime
+    model_name: str
+
+
+class DiagnosisStorePort(ABC):
+    """Abstract interface for durable diagnosis result persistence.
+
+    Each diagnosis run produces one record linked to an incident.
+    """
+
+    @abstractmethod
+    async def save_diagnosis(self, record: DiagnosisResultRecord) -> None:
+        """Persist a diagnosis result.
+
+        Args:
+            record: The diagnosis result to persist.
+        """
+        ...
+
+    @abstractmethod
+    async def get_by_incident(
+        self,
+        incident_id: UUID,
+    ) -> list[DiagnosisResultRecord]:
+        """Retrieve all diagnoses for an incident, newest first.
+
+        Args:
+            incident_id: The incident to query.
+
+        Returns:
+            List of diagnosis records ordered by generated_at descending.
+        """
+        ...
+
+    @abstractmethod
+    async def get_by_id(self, diagnosis_id: UUID) -> DiagnosisResultRecord | None:
+        """Retrieve a single diagnosis by ID.
+
+        Args:
+            diagnosis_id: The diagnosis to query.
+
+        Returns:
+            The diagnosis record, or None if not found.
+        """
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Remediation Store Port
+# ---------------------------------------------------------------------------
+
+
+# DB-allowed status values per migration 001 CHECK constraint.
+REMEDIATION_DB_STATUSES = frozenset(
+    {"planned", "approved", "running", "completed", "failed", "rolled_back"}
+)
+
+
+@dataclass(frozen=True)
+class RemediationActionRecord:
+    """Persisted remediation action record."""
+
+    action_id: UUID
+    incident_id: UUID
+    action_type: str
+    action_status: str
+    approval_mode: str
+    requested_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    rollback_action_id: UUID | None = None
+    execution_result: dict[str, Any] | None = None
+
+
+class RemediationStorePort(ABC):
+    """Abstract interface for durable remediation action persistence.
+
+    Tracks remediation actions through their lifecycle: planned → approved →
+    running → completed/failed/rolled_back.
+    """
+
+    @abstractmethod
+    async def save_action(self, record: RemediationActionRecord) -> None:
+        """Persist a new remediation action.
+
+        Args:
+            record: The remediation action to persist.
+        """
+        ...
+
+    @abstractmethod
+    async def update_status(
+        self,
+        action_id: UUID,
+        status: str,
+        *,
+        started_at: datetime | None = None,
+        completed_at: datetime | None = None,
+        execution_result: dict[str, Any] | None = None,
+    ) -> None:
+        """Update the status and optional fields of a remediation action.
+
+        Args:
+            action_id: The action to update.
+            status: New status value (must be in REMEDIATION_DB_STATUSES).
+            started_at: Optional execution start timestamp.
+            completed_at: Optional execution end timestamp.
+            execution_result: Optional structured execution outcome.
+        """
+        ...
+
+    @abstractmethod
+    async def get_by_incident(
+        self,
+        incident_id: UUID,
+    ) -> list[RemediationActionRecord]:
+        """Retrieve all actions for an incident, newest first.
+
+        Args:
+            incident_id: The incident to query.
+
+        Returns:
+            List of action records ordered by requested_at descending.
+        """
+        ...
+
+    @abstractmethod
+    async def get_by_id(self, action_id: UUID) -> RemediationActionRecord | None:
+        """Retrieve a single remediation action by ID.
+
+        Args:
+            action_id: The action to query.
+
+        Returns:
+            The action record, or None if not found.
         """
         ...

@@ -79,7 +79,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
     if not _FASTAPI_AVAILABLE:
         raise ImportError(
             "FastAPI is required to run the SRE Agent API. "
-            "Install it with: pip install 'sre-agent[api]'"
+            "Install it with: pip install fastapi"
         )
 
     from collections.abc import AsyncGenerator
@@ -94,33 +94,86 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
     async def lifespan(_app: Any) -> AsyncGenerator[None, None]:
         """Manage startup and shutdown of background services.
 
-        TODO(phase-2): Wire OutboxRelay and RedisStreamsEventBus reader loops here.
-        When the persistence layer is active, replace this stub with:
+        Bootstraps the persistence layer (asyncpg pool, PostgresIncidentStore,
+        PostgresOutboxStore) and wires the OutboxRelay when persistence is
+        enabled.  Falls back gracefully when the DB is unavailable so the
+        process can still serve requests from in-memory state.
 
-            import anyio
-            from sre_agent.adapters.bootstrap import bootstrap_event_bus
-            from sre_agent.adapters.persistence.outbox_relay import OutboxRelay
-            from sre_agent.adapters.persistence.postgres_outbox import PostgresOutbox
-            from sre_agent.config.settings import load_config
-
-            config = load_config()
-            event_bus = bootstrap_event_bus(config)
-            outbox = PostgresOutbox(pool=...)   # inject from bootstrap
-
-            async with anyio.create_task_group() as tg:
-                await event_bus.start(tg)       # starts Redis reader loops (F3/F4 fix)
-                tg.start_soon(relay.run)        # starts outbox drain loop
-                yield                           # FastAPI serves requests inside this scope
-                relay.stop()                    # graceful shutdown on exit
-
-        NOTE: The outbox table accumulates pending rows on every save_event() call.
-        These rows will be processed in bulk when the relay is first enabled —
-        ensure migration 004 has been applied and test with a bounded batch_size
-        before enabling in production.
+        Components stored on app.state for injection into route handlers:
+          - pool            asyncpg.Pool | None
+          - incident_store  PostgresIncidentStore | None
+          - outbox_store    PostgresOutboxStore | None
+          - event_bus       EventBus (InMemoryEventBus or RedisStreamsEventBus)
         """
-        _log.info("sre_agent.startup", phase="1.5")
-        yield
-        _log.info("sre_agent.shutdown")
+        from pathlib import Path as _Path
+
+        from sre_agent.adapters.bootstrap import (
+            bootstrap_asyncpg_pool,
+            bootstrap_diagnosis_store,
+            bootstrap_event_bus,
+            bootstrap_incident_store,
+            bootstrap_outbox_store,
+            bootstrap_remediation_store,
+        )
+        from sre_agent.config.settings import AgentConfig
+
+        _config_path = _Path(__file__).resolve().parents[3] / "config" / "agent.yaml"
+        try:
+            config = (
+                AgentConfig.from_yaml(_config_path)
+                if _config_path.exists()
+                else AgentConfig()
+            )
+        except Exception as _exc:  # noqa: BLE001
+            _log.warning("sre_agent.config_load_failed", error=str(_exc), fallback="defaults")
+            config = AgentConfig()
+
+        pool = await bootstrap_asyncpg_pool(config)
+        incident_store = bootstrap_incident_store(pool)
+        outbox_store = bootstrap_outbox_store(pool)
+        diagnosis_store = bootstrap_diagnosis_store(pool)
+        remediation_store = bootstrap_remediation_store(pool)
+        event_bus = bootstrap_event_bus(config)
+
+        _app.state.pool = pool
+        _app.state.incident_store = incident_store
+        _app.state.outbox_store = outbox_store
+        _app.state.diagnosis_store = diagnosis_store
+        _app.state.remediation_store = remediation_store
+        _app.state.event_bus = event_bus
+
+        _log.info(
+            "sre_agent.startup",
+            phase="1.5",
+            persistence=pool is not None,
+            diagnosis_store=diagnosis_store is not None,
+            remediation_store=remediation_store is not None,
+            event_bus=type(event_bus).__name__,
+        )
+
+        if pool is not None and outbox_store is not None:
+            import anyio
+
+            from sre_agent.adapters.persistence.outbox_relay import OutboxRelay
+
+            relay = OutboxRelay(
+                outbox=outbox_store,
+                event_bus=event_bus,
+                poll_interval_s=config.outbox.poll_interval_s,
+                max_retries=config.outbox.max_retries,
+                batch_size=config.outbox.batch_size,
+            )
+            try:
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(relay.run)
+                    yield
+                    relay.stop()
+            finally:
+                await pool.close()
+                _log.info("sre_agent.shutdown", pool_closed=True)
+        else:
+            yield
+            _log.info("sre_agent.shutdown", pool_closed=False)
 
     app = FastAPI(
         title="Autonomous SRE Agent",

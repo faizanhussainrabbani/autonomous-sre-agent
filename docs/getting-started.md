@@ -30,10 +30,14 @@ Use this guide as the default first-run path. It covers prerequisites, setup, en
 bash scripts/dev/run.sh setup
 ```
 
-3. Create environment file
+3. Create or update environment file
 
 ```bash
-cp .env.example .env
+# .env is expected at repository root.
+# Add required keys before running demos/integration flows:
+#   LOCALSTACK_AUTH_TOKEN=<LOCALSTACK_AUTH_TOKEN>
+#   OPENAI_API_KEY=<OPENAI_API_KEY>  # or ANTHROPIC_API_KEY
+#   AWS_DEFAULT_REGION=us-east-1
 ```
 
 4. Start local dependencies for integration and demo flows
@@ -48,7 +52,12 @@ Minimum baseline variables:
 
 * `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 * `AWS_DEFAULT_REGION` for AWS-backed demos
-* Additional values from `.env.example`
+* `LOCALSTACK_AUTH_TOKEN` for dependency startup and integration tests
+
+Local dependency endpoints started by `bash scripts/dev/setup_deps.sh start`:
+
+* PostgreSQL DSN: `postgresql://sre_agent:sre_agent@localhost:5432/sre_agent`
+* Redis URL: `redis://localhost:6379/0`
 
 For dependency and provider details, see [External dependencies](operations/external_dependencies.md).
 
