@@ -392,3 +392,41 @@ async def test_update_projection_new_incident_uses_caller_provider(fake_pool: Fa
     assert compute_arg == "SERVERLESS", f"Expected 'SERVERLESS' compute, got '{compute_arg}'"
     # Provider must not be 'unknown' — that violates the DB CHECK constraint
     assert provider_arg != "unknown", "Provider must not be 'unknown' (violates DB constraint)"
+
+
+async def test_update_projection_raises_stale_projection_error_on_version_mismatch(
+    fake_pool: FakePool,
+) -> None:
+    """update_projection must raise when the optimistic version check rejects the write."""
+    from sre_agent.ports.persistence import StaleProjectionError
+
+    store = PostgresIncidentStore(pool=fake_pool)
+    incident_id = uuid4()
+
+    fake_pool.conn.queue_fetchrow(
+        {
+            "incident_id": incident_id,
+            "service": "checkout",
+            "severity": "high",
+            "status": "open",
+            "opened_at": datetime.now(tz=UTC),
+            "updated_at": datetime.now(tz=UTC),
+            "closed_at": None,
+            "latest_event_id": uuid4(),
+            "provider": _PROVIDER,
+            "compute_mechanism": _MECHANISM,
+            "resource_id": _RESOURCE,
+            "version": 7,
+        }
+    )
+    fake_pool.conn.queue_fetchrow(None)
+
+    with pytest.raises(StaleProjectionError):
+        await store.update_projection(
+            incident_id=incident_id,
+            status="investigating",
+            latest_event_id=uuid4(),
+            provider=_PROVIDER,
+            compute_mechanism=_MECHANISM,
+            resource_id=_RESOURCE,
+        )

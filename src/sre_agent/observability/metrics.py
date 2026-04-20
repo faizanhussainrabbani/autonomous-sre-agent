@@ -167,6 +167,39 @@ OUTBOX_DLQ_ROWS: Gauge = _get_or_create(
     "Current number of outbox rows in dead-letter state.",
 )
 
+# Per-statement PostgreSQL latency across persistence adapters.
+DB_QUERY_DURATION: Histogram = _get_or_create(
+    Histogram,
+    "sre_agent_db_query_duration_seconds",
+    "PostgreSQL statement latency by adapter and operation.",
+    labelnames=["adapter", "operation", "statement_type"],
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
+)
+
+# Active in-use connections in the asyncpg pool.
+DB_POOL_ACTIVE_CONNECTIONS: Gauge = _get_or_create(
+    Gauge,
+    "sre_agent_db_pool_active_connections",
+    "Current active PostgreSQL pool connections by adapter.",
+    labelnames=["adapter"],
+)
+
+# Backlog depth (approximate lag) for Redis stream consumer groups.
+REDIS_STREAM_LAG: Gauge = _get_or_create(
+    Gauge,
+    "sre_agent_redis_stream_lag",
+    "Pending Redis stream entries by stream and consumer group.",
+    labelnames=["stream", "group"],
+)
+
+# Vector mode gauge exported as one-hot labels per collection.
+VECTOR_MODE: Gauge = _get_or_create(
+    Gauge,
+    "sre_agent_vector_mode",
+    "Vector mode per collection where pgvector=1 and jsonb=0 (or inverse).",
+    labelnames=["collection", "mode"],
+)
+
 # ---------------------------------------------------------------------------
 # Embedding metrics (OBS-001)
 # ---------------------------------------------------------------------------
@@ -201,6 +234,8 @@ CIRCUIT_BREAKER_STATE: Gauge = _get_or_create(
 
 __all__ = [
     "CIRCUIT_BREAKER_STATE",
+    "DB_POOL_ACTIVE_CONNECTIONS",
+    "DB_QUERY_DURATION",
     "DIAGNOSIS_DURATION",
     "DIAGNOSIS_ERRORS",
     "EMBEDDING_COLD_START",
@@ -213,7 +248,9 @@ __all__ = [
     "LLM_TOKENS_USED",
     "OUTBOX_DLQ_ROWS",
     "OUTBOX_PENDING_ROWS",
+    "REDIS_STREAM_LAG",
     "SEVERITY_ASSIGNED",
     "VECTOR_FALLBACK_TRUNCATED",
+    "VECTOR_MODE",
     "_current_alert_id",
 ]

@@ -480,3 +480,78 @@ def test_bootstrap_lock_manager_etcd_falls_back_to_in_memory(monkeypatch):
     lock_manager = bootstrap_lock_manager(config)
 
     assert isinstance(lock_manager, InMemoryDistributedLockManager)
+
+
+def test_bootstrap_reasoning_trace_store_respects_env_flag(monkeypatch):
+    from sre_agent.adapters.bootstrap import bootstrap_reasoning_trace_store
+
+    monkeypatch.setenv("SRE_AGENT_REASONING_TRACE_ENABLED", "false")
+    assert bootstrap_reasoning_trace_store(pool=object()) is None
+
+
+def test_bootstrap_reasoning_trace_store_enabled(monkeypatch):
+    from sre_agent.adapters.bootstrap import bootstrap_reasoning_trace_store
+
+    class _FakeReasoningTraceStore:
+        def __init__(self, pool):
+            self.pool = pool
+
+    module = types.ModuleType("sre_agent.adapters.persistence.reasoning_trace_store")
+    module.PostgresReasoningTraceStore = _FakeReasoningTraceStore
+    monkeypatch.setitem(sys.modules, "sre_agent.adapters.persistence.reasoning_trace_store", module)
+
+    monkeypatch.setenv("SRE_AGENT_REASONING_TRACE_ENABLED", "true")
+    marker_pool = object()
+    store = bootstrap_reasoning_trace_store(pool=marker_pool)
+
+    assert isinstance(store, _FakeReasoningTraceStore)
+    assert store.pool is marker_pool
+
+
+def test_bootstrap_retention_executor_disabled_when_config_off():
+    from sre_agent.adapters.bootstrap import bootstrap_retention_executor
+
+    config = AgentConfig.from_dict({"retention": {"enabled": False}})
+    assert bootstrap_retention_executor(pool=object(), config=config) is None
+
+
+def test_bootstrap_retention_executor_enabled(monkeypatch):
+    from sre_agent.adapters.bootstrap import bootstrap_retention_executor
+
+    class _FakeRetentionExecutor:
+        def __init__(
+            self,
+            pool,
+            *,
+            poll_interval_s: float,
+            processed_events_retention_days: int,
+            baseline_snapshots_retention_days: int,
+        ):
+            self.pool = pool
+            self.poll_interval_s = poll_interval_s
+            self.processed_events_retention_days = processed_events_retention_days
+            self.baseline_snapshots_retention_days = baseline_snapshots_retention_days
+
+    module = types.ModuleType("sre_agent.adapters.persistence.retention_executor")
+    module.RetentionExecutor = _FakeRetentionExecutor
+    monkeypatch.setitem(sys.modules, "sre_agent.adapters.persistence.retention_executor", module)
+
+    config = AgentConfig.from_dict(
+        {
+            "retention": {
+                "enabled": True,
+                "poll_interval_s": 30,
+                "processed_events_retention_days": 10,
+                "baseline_snapshots_retention_days": 20,
+            }
+        }
+    )
+    marker_pool = object()
+
+    executor = bootstrap_retention_executor(pool=marker_pool, config=config)
+
+    assert isinstance(executor, _FakeRetentionExecutor)
+    assert executor.pool is marker_pool
+    assert executor.poll_interval_s == 30
+    assert executor.processed_events_retention_days == 10
+    assert executor.baseline_snapshots_retention_days == 20

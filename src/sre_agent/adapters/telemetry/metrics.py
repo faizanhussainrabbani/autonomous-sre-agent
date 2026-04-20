@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from sre_agent.observability.metrics import (
     CIRCUIT_BREAKER_STATE,
+    DB_POOL_ACTIVE_CONNECTIONS,
+    DB_QUERY_DURATION,
     DIAGNOSIS_DURATION,
     DIAGNOSIS_ERRORS,
     EMBEDDING_COLD_START,
@@ -16,13 +18,17 @@ from sre_agent.observability.metrics import (
     LLM_TOKENS_USED,
     OUTBOX_DLQ_ROWS,
     OUTBOX_PENDING_ROWS,
+    REDIS_STREAM_LAG,
     SEVERITY_ASSIGNED,
     VECTOR_FALLBACK_TRUNCATED,
+    VECTOR_MODE,
     _current_alert_id,
 )
 
 __all__ = [
     "CIRCUIT_BREAKER_STATE",
+    "DB_POOL_ACTIVE_CONNECTIONS",
+    "DB_QUERY_DURATION",
     "DIAGNOSIS_DURATION",
     "DIAGNOSIS_ERRORS",
     "EMBEDDING_COLD_START",
@@ -35,7 +41,9 @@ __all__ = [
     "LLM_TOKENS_USED",
     "OUTBOX_DLQ_ROWS",
     "OUTBOX_PENDING_ROWS",
+    "REDIS_STREAM_LAG",
     "SEVERITY_ASSIGNED",
     "VECTOR_FALLBACK_TRUNCATED",
+    "VECTOR_MODE",
     "_current_alert_id",
 ]

@@ -126,15 +126,31 @@ def test_request_id_different_per_call(client):
 # ---------------------------------------------------------------------------
 
 
-def test_middleware_emits_request_log_events(client, capsys):
+def test_middleware_emits_request_log_events(monkeypatch):
     """request_received and request_completed events are emitted by the middleware."""
-    client.get("/health")
-    captured = capsys.readouterr()
-    # structlog emits to stdout in test env
-    combined = captured.out + captured.err
-    assert "request_received" in combined, (
-        f"'request_received' not found in stdout/stderr:\n{combined}"
+    import structlog
+
+    from sre_agent.api.main import create_app
+
+    emitted_events: list[str] = []
+
+    class _FakeLogger:
+        def info(self, event: str, **_kwargs) -> None:
+            emitted_events.append(event)
+
+    monkeypatch.setattr(
+        structlog,
+        "get_logger",
+        lambda *_args, **_kwargs: _FakeLogger(),
     )
-    assert "request_completed" in combined, (
-        f"'request_completed' not found in stdout/stderr:\n{combined}"
+
+    app = create_app()
+    local_client = TestClient(app, raise_server_exceptions=False)
+    local_client.get("/health")
+
+    assert "request_received" in emitted_events, (
+        f"'request_received' not found in emitted events: {emitted_events}"
+    )
+    assert "request_completed" in emitted_events, (
+        f"'request_completed' not found in emitted events: {emitted_events}"
     )

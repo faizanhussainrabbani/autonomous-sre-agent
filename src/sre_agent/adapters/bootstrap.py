@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         DiagnosisStorePort,
         IncidentStorePort,
         OutboxPort,
+        ReasoningTracePort,
         RemediationStorePort,
     )
     from sre_agent.ports.telemetry import eBPFQuery
@@ -463,6 +464,34 @@ def bootstrap_diagnosis_store(pool: object | None) -> DiagnosisStorePort | None:
     return PostgresDiagnosisStore(pool=pool)
 
 
+def bootstrap_reasoning_trace_store(pool: object | None) -> ReasoningTracePort | None:
+    """Bootstrap the PostgreSQL reasoning trace store.
+
+    Gated behind environment flag ``SRE_AGENT_REASONING_TRACE_ENABLED`` so
+    writes can be enabled gradually after back-pressure validation.
+    """
+    if pool is None:
+        logger.info("reasoning_trace_store_disabled", reason="no database pool")
+        return None
+
+    enabled = os.getenv("SRE_AGENT_REASONING_TRACE_ENABLED", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if not enabled:
+        logger.info("reasoning_trace_store_disabled", reason="feature flag off")
+        return None
+
+    from sre_agent.adapters.persistence.reasoning_trace_store import (
+        PostgresReasoningTraceStore,
+    )
+
+    logger.info("reasoning_trace_store_bootstrapped")
+    return PostgresReasoningTraceStore(pool=pool)
+
+
 def bootstrap_remediation_store(pool: object | None) -> RemediationStorePort | None:
     """Bootstrap the PostgreSQL remediation action store.
 
@@ -480,6 +509,36 @@ def bootstrap_remediation_store(pool: object | None) -> RemediationStorePort | N
 
     logger.info("remediation_store_bootstrapped")
     return PostgresRemediationStore(pool=pool)
+
+
+def bootstrap_retention_executor(
+    pool: object | None,
+    config: AgentConfig,
+) -> object | None:
+    """Bootstrap retention executor when enabled in configuration."""
+    if pool is None:
+        logger.info("retention_executor_disabled", reason="no database pool")
+        return None
+
+    if not config.retention.enabled:
+        logger.info("retention_executor_disabled", reason="config disabled")
+        return None
+
+    from sre_agent.adapters.persistence.retention_executor import RetentionExecutor
+
+    executor = RetentionExecutor(
+        pool=pool,
+        poll_interval_s=config.retention.poll_interval_s,
+        processed_events_retention_days=config.retention.processed_events_retention_days,
+        baseline_snapshots_retention_days=config.retention.baseline_snapshots_retention_days,
+    )
+    logger.info(
+        "retention_executor_bootstrapped",
+        poll_interval_s=config.retention.poll_interval_s,
+        processed_events_days=config.retention.processed_events_retention_days,
+        baseline_snapshots_days=config.retention.baseline_snapshots_retention_days,
+    )
+    return executor
 
 
 def bootstrap_event_bus(config: AgentConfig) -> EventBus:

@@ -28,7 +28,7 @@ _COMPUTE_TO_PERSISTENCE: dict[str, tuple[str, str]] = {
 _pipeline: RAGDiagnosticPipeline | None = None
 
 
-def get_pipeline() -> RAGDiagnosticPipeline:
+def get_pipeline(request: Request | None = None) -> RAGDiagnosticPipeline:
     """Return the singleton RAGDiagnosticPipeline, creating it on first call.
 
     Uses ``create_diagnostic_pipeline()`` from the intelligence bootstrap so
@@ -37,13 +37,21 @@ def get_pipeline() -> RAGDiagnosticPipeline:
     made in one authoritative place rather than duplicated here.
     """
     global _pipeline
+
+    trace_store = None
+    if request is not None:
+        trace_store = getattr(request.app.state, "reasoning_trace_store", None)
+
     if _pipeline is None:
         try:
             from sre_agent.adapters.intelligence_bootstrap import (
                 create_diagnostic_pipeline,
             )
 
-            _pipeline = create_diagnostic_pipeline()
+            if trace_store is not None:
+                _pipeline = create_diagnostic_pipeline(reasoning_trace_store=trace_store)
+            else:
+                _pipeline = create_diagnostic_pipeline()
             logger.info(
                 "pipeline_initialised",
                 provider="bootstrap",
@@ -58,7 +66,15 @@ def get_pipeline() -> RAGDiagnosticPipeline:
                 status_code=500,
                 detail=f"Intelligence Layer failed to initialise: {exc}",
             ) from exc
+    elif trace_store is not None and getattr(_pipeline, "_reasoning_trace_store", None) is None:
+        _pipeline._reasoning_trace_store = trace_store
+
     return _pipeline
+
+
+def _get_pipeline_dependency(request: Request) -> RAGDiagnosticPipeline:
+    """FastAPI dependency wrapper with concrete Request type."""
+    return get_pipeline(request)
 
 
 class DiagnoseRequestPayload(BaseModel):
@@ -71,7 +87,7 @@ class IngestRequestPayload(BaseModel):
     metadata: dict[str, Any] = {}
 
 
-PipelineDep = Annotated[RAGDiagnosticPipeline, Depends(get_pipeline)]
+PipelineDep = Annotated[RAGDiagnosticPipeline, Depends(_get_pipeline_dependency)]
 
 
 def _get_incident_store(request: Request) -> Any:
@@ -146,7 +162,11 @@ async def trigger_diagnosis(
         from datetime import UTC, datetime
         from uuid import uuid4
 
-        from sre_agent.ports.persistence import DuplicateEventError, IncidentEventRecord
+        from sre_agent.ports.persistence import (
+            DuplicateEventError,
+            IncidentEventRecord,
+            StaleProjectionError,
+        )
 
         alert = payload.alert
         cm_value = (
@@ -197,6 +217,12 @@ async def trigger_diagnosis(
             logger.info(
                 "incident_store.diagnosis_duplicate_skipped",
                 alert_id=str(alert.alert_id),
+            )
+        except StaleProjectionError as exc:
+            logger.info(
+                "incident_store.projection_stale",
+                alert_id=str(alert.alert_id),
+                error=str(exc),
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(

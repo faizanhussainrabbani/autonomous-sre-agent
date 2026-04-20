@@ -185,6 +185,19 @@ async def test_store_batch_returns_count() -> None:
     assert count == 3
 
 
+async def test_store_batch_uses_executemany() -> None:
+    """store_batch() should use a bulk database call rather than N+1 writes."""
+    docs = [_make_doc() for _ in range(2)]
+
+    pool = _pgvector_pool(has_extension=True)
+    adapter = PgVectorStoreAdapter(pool=pool, embedding_dim=4)
+
+    await adapter.store_batch(docs)
+
+    assert pool.conn.executemany_calls, "Expected executemany bulk insert"
+    assert len(pool.conn.executemany_calls[0][1]) == 2
+
+
 async def test_store_batch_empty_returns_zero() -> None:
     """store_batch([]) must return 0 without touching the DB (AC-5.3)."""
     pool = FakePool()
@@ -377,9 +390,7 @@ async def test_search_respects_min_score() -> None:
 async def test_delete_returns_true_when_found() -> None:
     """delete() returns True when document exists and was removed (AC-5.6)."""
     pool = FakePool()
-    embedding_id = uuid4()
-    pool.conn.queue_fetchrow({"embedding_id": embedding_id})
-    pool.conn.queue_fetch([{"embedding_id": embedding_id}])
+    pool.conn.queue_fetchrow({"embedding_id": uuid4()})
 
     adapter = PgVectorStoreAdapter(pool=pool)
     result = await adapter.delete("doc-123")

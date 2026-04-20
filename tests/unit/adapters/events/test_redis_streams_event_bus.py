@@ -427,3 +427,54 @@ async def test_dispatch_preserves_timestamp_from_stream(
     assert ts.year == 2026
     assert ts.month == 1
     assert ts.day == 15
+
+
+def test_extract_pending_count_supports_multiple_xpending_shapes(
+    bus: RedisStreamsEventBus,
+) -> None:
+    """_extract_pending_count should handle dict and tuple return variants."""
+    assert bus._extract_pending_count({"pending": 12}) == 12.0
+    assert bus._extract_pending_count((9, "1-0", "2-0", [])) == 9.0
+    assert bus._extract_pending_count(4) == 4.0
+    assert bus._extract_pending_count({"pending": "not-a-number"}) == 0.0
+
+
+async def test_observe_stream_lag_sets_metric(
+    bus: RedisStreamsEventBus,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_observe_stream_lag should set REDIS_STREAM_LAG with stream/group labels."""
+
+    class _PendingRedis:
+        async def xpending(self, stream_key: str, group: str) -> dict[str, int]:
+            assert stream_key == "test:events:test.event"
+            assert group == "test-group"
+            return {"pending": 7}
+
+    class _Labels:
+        def __init__(self) -> None:
+            self.value: float | None = None
+
+        def set(self, value: float) -> None:
+            self.value = value
+
+    class _Metric:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, str]] = []
+            self.labels_obj = _Labels()
+
+        def labels(self, *, stream: str, group: str) -> _Labels:
+            self.calls.append({"stream": stream, "group": group})
+            return self.labels_obj
+
+    metric = _Metric()
+    monkeypatch.setattr(
+        "sre_agent.adapters.events.redis_streams_event_bus.REDIS_STREAM_LAG",
+        metric,
+    )
+    bus._redis = _PendingRedis()
+
+    await bus._observe_stream_lag("test:events:test.event")
+
+    assert metric.calls == [{"stream": "test:events:test.event", "group": "test-group"}]
+    assert metric.labels_obj.value == 7.0

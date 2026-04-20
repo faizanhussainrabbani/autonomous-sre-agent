@@ -21,17 +21,20 @@ Implements: IncidentStorePort (src/sre_agent/ports/persistence.py)
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
 
+from sre_agent.observability.metrics import DB_POOL_ACTIVE_CONNECTIONS, DB_QUERY_DURATION
 from sre_agent.ports.persistence import (
     DuplicateEventError,
     IncidentEventRecord,
     IncidentRecord,
     IncidentStorePort,
+    StaleProjectionError,
 )
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -63,31 +66,66 @@ ORDER BY occurred_at ASC
 
 _SELECT_INCIDENT = """
 SELECT incident_id, service, severity, status, opened_at, updated_at,
-       closed_at, latest_event_id, provider, compute_mechanism, resource_id
+             closed_at, latest_event_id, provider, compute_mechanism, resource_id, version
 FROM incidents
 WHERE incident_id = $1
 """
 
-_UPSERT_PROJECTION = """
+_INSERT_PROJECTION = """
 INSERT INTO incidents
     (incident_id, service, severity, status, opened_at, updated_at,
      closed_at, latest_event_id, provider, compute_mechanism, resource_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-ON CONFLICT (incident_id) DO UPDATE SET
-    status          = EXCLUDED.status,
-    latest_event_id = EXCLUDED.latest_event_id,
-    updated_at      = EXCLUDED.updated_at,
-    closed_at       = EXCLUDED.closed_at,
-    severity        = CASE
-                        WHEN EXCLUDED.severity IS NOT NULL THEN EXCLUDED.severity
-                        ELSE incidents.severity
-                      END
+ON CONFLICT (incident_id) DO NOTHING
+"""
+
+_UPDATE_PROJECTION_WITH_VERSION = """
+UPDATE incidents
+SET status          = $2,
+        latest_event_id = $3,
+        updated_at      = $4,
+        closed_at       = $5,
+        severity        = CASE
+                                                WHEN $6::text IS NOT NULL THEN $6
+                                                ELSE incidents.severity
+                                            END,
+        version         = incidents.version + 1
+WHERE incident_id = $1
+    AND version = $7
+RETURNING version
 """
 
 _CLOSED_STATUSES = frozenset({"resolved", "closed"})
 
 # Topic written to the outbox for incident lifecycle events
 _INCIDENT_EVENTS_TOPIC = "incident.events"
+
+_DB_ADAPTER_LABEL = "postgres_incident_store"
+
+
+def _observe_db_query(operation: str, statement_type: str, started_at: float) -> None:
+    """Observe SQL statement latency for persistence adapters."""
+    elapsed = max(0.0, time.monotonic() - started_at)
+    DB_QUERY_DURATION.labels(
+        adapter=_DB_ADAPTER_LABEL,
+        operation=operation,
+        statement_type=statement_type,
+    ).observe(elapsed)
+
+
+def _observe_pool_active(pool: Any) -> None:
+    """Set DB_POOL_ACTIVE_CONNECTIONS when pool introspection is available."""
+    get_size = getattr(pool, "get_size", None)
+    get_idle_size = getattr(pool, "get_idle_size", None)
+    if not callable(get_size) or not callable(get_idle_size):
+        return
+
+    try:
+        active = max(int(get_size()) - int(get_idle_size()), 0)
+    except Exception:  # noqa: BLE001
+        return
+
+    DB_POOL_ACTIVE_CONNECTIONS.labels(adapter=_DB_ADAPTER_LABEL).set(active)
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +187,8 @@ class PostgresIncidentStore(IncidentStorePort):
 
         try:
             async with self._pool.acquire() as conn, conn.transaction():
+                _observe_pool_active(self._pool)
+                started = time.monotonic()
                 await conn.execute(
                     _INSERT_EVENT,
                     event.event_id,
@@ -162,6 +202,9 @@ class PostgresIncidentStore(IncidentStorePort):
                     event.idempotency_key,
                     event.correlation_key,
                 )
+                _observe_db_query("save_event.insert_event", "insert", started)
+
+                started = time.monotonic()
                 await conn.execute(
                     _INSERT_OUTBOX,
                     outbox_id,
@@ -170,6 +213,7 @@ class PostgresIncidentStore(IncidentStorePort):
                     outbox_payload,
                     now,
                 )
+                _observe_db_query("save_event.insert_outbox", "insert", started)
         except Exception as exc:  # noqa: BLE001
             # Detect asyncpg UniqueViolationError by string match to avoid
             # importing asyncpg.exceptions at module level (optional dependency).
@@ -218,7 +262,10 @@ class PostgresIncidentStore(IncidentStorePort):
             List of events ordered by occurred_at ascending.
         """
         async with self._pool.acquire() as conn:
+            _observe_pool_active(self._pool)
+            started = time.monotonic()
             rows = await conn.fetch(_SELECT_EVENTS_BY_INCIDENT, incident_id)
+            _observe_db_query("get_events_by_incident.select", "select", started)
 
         events = [
             IncidentEventRecord(
@@ -259,7 +306,10 @@ class PostgresIncidentStore(IncidentStorePort):
             The incident record, or None if not found.
         """
         async with self._pool.acquire() as conn:
+            _observe_pool_active(self._pool)
+            started = time.monotonic()
             row = await conn.fetchrow(_SELECT_INCIDENT, incident_id)
+            _observe_db_query("get_incident.select", "select", started)
 
         if row is None:
             logger.debug(
@@ -308,38 +358,68 @@ class PostgresIncidentStore(IncidentStorePort):
                 'VIRTUAL_MACHINE', 'CONTAINER_INSTANCE').
             resource_id: Canonical resource identifier.
             severity: Optional severity update (kept if None).
+
+        Raises:
+            StaleProjectionError: If another writer updated this incident first.
         """
         now = datetime.now(tz=UTC)
         closed_at = now if status in _CLOSED_STATUSES else None
 
-        # Fetch existing to preserve immutable fields (service, opened_at)
-        # on the UPDATE path. For the INSERT path, caller-supplied values are used.
-        async with self._pool.acquire() as conn:
+        # Run read-then-write in one explicit transaction and guard UPDATE with
+        # an optimistic concurrency check on incidents.version.
+        async with self._pool.acquire() as conn, conn.transaction():
+            _observe_pool_active(self._pool)
+            started = time.monotonic()
             existing = await conn.fetchrow(_SELECT_INCIDENT, incident_id)
+            _observe_db_query("update_projection.select", "select", started)
 
-            service = existing["service"] if existing else "unknown"
-            effective_severity = severity or (existing["severity"] if existing else "unknown")
-            opened_at = existing["opened_at"] if existing else now
-            # On UPDATE: prefer existing provider/compute/resource (immutable);
-            # on INSERT: caller must supply valid constrained values.
-            effective_provider = (existing["provider"] if existing else provider)
-            effective_compute = (existing["compute_mechanism"] if existing else compute_mechanism)
-            effective_resource = (existing["resource_id"] if existing else resource_id)
+            if existing is None:
+                insert_severity = severity or "unknown"
+                started = time.monotonic()
+                insert_result = await conn.execute(
+                    _INSERT_PROJECTION,
+                    incident_id,
+                    "unknown",
+                    insert_severity,
+                    status,
+                    now,
+                    now,
+                    closed_at,
+                    latest_event_id,
+                    provider,
+                    compute_mechanism,
+                    resource_id,
+                )
+                _observe_db_query("update_projection.insert", "insert", started)
 
-            await conn.execute(
-                _UPSERT_PROJECTION,
-                incident_id,
-                service,
-                effective_severity,
-                status,
-                opened_at,
-                now,
-                closed_at,
-                latest_event_id,
-                effective_provider,
-                effective_compute,
-                effective_resource,
-            )
+                if insert_result == "INSERT 0 0":
+                    raise StaleProjectionError(
+                        f"Projection insert for incident {incident_id} lost concurrency race"
+                    )
+
+                new_version = 0
+            else:
+                expected_version = int(existing["version"])
+                started = time.monotonic()
+                updated = await conn.fetchrow(
+                    _UPDATE_PROJECTION_WITH_VERSION,
+                    incident_id,
+                    status,
+                    latest_event_id,
+                    now,
+                    closed_at,
+                    severity,
+                    expected_version,
+                )
+                _observe_db_query("update_projection.update", "update", started)
+
+                if updated is None:
+                    raise StaleProjectionError(
+                        f"Projection update for incident {incident_id} rejected: "
+                        f"expected version {expected_version}"
+                    )
+
+                new_version = int(updated["version"])
 
         logger.info(
             "incident_store.projection_updated",
@@ -347,4 +427,5 @@ class PostgresIncidentStore(IncidentStorePort):
             status=status,
             latest_event_id=str(latest_event_id),
             closed=closed_at is not None,
+            version=new_version,
         )

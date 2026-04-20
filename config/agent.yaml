@@ -70,6 +70,13 @@ persistence:
 #   backend: in_memory          # in_memory | redis_streams
 #   redis_url: "redis://localhost:6379/0"
 
+# Optional retention executor (app-level cleanup for dedup/snapshot tables)
+# retention:
+#   enabled: false
+#   poll_interval_s: 3600
+#   processed_events_retention_days: 30
+#   baseline_snapshots_retention_days: 90
+
 # Anomaly detection thresholds
 detection:
   latency_sigma_threshold: 3.0

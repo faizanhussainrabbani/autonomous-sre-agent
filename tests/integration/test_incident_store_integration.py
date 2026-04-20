@@ -86,6 +86,8 @@ _MIGRATION_FILES = [
     "003_coordination_audit.sql",
     "004_relay_vector_fixes.sql",
     "005_postgres_schema_reconciliation.sql",
+    "006_schema_improvements.sql",
+    "007_partition_readiness_and_status_fidelity.sql",
 ]
 
 
@@ -379,6 +381,70 @@ async def test_migration_005_creates_processed_events_and_dlq_contract(
     assert status_constraint is not None
     assert "'dlq'" in status_constraint
     assert [row["column_name"] for row in dlq_columns] == ["dlq_at", "dlq_reason"]
+
+
+async def test_migration_006_processed_events_fk_is_restrict(pg_pool: asyncpg.Pool) -> None:
+    """processed_events FK must prevent event deletion that would drop dedup markers."""
+    async with pg_pool.acquire() as conn:
+        delete_rule = await conn.fetchval(
+            """
+            SELECT rc.delete_rule
+            FROM information_schema.referential_constraints rc
+            WHERE rc.constraint_schema = 'public'
+              AND rc.constraint_name = 'fk_processed_events_event'
+            """
+        )
+
+    assert delete_rule == "RESTRICT"
+
+
+async def test_migration_007_expands_remediation_status_contract(
+    pg_pool: asyncpg.Pool,
+) -> None:
+    """remediation_actions status CHECK must include executing/verifying/cancelled."""
+    async with pg_pool.acquire() as conn:
+        status_constraint = await conn.fetchval(
+            """
+            SELECT pg_get_constraintdef(c.oid)
+            FROM pg_constraint c
+            WHERE c.conname = 'chk_action_status'
+              AND c.conrelid = 'remediation_actions'::regclass
+            """
+        )
+
+    assert status_constraint is not None
+    assert "'executing'" in status_constraint
+    assert "'verifying'" in status_constraint
+    assert "'cancelled'" in status_constraint
+
+
+async def test_migration_007_creates_incident_events_partitioned_mirror(
+    pg_pool: asyncpg.Pool,
+) -> None:
+    """Incident events partition mirror must exist as a range-partitioned table."""
+    async with pg_pool.acquire() as conn:
+        relkind = await conn.fetchval(
+            """
+            SELECT c.relkind
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public'
+              AND c.relname = 'incident_events_partitioned'
+            """
+        )
+        trigger_exists = await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM pg_trigger
+                WHERE tgname = 'trg_sync_incident_events_partitioned'
+                  AND tgrelid = 'incident_events'::regclass
+            )
+            """
+        )
+
+    assert relkind == "p"
+    assert trigger_exists is True
 
 
 async def test_outbox_relay_skips_publish_when_marker_exists(pg_pool: asyncpg.Pool) -> None:

@@ -153,6 +153,16 @@ class OutboxConfig:
     batch_size: int = 100
 
 
+@dataclass
+class RetentionConfig:
+    """Background retention executor configuration."""
+
+    enabled: bool = False
+    poll_interval_s: float = 3600.0
+    processed_events_retention_days: int = 30
+    baseline_snapshots_retention_days: int = 90
+
+
 class EventBusBackendType(Enum):
     """Supported event bus backends."""
 
@@ -231,6 +241,7 @@ class AgentConfig:
     lock: LockConfig = field(default_factory=LockConfig)
     persistence: PersistenceConfig = field(default_factory=PersistenceConfig)
     outbox: OutboxConfig = field(default_factory=OutboxConfig)
+    retention: RetentionConfig = field(default_factory=RetentionConfig)
     event_bus: EventBusConfig = field(default_factory=EventBusConfig)
 
     # Detection & performance
@@ -292,6 +303,8 @@ class AgentConfig:
             config.persistence = PersistenceConfig(**data["persistence"])
         if "outbox" in data:
             config.outbox = OutboxConfig(**data["outbox"])
+        if "retention" in data:
+            config.retention = RetentionConfig(**data["retention"])
         if "event_bus" in data:
             raw_bus = dict(data["event_bus"])
             if "backend" in raw_bus:
@@ -355,5 +368,13 @@ class AgentConfig:
                 errors.append("Lock: etcd_host is required for etcd backend")
             if self.lock.etcd_port <= 0:
                 errors.append("Lock: etcd_port must be a positive integer")
+
+        if self.retention.enabled:
+            if self.retention.poll_interval_s <= 0:
+                errors.append("Retention: poll_interval_s must be positive")
+            if self.retention.processed_events_retention_days <= 0:
+                errors.append("Retention: processed_events_retention_days must be positive")
+            if self.retention.baseline_snapshots_retention_days <= 0:
+                errors.append("Retention: baseline_snapshots_retention_days must be positive")
 
         return errors

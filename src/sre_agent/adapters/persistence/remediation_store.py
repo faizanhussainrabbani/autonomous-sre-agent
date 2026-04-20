@@ -4,13 +4,8 @@ Implements RemediationStorePort using the ``remediation_actions`` table from
 migration 001.
 
 Status mapping:
-The domain ``ActionStatus`` enum uses values that don't all match the DB
-CHECK constraint. This adapter maps at the boundary:
-  proposed   → planned
-  executing  → running
-  verifying  → running
-  cancelled  → failed  (with detail in execution_result)
-  approved, completed, failed, rolled_back → pass through
+The domain ``ActionStatus`` enum uses ``proposed`` while persistence uses
+``planned``. All other statuses are preserved as-is to keep read/write fidelity.
 
 Implements: RemediationStorePort (src/sre_agent/ports/persistence.py)
 Phase 4.0 — Persistence Architecture Reconciliation
@@ -39,9 +34,9 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _STATUS_TO_DB: dict[str, str] = {
     "proposed": "planned",
-    "executing": "running",
-    "verifying": "running",
-    "cancelled": "failed",
+    "executing": "executing",
+    "verifying": "verifying",
+    "cancelled": "cancelled",
     # Pass-through values
     "planned": "planned",
     "approved": "approved",
@@ -59,6 +54,11 @@ def _map_status(status: str) -> str:
         raise ValueError(
             f"Unmappable remediation status '{status}'; "
             f"expected one of {sorted(_STATUS_TO_DB)}"
+        )
+    if mapped not in REMEDIATION_DB_STATUSES:
+        raise ValueError(
+            f"Mapped remediation status '{mapped}' is not DB-allowed; "
+            f"expected one of {sorted(REMEDIATION_DB_STATUSES)}"
         )
     return mapped
 

@@ -25,6 +25,14 @@ services:
       - POSTGRES_USER=sre_agent
       - POSTGRES_PASSWORD=sre_agent
       - POSTGRES_DB=sre_agent
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.max=10000
+      - -c
+      - pg_stat_statements.track=all
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

@@ -23,8 +23,10 @@ Phase 2.2: Token Optimization
 
 from __future__ import annotations
 
+import os
 import time
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import structlog
 
@@ -60,6 +62,7 @@ from sre_agent.ports.llm import (
     LLMReasoningPort,
     ValidationResult,
 )
+from sre_agent.ports.persistence import ReasoningTracePort
 from sre_agent.ports.reranker import RerankerPort
 from sre_agent.ports.vector_store import SearchQuery, SearchResult, VectorStorePort
 
@@ -70,6 +73,8 @@ _MIN_RELEVANCE_SCORE = 0.3
 _DOCUMENT_TTL_DAYS = 90
 _STALE_DOC_PENALTY_FACTOR = 0.5
 _FALLBACK_MAX_CONFIDENCE = 0.69
+_REASONING_TRACE_FLAG = "SRE_AGENT_REASONING_TRACE_ENABLED"
+_REASONING_TRACE_AGENT_ID = "rag-diagnostic-pipeline"
 
 
 class RAGDiagnosticPipeline(DiagnosticPort):
@@ -86,6 +91,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         embedding: EmbeddingPort,
         llm: LLMReasoningPort,
         severity_classifier: SeverityClassifier,
+        reasoning_trace_store: ReasoningTracePort | None = None,
         validator: SecondOpinionValidator | None = None,
         confidence_scorer: ConfidenceScorer | None = None,
         timeline_constructor: TimelineConstructor | None = None,
@@ -99,6 +105,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         self._vector_store = vector_store
         self._embedding = embedding
         self._llm = llm
+        self._reasoning_trace_store = reasoning_trace_store
         self._severity_classifier = severity_classifier
         self._validator = validator or SecondOpinionValidator()
         self._confidence_scorer = confidence_scorer or ConfidenceScorer()
@@ -126,6 +133,9 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         # emitted within this call carries the correlation field automatically.
         _token = _current_alert_id.set(str(request.alert.alert_id))
         _start = time.monotonic()
+        trace_run_id: UUID | None = None
+        trace_outcome = "failed"
+        trace_metadata: dict[str, str | int | float | bool] = {}
 
         try:
             logger.info(
@@ -134,6 +144,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 service=request.alert.service,
                 anomaly_type=request.alert.anomaly_type.value,
             )
+
+            trace_run_id = await self._trace_start_run(request)
 
             # Stage 0.5: Check semantic cache (Phase 2.2)
             if self._cache is not None:
@@ -148,6 +160,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                         alert_id=request.alert.alert_id,
                         service=request.alert.service,
                     )
+                    trace_outcome = "success"
+                    trace_metadata = {"cache_hit": True}
                     return cached
 
             # Stage 0: Emit IncidentDetected event (Engineering Standards §1.4)
@@ -187,8 +201,44 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 top_k=request.max_evidence_items,
                 min_score=_MIN_RELEVANCE_SCORE,
             )
-            search_results = await self._vector_store.search(search_query)
+            search_started = time.monotonic()
+            try:
+                search_results = await self._vector_store.search(search_query)
+            except Exception as exc:
+                await self._trace_log_tool_call(
+                    trace_run_id,
+                    tool_name="vector_store.search",
+                    status="error",
+                    input_payload={
+                        "top_k": request.max_evidence_items,
+                        "min_score": _MIN_RELEVANCE_SCORE,
+                    },
+                    output_payload={"error": str(exc)},
+                    latency_ms=int((time.monotonic() - search_started) * 1000),
+                )
+                raise
+
+            await self._trace_log_tool_call(
+                trace_run_id,
+                tool_name="vector_store.search",
+                status="success",
+                input_payload={
+                    "top_k": request.max_evidence_items,
+                    "min_score": _MIN_RELEVANCE_SCORE,
+                },
+                output_payload={"results_count": len(search_results)},
+                latency_ms=int((time.monotonic() - search_started) * 1000),
+            )
             search_results = self._apply_freshness_penalty(search_results)
+
+            for result in search_results:
+                await self._trace_log_retrieved_context(
+                    trace_run_id,
+                    doc_id=result.doc_id,
+                    similarity_score=result.score,
+                    source=result.source,
+                    content_snippet=result.content[:500],
+                )
 
             logger.info(
                 "vector_search_complete",
@@ -225,10 +275,21 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                     request=request,
                     alert_text=alert_text,
                     audit=audit,
+                    trace_run_id=trace_run_id,
                 )
                 if fallback_result is not None:
+                    trace_outcome = "success"
+                    trace_metadata = {
+                        "fallback_inference": True,
+                        "novel": True,
+                    }
                     return fallback_result
 
+                trace_outcome = "success"
+                trace_metadata = {
+                    "fallback_inference": False,
+                    "novel": True,
+                }
                 return self._handle_novel_incident(request, audit)
 
             # Stage 2.5: Cross-encoder reranking (Phase 2.2)
@@ -325,7 +386,37 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 timeline=timeline_text,
                 evidence=trimmed_evidence,
             )
-            hypothesis = await self._llm.generate_hypothesis(hypothesis_request)
+            hypothesis_started = time.monotonic()
+            try:
+                hypothesis = await self._llm.generate_hypothesis(hypothesis_request)
+            except Exception as exc:
+                await self._trace_log_tool_call(
+                    trace_run_id,
+                    tool_name="llm.generate_hypothesis",
+                    status="error",
+                    input_payload={
+                        "service": request.alert.service,
+                        "evidence_count": len(trimmed_evidence),
+                    },
+                    output_payload={"error": str(exc)},
+                    latency_ms=int((time.monotonic() - hypothesis_started) * 1000),
+                )
+                raise
+
+            await self._trace_log_tool_call(
+                trace_run_id,
+                tool_name="llm.generate_hypothesis",
+                status="success",
+                input_payload={
+                    "service": request.alert.service,
+                    "evidence_count": len(trimmed_evidence),
+                },
+                output_payload={
+                    "confidence": float(hypothesis.confidence),
+                    "has_root_cause": bool(hypothesis.root_cause),
+                },
+                latency_ms=int((time.monotonic() - hypothesis_started) * 1000),
+            )
 
             audit.append(
                 AuditEntry(
@@ -361,11 +452,41 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 evidence_count=len(trimmed_evidence),
             )
             diagnosis.state = DiagnosticState.VALIDATING
-            validation_result = await self._validator.validate(
-                hypothesis=hypothesis,
-                evidence_count=len(search_results),
-                alert_description=alert_text,
-                evidence=trimmed_evidence,
+            validation_started = time.monotonic()
+            try:
+                validation_result = await self._validator.validate(
+                    hypothesis=hypothesis,
+                    evidence_count=len(search_results),
+                    alert_description=alert_text,
+                    evidence=trimmed_evidence,
+                )
+            except Exception as exc:
+                await self._trace_log_tool_call(
+                    trace_run_id,
+                    tool_name="llm.validate_hypothesis",
+                    status="error",
+                    input_payload={
+                        "service": request.alert.service,
+                        "evidence_count": len(trimmed_evidence),
+                    },
+                    output_payload={"error": str(exc)},
+                    latency_ms=int((time.monotonic() - validation_started) * 1000),
+                )
+                raise
+
+            await self._trace_log_tool_call(
+                trace_run_id,
+                tool_name="llm.validate_hypothesis",
+                status="success",
+                input_payload={
+                    "service": request.alert.service,
+                    "evidence_count": len(trimmed_evidence),
+                },
+                output_payload={
+                    "agrees": bool(validation_result.agrees),
+                    "confidence": float(validation_result.confidence),
+                },
+                latency_ms=int((time.monotonic() - validation_started) * 1000),
             )
 
             audit.append(
@@ -403,6 +524,10 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                         },
                     )
                 )
+                trace_outcome = "failed"
+                trace_metadata = {
+                    "root_cause_unresolved": True,
+                }
                 return self._handle_unresolved_root_cause(
                     request=request,
                     hypothesis=hypothesis,
@@ -540,11 +665,19 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 requires_approval=requires_approval,
             )
 
+            trace_outcome = "success"
+            trace_metadata = {
+                "severity": severity.name,
+                "confidence": round(confidence, 4),
+                "requires_human_approval": requires_approval,
+            }
             return result
 
         except ConnectionError as exc:
             DIAGNOSIS_ERRORS.labels(error_type="connection_error").inc()
             logger.error("diagnostic_pipeline_connection_error", error=str(exc))
+            trace_outcome = "failed"
+            trace_metadata = {"error": str(exc), "error_type": "connection_error"}
             audit.append(
                 AuditEntry(
                     stage="error",
@@ -566,6 +699,8 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         except TimeoutError as exc:
             DIAGNOSIS_ERRORS.labels(error_type="timeout").inc()
             logger.error("diagnostic_pipeline_timeout", error=str(exc))
+            trace_outcome = "timeout"
+            trace_metadata = {"error": str(exc), "error_type": "timeout"}
             audit.append(
                 AuditEntry(
                     stage="error",
@@ -587,6 +722,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         finally:
             # OBS-007: always reset the correlation ID even if an exception propagated
             _current_alert_id.reset(_token)
+            await self._trace_end_run(trace_run_id, trace_outcome, trace_metadata)
 
     async def health_check(self) -> bool:
         """Verify all pipeline dependencies are operational."""
@@ -621,6 +757,7 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         request: DiagnosisRequest,
         alert_text: str,
         audit: list[AuditEntry],
+        trace_run_id: UUID | None = None,
     ) -> DiagnosisResult | None:
         """Attempt best-effort inference when retrieval returns no evidence."""
         timeline_text = ""
@@ -650,9 +787,18 @@ class RAGDiagnosticPipeline(DiagnosticPort):
             ),
         )
 
+        fallback_started = time.monotonic()
         try:
             hypothesis = await self._llm.generate_hypothesis(fallback_request)
         except Exception as exc:  # noqa: BLE001
+            await self._trace_log_tool_call(
+                trace_run_id,
+                tool_name="llm.generate_hypothesis.fallback",
+                status="error",
+                input_payload={"service": request.alert.service},
+                output_payload={"error": str(exc)},
+                latency_ms=int((time.monotonic() - fallback_started) * 1000),
+            )
             logger.warning(
                 "general_inference_fallback_failed",
                 alert_id=request.alert.alert_id,
@@ -666,6 +812,18 @@ class RAGDiagnosticPipeline(DiagnosticPort):
                 )
             )
             return None
+
+        await self._trace_log_tool_call(
+            trace_run_id,
+            tool_name="llm.generate_hypothesis.fallback",
+            status="success",
+            input_payload={"service": request.alert.service},
+            output_payload={
+                "confidence": float(hypothesis.confidence),
+                "has_root_cause": bool(hypothesis.root_cause),
+            },
+            latency_ms=int((time.monotonic() - fallback_started) * 1000),
+        )
 
         if not hypothesis.root_cause.strip():
             audit.append(
@@ -893,6 +1051,118 @@ class RAGDiagnosticPipeline(DiagnosticPort):
         for entry in audit:
             rendered.append(f"{entry.stage}:{entry.action}")
         return rendered
+
+    def _is_reasoning_trace_enabled(self) -> bool:
+        """Return whether reasoning trace writes are enabled for this process."""
+        if self._reasoning_trace_store is None:
+            return False
+        return os.getenv(_REASONING_TRACE_FLAG, "false").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    async def _trace_start_run(self, request: DiagnosisRequest) -> UUID | None:
+        """Start a trace run and return run_id when tracing is enabled."""
+        store = self._reasoning_trace_store
+        if store is None or not self._is_reasoning_trace_enabled():
+            return None
+
+        try:
+            return await store.start_run(
+                incident_id=request.alert.alert_id,
+                agent_id=_REASONING_TRACE_AGENT_ID,
+                metadata={
+                    "service": request.alert.service,
+                    "anomaly_type": request.alert.anomaly_type.value,
+                    "metric_name": request.alert.metric_name,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("reasoning_trace.start_run_failed", error=str(exc))
+            return None
+
+    async def _trace_log_tool_call(
+        self,
+        run_id: UUID | None,
+        *,
+        tool_name: str,
+        status: str,
+        input_payload: dict[str, object] | None = None,
+        output_payload: dict[str, object] | None = None,
+        latency_ms: int | None = None,
+    ) -> None:
+        """Persist one tool call trace row without affecting pipeline control flow."""
+        store = self._reasoning_trace_store
+        if run_id is None or store is None or not self._is_reasoning_trace_enabled():
+            return
+
+        try:
+            await store.log_tool_call(
+                run_id,
+                tool_name,
+                status,
+                input_payload=input_payload,
+                output_payload=output_payload,
+                latency_ms=latency_ms,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "reasoning_trace.log_tool_call_failed",
+                tool_name=tool_name,
+                error=str(exc),
+            )
+
+    async def _trace_log_retrieved_context(
+        self,
+        run_id: UUID | None,
+        *,
+        doc_id: str,
+        similarity_score: float,
+        content_snippet: str | None,
+        source: str | None,
+    ) -> None:
+        """Persist one retrieved context trace row safely."""
+        store = self._reasoning_trace_store
+        if run_id is None or store is None or not self._is_reasoning_trace_enabled():
+            return
+
+        try:
+            await store.log_retrieved_context(
+                run_id,
+                doc_id,
+                similarity_score,
+                content_snippet=content_snippet,
+                source=source,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "reasoning_trace.log_retrieved_context_failed",
+                doc_id=doc_id,
+                error=str(exc),
+            )
+
+    async def _trace_end_run(
+        self,
+        run_id: UUID | None,
+        outcome: str,
+        metadata: dict[str, str | int | float | bool] | None = None,
+    ) -> None:
+        """End a trace run safely without surfacing trace failures to callers."""
+        store = self._reasoning_trace_store
+        if run_id is None or store is None or not self._is_reasoning_trace_enabled():
+            return
+
+        normalized_outcome = outcome if outcome in {"success", "failed", "timeout"} else "failed"
+        try:
+            await store.end_run(
+                run_id,
+                normalized_outcome,
+                metadata=metadata,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("reasoning_trace.end_run_failed", error=str(exc))
 
 
 def _extract_timestamp(metadata: dict[str, str]) -> datetime | None:

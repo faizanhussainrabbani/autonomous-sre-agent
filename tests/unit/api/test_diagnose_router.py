@@ -188,3 +188,38 @@ class TestDiagnoseRouterPipelineInit:
 
         assert exc.value.status_code == 500
         assert "failed to initialise" in exc.value.detail
+
+    def test_get_pipeline_injects_reasoning_trace_store_from_request(self, monkeypatch) -> None:
+        from sre_agent.api.rest import diagnose_router as module
+
+        fake_pipeline = MagicMock()
+        fake_pipeline._vector_store = MagicMock()
+        fake_pipeline._embedding = MagicMock()
+        fake_pipeline._llm = MagicMock()
+        fake_pipeline._validator = MagicMock()
+        fake_pipeline._validator._strategy.value = "both"
+
+        create_pipeline = MagicMock(return_value=fake_pipeline)
+        bootstrap_module = types.ModuleType("sre_agent.adapters.intelligence_bootstrap")
+        bootstrap_module.create_diagnostic_pipeline = create_pipeline
+        monkeypatch.setitem(
+            sys.modules, "sre_agent.adapters.intelligence_bootstrap", bootstrap_module
+        )
+
+        trace_store = MagicMock(name="trace_store")
+
+        class _State:
+            reasoning_trace_store = trace_store
+
+        class _App:
+            state = _State()
+
+        class _Request:
+            app = _App()
+
+        monkeypatch.setattr(module, "_pipeline", None)
+
+        created = get_pipeline(_Request())
+
+        assert created is fake_pipeline
+        create_pipeline.assert_called_once_with(reasoning_trace_store=trace_store)

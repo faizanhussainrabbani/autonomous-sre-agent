@@ -7,6 +7,8 @@ and error handling using httpx AsyncClient.
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 try:
@@ -142,3 +144,82 @@ class TestResumeEndpoint:
             },
         )
         assert resp.status_code == 409
+
+
+@pytest.mark.unit
+class TestLifespanWorkers:
+    """Application lifespan worker orchestration tests."""
+
+    @pytest.mark.asyncio
+    async def test_lifespan_starts_and_stops_relay_and_retention(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Lifespan should start both workers and stop both on shutdown."""
+        import anyio
+
+        import sre_agent.adapters.bootstrap as bootstrap_module
+        import sre_agent.adapters.persistence.outbox_relay as relay_module
+
+        class _FakePool:
+            def __init__(self) -> None:
+                self.close_called = False
+
+            async def close(self) -> None:
+                self.close_called = True
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.run_started = False
+                self.stop_called = False
+
+            async def run(self) -> None:
+                self.run_started = True
+                while not self.stop_called:
+                    await anyio.sleep(0)
+
+            def stop(self) -> None:
+                self.stop_called = True
+
+        fake_pool = _FakePool()
+        fake_relay_worker = _Worker()
+        fake_retention_worker = _Worker()
+
+        monkeypatch.setattr(
+            bootstrap_module,
+            "bootstrap_asyncpg_pool",
+            AsyncMock(return_value=fake_pool),
+        )
+        monkeypatch.setattr(bootstrap_module, "bootstrap_incident_store", lambda _pool: object())
+        monkeypatch.setattr(bootstrap_module, "bootstrap_outbox_store", lambda _pool: object())
+        monkeypatch.setattr(bootstrap_module, "bootstrap_diagnosis_store", lambda _pool: None)
+        monkeypatch.setattr(bootstrap_module, "bootstrap_reasoning_trace_store", lambda _pool: None)
+        monkeypatch.setattr(bootstrap_module, "bootstrap_remediation_store", lambda _pool: None)
+        monkeypatch.setattr(
+            bootstrap_module,
+            "bootstrap_retention_executor",
+            lambda _pool, _config: fake_retention_worker,
+        )
+        monkeypatch.setattr(bootstrap_module, "bootstrap_event_bus", lambda _config: object())
+
+        class _FakeOutboxRelay:
+            def __init__(self, **_: object) -> None:
+                pass
+
+            async def run(self) -> None:
+                await fake_relay_worker.run()
+
+            def stop(self) -> None:
+                fake_relay_worker.stop()
+
+        monkeypatch.setattr(relay_module, "OutboxRelay", _FakeOutboxRelay)
+
+        app = create_app()
+        async with app.router.lifespan_context(app):
+            with anyio.fail_after(1):
+                while not (fake_relay_worker.run_started and fake_retention_worker.run_started):
+                    await anyio.sleep(0.01)
+
+        assert fake_relay_worker.stop_called is True
+        assert fake_retention_worker.stop_called is True
+        assert fake_pool.close_called is True

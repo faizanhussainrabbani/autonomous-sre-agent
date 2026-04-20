@@ -185,6 +185,21 @@ class TestPipelineWiring:
 
         assert pipeline._llm is throttled
 
+    def test_create_diagnostic_pipeline_wires_reasoning_trace_store(self) -> None:
+        vector_store = object()
+        embedding = object()
+        raw_llm = MagicMock(name="raw_llm")
+        trace_store = MagicMock(name="trace_store")
+
+        pipeline = bootstrap.create_diagnostic_pipeline(
+            vector_store=vector_store,
+            embedding=embedding,
+            llm=raw_llm,
+            reasoning_trace_store=trace_store,
+        )
+
+        assert pipeline._reasoning_trace_store is trace_store
+
     def test_create_diagnostic_pipeline_uses_default_factories(self, monkeypatch) -> None:
         vector_store = object()
         embedding = object()

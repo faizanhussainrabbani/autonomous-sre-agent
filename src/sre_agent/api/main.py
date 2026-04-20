@@ -113,7 +113,9 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
             bootstrap_event_bus,
             bootstrap_incident_store,
             bootstrap_outbox_store,
+            bootstrap_reasoning_trace_store,
             bootstrap_remediation_store,
+            bootstrap_retention_executor,
         )
         from sre_agent.config.settings import AgentConfig
 
@@ -132,14 +134,18 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         incident_store = bootstrap_incident_store(pool)
         outbox_store = bootstrap_outbox_store(pool)
         diagnosis_store = bootstrap_diagnosis_store(pool)
+        reasoning_trace_store = bootstrap_reasoning_trace_store(pool)
         remediation_store = bootstrap_remediation_store(pool)
+        retention_executor = bootstrap_retention_executor(pool, config)
         event_bus = bootstrap_event_bus(config)
 
         _app.state.pool = pool
         _app.state.incident_store = incident_store
         _app.state.outbox_store = outbox_store
         _app.state.diagnosis_store = diagnosis_store
+        _app.state.reasoning_trace_store = reasoning_trace_store
         _app.state.remediation_store = remediation_store
+        _app.state.retention_executor = retention_executor
         _app.state.event_bus = event_bus
 
         _log.info(
@@ -147,13 +153,14 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
             phase="1.5",
             persistence=pool is not None,
             diagnosis_store=diagnosis_store is not None,
+            reasoning_trace_store=reasoning_trace_store is not None,
             remediation_store=remediation_store is not None,
+            retention_executor=retention_executor is not None,
             event_bus=type(event_bus).__name__,
         )
 
+        relay = None
         if pool is not None and outbox_store is not None:
-            import anyio
-
             from sre_agent.adapters.persistence.outbox_relay import OutboxRelay
 
             relay = OutboxRelay(
@@ -163,17 +170,29 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
                 max_retries=config.outbox.max_retries,
                 batch_size=config.outbox.batch_size,
             )
-            try:
+
+        has_background_workers = relay is not None or retention_executor is not None
+
+        try:
+            if has_background_workers:
+                import anyio
+
                 async with anyio.create_task_group() as tg:
-                    tg.start_soon(relay.run)
+                    if relay is not None:
+                        tg.start_soon(relay.run)
+                    if retention_executor is not None:
+                        tg.start_soon(retention_executor.run)
                     yield
-                    relay.stop()
-            finally:
+                    if relay is not None:
+                        relay.stop()
+                    if retention_executor is not None:
+                        retention_executor.stop()
+            else:
+                yield
+        finally:
+            if pool is not None:
                 await pool.close()
-                _log.info("sre_agent.shutdown", pool_closed=True)
-        else:
-            yield
-            _log.info("sre_agent.shutdown", pool_closed=False)
+            _log.info("sre_agent.shutdown", pool_closed=pool is not None)
 
     app = FastAPI(
         title="Autonomous SRE Agent",

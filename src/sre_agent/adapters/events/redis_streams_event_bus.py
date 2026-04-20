@@ -30,13 +30,14 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from uuid import UUID, uuid4
 
 import anyio
 import structlog
 
 from sre_agent.domain.models.canonical import DomainEvent
+from sre_agent.observability.metrics import REDIS_STREAM_LAG
 from sre_agent.ports.events import EventBus, EventHandler
 
 if TYPE_CHECKING:
@@ -233,7 +234,7 @@ class RedisStreamsEventBus(EventBus):
         self._pending_readers.append((scope, event_type, stream_key))
         return scope
 
-    async def start(self, task_group: anyio.abc.TaskGroup) -> None:  # type: ignore[override]
+    async def start(self, task_group: anyio.abc.TaskGroup) -> None:
         """Start all pending reader loops and store the task group for late subscribers.
 
         Must be called during application lifespan startup. Subsequent calls to
@@ -306,11 +307,27 @@ class RedisStreamsEventBus(EventBus):
                 continue
 
             if not messages:
+                await self._observe_stream_lag(stream_key)
                 continue
 
-            for _stream, entries in messages:
-                for msg_id, fields in entries:
-                    await self._dispatch(event_type, msg_id, fields, stream_key)
+            for stream_entry in messages:
+                if not isinstance(stream_entry, (list, tuple)) or len(stream_entry) != 2:
+                    continue
+
+                _stream, entries = stream_entry
+                if not isinstance(entries, (list, tuple)):
+                    continue
+
+                for entry in entries:
+                    if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+                        continue
+                    msg_id, fields = entry
+                    if not isinstance(fields, dict):
+                        continue
+                    dispatch_fields = cast(dict[bytes | str, bytes | str], fields)
+                    await self._dispatch(event_type, msg_id, dispatch_fields, stream_key)
+
+            await self._observe_stream_lag(stream_key)
 
     async def _drain_pending(self, event_type: str, stream_key: str) -> None:
         """Re-deliver messages in this consumer's PEL from a previous run.
@@ -338,9 +355,24 @@ class RedisStreamsEventBus(EventBus):
             if not messages:
                 break
 
-            pending_entries: list[tuple[object, object]] = []
-            for _stream, entries in messages:
-                pending_entries.extend(entries)
+            pending_entries: list[tuple[object, dict[bytes | str, bytes | str]]] = []
+            for stream_entry in messages:
+                if not isinstance(stream_entry, (list, tuple)) or len(stream_entry) != 2:
+                    continue
+
+                _stream, entries = stream_entry
+                if not isinstance(entries, (list, tuple)):
+                    continue
+
+                for entry in entries:
+                    if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+                        continue
+                    msg_id, fields = entry
+                    if not isinstance(fields, dict):
+                        continue
+                    pending_entries.append(
+                        (msg_id, cast(dict[bytes | str, bytes | str], fields))
+                    )
 
             if not pending_entries:
                 break
@@ -352,6 +384,53 @@ class RedisStreamsEventBus(EventBus):
             )
             for msg_id, fields in pending_entries:
                 await self._dispatch(event_type, msg_id, fields, stream_key)
+
+            await self._observe_stream_lag(stream_key)
+
+    @staticmethod
+    def _extract_pending_count(xpending_result: object) -> float:
+        """Extract a pending count from redis xpending() return variants."""
+        candidate: object = 0
+        if isinstance(xpending_result, dict):
+            candidate = xpending_result.get("pending", 0)
+        elif isinstance(xpending_result, (list, tuple)) and xpending_result:
+            candidate = xpending_result[0]
+        else:
+            candidate = xpending_result
+
+        if isinstance(candidate, (int, float)):
+            return float(candidate)
+        if isinstance(candidate, str):
+            try:
+                return float(candidate)
+            except ValueError:
+                return 0.0
+        if isinstance(candidate, bytes):
+            try:
+                return float(candidate.decode())
+            except (UnicodeDecodeError, ValueError):
+                return 0.0
+        return 0.0
+
+    async def _observe_stream_lag(self, stream_key: str) -> None:
+        """Refresh stream lag gauge from the consumer group's pending entries."""
+        xpending = getattr(self._redis, "xpending", None)
+        if not callable(xpending):
+            return
+
+        try:
+            xpending_result = await xpending(stream_key, self._group)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "redis_streams_bus.xpending_error",
+                stream=stream_key,
+                group=self._group,
+                error=str(exc),
+            )
+            return
+
+        lag_count = self._extract_pending_count(xpending_result)
+        REDIS_STREAM_LAG.labels(stream=stream_key, group=self._group).set(lag_count)
 
     async def _dispatch(
         self,

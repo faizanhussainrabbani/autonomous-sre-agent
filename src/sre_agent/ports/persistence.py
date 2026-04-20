@@ -31,6 +31,14 @@ class DuplicateEventError(Exception):
     """
 
 
+class StaleProjectionError(Exception):
+    """Raised when a projection update fails optimistic concurrency checks.
+
+    Callers should re-read the projection and retry when this error occurs.
+    It indicates another writer updated the same incident projection first.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Coordination Audit Port — DTOs
 # ---------------------------------------------------------------------------
@@ -434,30 +442,177 @@ class DiagnosisStorePort(ABC):
         """
         ...
 
+
+# ---------------------------------------------------------------------------
+# Reasoning Trace Port
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReasoningRunRecord:
+    """Persisted reasoning run root row."""
+
+    run_id: UUID
+    incident_id: UUID | None
+    agent_id: str
+    started_at: datetime
+    ended_at: datetime | None
+    outcome: str | None
+    metadata_json: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
+class ToolCallTraceRecord:
+    """Persisted tool/LLM call trace row."""
+
+    call_id: UUID
+    run_id: UUID
+    tool_name: str
+    input_json: dict[str, Any]
+    output_json: dict[str, Any] | None
+    latency_ms: int | None
+    status: str
+    called_at: datetime
+
+
+@dataclass(frozen=True)
+class RetrievedContextRecord:
+    """Persisted retrieved-context trace row."""
+
+    context_id: UUID
+    run_id: UUID
+    doc_id: str
+    similarity_score: float
+    content_snippet: str | None
+    source: str | None
+    retrieved_at: datetime
+
+
+class ReasoningTracePort(ABC):
+    """Abstract interface for durable Phase 3 reasoning trace persistence.
+
+    Persists execution traces across diagnosis runs for observability,
+    replayability, and post-incident audits.
+    """
+
     @abstractmethod
-    async def get_by_incident(
+    async def start_run(
         self,
         incident_id: UUID,
-    ) -> list[DiagnosisResultRecord]:
-        """Retrieve all diagnoses for an incident, newest first.
-
-        Args:
-            incident_id: The incident to query.
+        agent_id: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> UUID:
+        """Create a new reasoning run root record.
 
         Returns:
-            List of diagnosis records ordered by generated_at descending.
+            Generated run_id.
         """
         ...
 
     @abstractmethod
-    async def get_by_id(self, diagnosis_id: UUID) -> DiagnosisResultRecord | None:
-        """Retrieve a single diagnosis by ID.
+    async def end_run(
+        self,
+        run_id: UUID,
+        outcome: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Mark a reasoning run as completed."""
+        ...
 
-        Args:
-            diagnosis_id: The diagnosis to query.
+    @abstractmethod
+    async def log_tool_call(
+        self,
+        run_id: UUID,
+        tool_name: str,
+        status: str,
+        *,
+        input_payload: dict[str, Any] | None = None,
+        output_payload: dict[str, Any] | None = None,
+        latency_ms: int | None = None,
+    ) -> UUID:
+        """Persist one tool/LLM invocation within a run.
 
         Returns:
-            The diagnosis record, or None if not found.
+            Generated call_id.
+        """
+        ...
+
+    @abstractmethod
+    async def log_retrieved_context(
+        self,
+        run_id: UUID,
+        doc_id: str,
+        similarity_score: float,
+        *,
+        content_snippet: str | None = None,
+        source: str | None = None,
+    ) -> UUID:
+        """Persist one retrieved context row within a run.
+
+        Returns:
+            Generated context_id.
+        """
+        ...
+
+    @abstractmethod
+    async def get_run(
+        self,
+        run_id: UUID,
+    ) -> ReasoningRunRecord | None:
+        """Retrieve one reasoning run by run_id.
+
+        Args:
+            run_id: The run identifier.
+
+        Returns:
+            The run record, or None if not found.
+        """
+        ...
+
+    @abstractmethod
+    async def list_runs_by_incident(
+        self,
+        incident_id: UUID,
+        *,
+        limit: int = 100,
+    ) -> list[ReasoningRunRecord]:
+        """Retrieve reasoning runs for an incident, newest first.
+
+        Args:
+            incident_id: The incident identifier.
+            limit: Maximum run rows to return.
+
+        Returns:
+            Run records ordered by started_at descending.
+        """
+        ...
+
+    @abstractmethod
+    async def list_tool_calls(self, run_id: UUID) -> list[ToolCallTraceRecord]:
+        """Retrieve tool-call rows for one run.
+
+        Args:
+            run_id: The run identifier.
+
+        Returns:
+            Tool-call records ordered by called_at ascending.
+        """
+        ...
+
+    @abstractmethod
+    async def list_retrieved_contexts(
+        self,
+        run_id: UUID,
+    ) -> list[RetrievedContextRecord]:
+        """Retrieve retrieved-context rows for one run.
+
+        Args:
+            run_id: The run identifier.
+
+        Returns:
+            Retrieved-context records ordered by retrieved_at ascending.
         """
         ...
 
@@ -467,9 +622,19 @@ class DiagnosisStorePort(ABC):
 # ---------------------------------------------------------------------------
 
 
-# DB-allowed status values per migration 001 CHECK constraint.
+# DB-allowed status values per remediation_actions CHECK constraint.
 REMEDIATION_DB_STATUSES = frozenset(
-    {"planned", "approved", "running", "completed", "failed", "rolled_back"}
+    {
+        "planned",
+        "approved",
+        "running",
+        "executing",
+        "verifying",
+        "completed",
+        "failed",
+        "cancelled",
+        "rolled_back",
+    }
 )
 
 

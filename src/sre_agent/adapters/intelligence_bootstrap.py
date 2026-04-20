@@ -23,6 +23,7 @@ from sre_agent.domain.diagnostics.validator import SecondOpinionValidator, Valid
 from sre_agent.domain.models.diagnosis import ServiceTier
 from sre_agent.ports.embedding import EmbeddingPort
 from sre_agent.ports.llm import LLMConfig, LLMProvider, LLMReasoningPort
+from sre_agent.ports.persistence import ReasoningTracePort
 from sre_agent.ports.vector_store import VectorStorePort
 
 logger = structlog.get_logger(__name__)
@@ -101,6 +102,7 @@ def create_diagnostic_pipeline(
     vector_store: VectorStorePort | None = None,
     embedding: EmbeddingPort | None = None,
     llm: LLMReasoningPort | None = None,
+    reasoning_trace_store: ReasoningTracePort | None = None,
     service_tiers: dict[str, ServiceTier] | None = None,
     context_budget: int = 4000,
 ) -> RAGDiagnosticPipeline:
@@ -139,6 +141,7 @@ def create_diagnostic_pipeline(
         vector_store=vs,
         embedding=emb,
         llm=llm_adapter,
+        reasoning_trace_store=reasoning_trace_store,
         severity_classifier=severity_classifier,
         validator=validator,
         confidence_scorer=confidence_scorer,

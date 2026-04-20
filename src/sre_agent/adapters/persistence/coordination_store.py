@@ -15,7 +15,7 @@ Implements: Phase 4.0 — Gate 4 (Coordination State Contract)
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -88,7 +88,7 @@ class PostgresCoordinationAuditStore(CoordinationAuditPort):
         self._validate_provider(entry.provider)
 
         audit_id = uuid4()
-        now = datetime.now().astimezone()
+        now = datetime.now(tz=UTC)
 
         details = dict(entry.details) if entry.details else {}
         details["lock_priority"] = entry.lock_priority
@@ -129,7 +129,7 @@ class PostgresCoordinationAuditStore(CoordinationAuditPort):
         self._validate_provider(entry.provider)
 
         audit_id = uuid4()
-        now = datetime.now().astimezone()
+        now = datetime.now(tz=UTC)
 
         details = dict(entry.details) if entry.details else {}
         details["compute_mechanism"] = entry.compute_mechanism
@@ -174,7 +174,7 @@ class PostgresCoordinationAuditStore(CoordinationAuditPort):
         self._validate_provider(entry.provider)
 
         audit_id = uuid4()
-        now = datetime.now().astimezone()
+        now = datetime.now(tz=UTC)
 
         details = dict(entry.details) if entry.details else {}
         details["audit_required"] = True

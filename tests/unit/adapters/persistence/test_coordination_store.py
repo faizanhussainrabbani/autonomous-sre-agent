@@ -136,6 +136,7 @@ async def test_record_lock_event_includes_all_agents_fields(
     assert stored_resource_id == "deployment/checkout-service"
     assert stored_priority == 2
     assert stored_token == 948271
+    assert stored_created_at.tzinfo == UTC
 
     # Verify details JSON includes lock-specific metadata
     details = json.loads(stored_details_str)
