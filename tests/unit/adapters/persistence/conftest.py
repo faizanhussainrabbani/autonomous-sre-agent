@@ -52,7 +52,9 @@ class FakeConnection:
     async def execute(self, sql: str, *args: Any) -> None:
         self.executed.append((sql, args))
 
-    async def executemany(self, sql: str, args_iter: list[tuple[Any, ...]] | tuple[tuple[Any, ...], ...]) -> None:
+    async def executemany(
+        self, sql: str, args_iter: list[tuple[Any, ...]] | tuple[tuple[Any, ...], ...]
+    ) -> None:
         rows = tuple(args_iter)
         self.executemany_calls.append((sql, rows))
         self.executed.append((sql, rows[0] if rows else ()))

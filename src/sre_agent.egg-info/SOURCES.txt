@@ -44,9 +44,13 @@ src/sre_agent/adapters/llm/openai/__init__.py
 src/sre_agent/adapters/llm/openai/adapter.py
 src/sre_agent/adapters/persistence/__init__.py
 src/sre_agent/adapters/persistence/coordination_store.py
+src/sre_agent/adapters/persistence/diagnosis_store.py
 src/sre_agent/adapters/persistence/incident_store.py
 src/sre_agent/adapters/persistence/outbox_relay.py
 src/sre_agent/adapters/persistence/postgres_outbox.py
+src/sre_agent/adapters/persistence/reasoning_trace_store.py
+src/sre_agent/adapters/persistence/remediation_store.py
+src/sre_agent/adapters/persistence/retention_executor.py
 src/sre_agent/adapters/reranker/__init__.py
 src/sre_agent/adapters/reranker/cross_encoder_adapter.py
 src/sre_agent/adapters/telemetry/__init__.py

@@ -269,11 +269,34 @@ src/sre_agent/
 | **Observability** | OpenTelemetry (OTLP), eBPF (Cilium/bcc), Prometheus, Jaeger |
 | **Intelligence** | OpenAI (GPT-4o-mini), Anthropic (Claude), ChromaDB, SentenceTransformers, tiktoken |
 | **Cloud Operators** | AWS (boto3) — ECS, EC2, Lambda · Azure (azure-mgmt) — App Service, Functions |
-| **Coordination** | Redis (distributed locks) |
+| **Coordination** | Redis (distributed locks + event streams), etcd (alternative lock backend) |
+| **Persistence** | PostgreSQL 16 + pgvector (primary), Redis 7 (locks + event bus), ChromaDB (local-dev vector store) |
 | **Metrics Export** | prometheus-client (12 registered metrics) |
 | **Testing** | pytest, pytest-asyncio, pytest-cov, LocalStack Pro, testcontainers |
 | **Linting** | Ruff (E, F, I, N, W, UP, B, SIM, BLE), mypy (strict) |
 | **Build** | setuptools ≥68 |
+
+### 2.7 Persistence Architecture
+
+The agent uses a **three-store design** for persistence. The canonical authority is [`docs/architecture/persistence_architecture.md`](docs/architecture/persistence_architecture.md) (reconciled via ADR-006).
+
+| Store | Technology | Purpose |
+|---|---|---|
+| **Primary Store** | PostgreSQL 16 + pgvector extension | Incident lifecycle, diagnosis results, remediation actions, reasoning traces, outbox, coordination audit — 16 tables across 10 migrations |
+| **Coordination & Event Bus** | Redis 7 | Distributed locks (WATCH/MULTI/EXEC + fencing tokens), Redis Streams event bus (`sre-agent:events:{type}`), cooldown keys |
+| **Vector Store (dev)** | ChromaDB | Local-development vector store; pgvector used in production |
+
+#### Transactional Outbox Pattern
+
+Event delivery is guaranteed via a **transactional outbox**: when an `IncidentEvent` is written, it is atomically inserted into both `incident_events` and `event_outbox` within a single database transaction. A background `OutboxRelay` task claims rows using `FOR UPDATE SKIP LOCKED` and publishes them to the Redis Streams event bus. This prevents silent event loss if the broker is temporarily unavailable.
+
+#### Optimistic Concurrency Control
+
+The `incident_events` table uses a `version` column with a unique constraint on `(incident_id, version)` (migration 006). Writers include the expected version in their `INSERT`; a constraint violation signals a concurrent write, triggering a retry rather than an overwrite.
+
+#### Schema Migrations
+
+Migrations are plain SQL files in `src/sre_agent/adapters/persistence/migrations/` (001–010) and are applied by the production runner `scripts/dev/migrate.py`. All migrations use `IF NOT EXISTS` guards for idempotency. Applied files are tracked in a `schema_migrations` table.
 
 ---
 

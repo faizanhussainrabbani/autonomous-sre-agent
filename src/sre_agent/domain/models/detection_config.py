@@ -11,11 +11,10 @@ from external YAML/env-var sources.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class DetectionConfig:
+class DetectionConfig(BaseModel):
     """Anomaly detection configuration.
 
     Domain-owned value object — the config module loads raw values

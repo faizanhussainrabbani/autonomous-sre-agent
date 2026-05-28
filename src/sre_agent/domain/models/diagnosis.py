@@ -12,11 +12,12 @@ Phase 2: Intelligence Layer
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import IntEnum
 from typing import Any
 from uuid import UUID, uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from sre_agent.domain.models.canonical import Severity
 
@@ -66,8 +67,7 @@ class DiagnosticState(IntEnum):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class ConfidenceLevel:
+class ConfidenceLevel(BaseModel):
     """Confidence routing classification.
 
     Thresholds (from guardrails_configuration.md):
@@ -75,6 +75,8 @@ class ConfidenceLevel:
         0.70-0.85 -> PROPOSE (propose action, await human approval)
         >= 0.85 -> AUTONOMOUS (execute if severity permits Sev 3-4)
     """
+
+    model_config = ConfigDict(frozen=True)
 
     BLOCK_THRESHOLD: float = 0.70
     PROPOSE_THRESHOLD: float = 0.85
@@ -101,22 +103,25 @@ class ConfidenceLevel:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class EvidenceCitation:
+class EvidenceCitation(BaseModel):
     """A single piece of evidence backing a diagnostic hypothesis.
 
     Links the hypothesis back to a specific runbook or post-mortem vector.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     source: str
     content_snippet: str
     relevance_score: float
     doc_id: str = ""
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _validate_relevance_score(self) -> EvidenceCitation:
         if not 0.0 <= self.relevance_score <= 1.0:
             msg = f"relevance_score must be in [0, 1], got {self.relevance_score}"
             raise ValueError(msg)
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -124,8 +129,7 @@ class EvidenceCitation:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class ImpactDimensions:
+class ImpactDimensions(BaseModel):
     """Multi-dimensional impact assessment for severity calculation.
 
     Weighted formula (from execution plan Task 9.2):
@@ -182,28 +186,27 @@ class ImpactDimensions:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class Diagnosis:
+class Diagnosis(BaseModel):
     """Complete diagnosis record produced by the RAG pipeline.
 
     Captures the full provenance chain: evidence, hypothesis, validation,
     confidence, severity, and audit trail.
     """
 
-    diagnosis_id: UUID = field(default_factory=uuid4)
+    diagnosis_id: UUID = Field(default_factory=uuid4)
     alert_id: UUID | None = None
     service: str = ""
     root_cause: str = ""
     confidence: float = 0.0
     severity: Severity = Severity.SEV4
     reasoning: str = ""
-    evidence_citations: list[EvidenceCitation] = field(default_factory=list)
+    evidence_citations: list[EvidenceCitation] = Field(default_factory=list)
     impact: ImpactDimensions | None = None
     suggested_remediation: str = ""
     is_novel: bool = False
     state: DiagnosticState = DiagnosticState.PENDING
-    diagnosed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    audit_entries: list[AuditEntry] = field(default_factory=list)
+    diagnosed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    audit_entries: list[AuditEntry] = Field(default_factory=list)
 
     @property
     def confidence_level(self) -> str:
@@ -228,15 +231,16 @@ class Diagnosis:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class AuditEntry:
+class AuditEntry(BaseModel):
     """Immutable record of a pipeline processing step.
 
     Each stage of the diagnostic pipeline appends an AuditEntry to
     maintain full provenance and reproducibility.
     """
 
+    model_config = ConfigDict(frozen=True)
+
     stage: str
     action: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
-    details: dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    details: dict[str, Any] = Field(default_factory=dict)

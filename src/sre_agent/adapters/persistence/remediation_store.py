@@ -20,6 +20,10 @@ from uuid import UUID
 
 import structlog
 
+from sre_agent.domain.models.persistence import (
+    REMEDIATION_STATUS_TRANSITIONS,
+    RemediationStatus,
+)
 from sre_agent.ports.persistence import (
     REMEDIATION_DB_STATUSES,
     RemediationActionRecord,
@@ -149,8 +153,32 @@ class PostgresRemediationStore(RemediationStorePort):
         completed_at: datetime | None = None,
         execution_result: dict[str, Any] | None = None,
     ) -> None:
-        """Update the status and optional fields of a remediation action."""
+        """Update the status and optional fields of a remediation action.
+
+        Validates the transition against the domain state machine before
+        executing the SQL UPDATE. Raises ``ValueError`` for illegal transitions.
+        """
         db_status = _map_status(status)
+
+        # Enforce domain state-machine transition before writing.
+        # Fetch current row to obtain the previous status for validation.
+        current = await self.get_by_id(action_id)
+        if current is not None:
+            try:
+                prev = RemediationStatus(current.action_status)
+                nxt = RemediationStatus(db_status)
+            except ValueError:
+                # Status value not in the domain enum (e.g., legacy or extended
+                # values); skip transition validation to avoid false rejections.
+                pass
+            else:
+                allowed = REMEDIATION_STATUS_TRANSITIONS.get(prev, set())
+                if nxt not in allowed:
+                    raise ValueError(
+                        f"Invalid RemediationStatus transition: "
+                        f"{prev!r} -> {nxt!r}. Allowed: {allowed}"
+                    )
+
         result_str = json.dumps(execution_result) if execution_result else None
 
         async with self._pool.acquire() as conn:

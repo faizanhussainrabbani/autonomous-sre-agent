@@ -31,7 +31,7 @@ from sre_agent.ports.vector_store import SearchResult
 # ---------------------------------------------------------------------------
 
 
-def _make_alert(alert_id: str = "alert-test-001") -> AnomalyAlert:
+def _make_alert(alert_id: str = "00000000-0000-0000-0000-000000000001") -> AnomalyAlert:
     return AnomalyAlert(
         alert_id=alert_id,
         service="checkout",
@@ -139,7 +139,7 @@ async def test_all_8_log_events_present(capsys, caplog):
 async def test_alert_id_in_every_log_record_during_diagnose(caplog):
     """Every log record emitted inside diagnose() must contain alert_id."""
     pipeline, _ = _make_pipeline()
-    alert = _make_alert(alert_id="alert-corr-001")
+    alert = _make_alert(alert_id="00000000-0000-0000-0000-000000000002")
     request = DiagnosisRequest(alert=alert, max_evidence_items=5)
 
     with caplog.at_level(logging.DEBUG):
@@ -149,7 +149,8 @@ async def test_alert_id_in_every_log_record_during_diagnose(caplog):
         r for r in caplog.records if "diagnosis" in r.message or "embed" in r.message
     ]
     for record in pipeline_records:
-        assert "alert-corr-001" in record.getMessage() or "alert-corr-001" in str(
+        alert_id_str = "00000000-0000-0000-0000-000000000002"
+        assert alert_id_str in record.getMessage() or alert_id_str in str(
             record.__dict__
         ), f"Record missing alert_id: {record.getMessage()}"
 
@@ -162,7 +163,8 @@ async def test_alert_id_in_every_log_record_during_diagnose(caplog):
 async def test_alert_id_cleared_after_diagnose():
     """_current_alert_id must be empty string after diagnose() returns normally."""
     pipeline, _ = _make_pipeline()
-    request = DiagnosisRequest(alert=_make_alert(alert_id="alert-clear-001"), max_evidence_items=5)
+    alert = _make_alert(alert_id="00000000-0000-0000-0000-000000000003")
+    request = DiagnosisRequest(alert=alert, max_evidence_items=5)
 
     await pipeline.diagnose(request)
 
@@ -182,7 +184,8 @@ async def test_alert_id_cleared_on_exception():
     # Force an exception inside the pipeline
     mocks["embedding"].embed_text = AsyncMock(side_effect=ConnectionError("vector DB down"))
 
-    request = DiagnosisRequest(alert=_make_alert(alert_id="alert-exc-001"), max_evidence_items=5)
+    alert = _make_alert(alert_id="00000000-0000-0000-0000-000000000004")
+    request = DiagnosisRequest(alert=alert, max_evidence_items=5)
     # diagnose() catches ConnectionError and returns a fallback — does not raise
     result = await pipeline.diagnose(request)
     assert result.requires_human_approval is True

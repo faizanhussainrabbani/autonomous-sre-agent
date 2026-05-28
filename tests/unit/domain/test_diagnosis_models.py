@@ -118,7 +118,7 @@ class TestEvidenceCitation:
             content_snippet="x",
             relevance_score=0.5,
         )
-        with pytest.raises(AttributeError):
+        with pytest.raises(Exception):
             citation.source = "modified"  # type: ignore[misc]
 
 
@@ -254,7 +254,7 @@ class TestAuditEntry:
 
     def test_frozen_immutability(self):
         entry = AuditEntry(stage="test", action="test")
-        with pytest.raises(AttributeError):
+        with pytest.raises(Exception):
             entry.stage = "modified"  # type: ignore[misc]
 
     def test_with_details(self):

@@ -24,7 +24,7 @@ from sre_agent.ports.telemetry import LogQuery, TelemetryProvider
 
 if TYPE_CHECKING:
     from sre_agent.domain.detection.cloud_operator_registry import CloudOperatorRegistry
-    from sre_agent.ports.events import EventBus
+    from sre_agent.ports.events import EventBus, EventStore
     from sre_agent.ports.persistence import (
         CoordinationAuditPort,
         DiagnosisStorePort,
@@ -270,33 +270,25 @@ def bootstrap_cloud_operators(config: AgentConfig) -> CloudOperatorRegistry:
 
 
 async def bootstrap_coordination_audit(
-    config: AgentConfig,
+    pool: object | None,
 ) -> CoordinationAuditPort | None:
-    """Bootstrap the coordination audit store if persistence is enabled.
+    """Bootstrap the coordination audit store using the shared connection pool.
 
-    Returns None when persistence is disabled (in-memory / local dev mode).
+    Returns None when pool is None (persistence disabled / local dev mode).
+
+    Args:
+        pool: Shared asyncpg pool from bootstrap_asyncpg_pool().
     """
-    if not config.persistence.enabled or not config.persistence.postgres_dsn:
-        logger.info("coordination_audit_disabled", reason="persistence not configured")
+    if pool is None:
+        logger.info("coordination_audit_disabled", reason="no database pool")
         return None
 
     try:
-        import asyncpg
-
         from sre_agent.adapters.persistence.coordination_store import (
             PostgresCoordinationAuditStore,
         )
 
-        pool = await asyncpg.create_pool(
-            dsn=config.persistence.postgres_dsn,
-            min_size=config.persistence.pool_min_size,
-            max_size=config.persistence.pool_max_size,
-        )
-        logger.info(
-            "coordination_audit_bootstrapped",
-            pool_min=config.persistence.pool_min_size,
-            pool_max=config.persistence.pool_max_size,
-        )
+        logger.info("coordination_audit_bootstrapped")
         return PostgresCoordinationAuditStore(pool=pool)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
@@ -627,3 +619,22 @@ def bootstrap_vector_store(
     except Exception as exc:  # noqa: BLE001
         logger.error("vector_store_bootstrap_failed", error=str(exc))
         raise
+
+
+def bootstrap_event_store(pool: object | None) -> EventStore | None:
+    """Bootstrap the PostgreSQL domain event store.
+
+    Args:
+        pool: Shared asyncpg pool from bootstrap_asyncpg_pool().
+
+    Returns:
+        PostgresEventStore when a pool is available, None otherwise.
+    """
+    if pool is None:
+        logger.info("event_store_disabled", reason="no database pool")
+        return None
+
+    from sre_agent.adapters.persistence.event_store import PostgresEventStore
+
+    logger.info("event_store_bootstrapped")
+    return PostgresEventStore(pool=pool)

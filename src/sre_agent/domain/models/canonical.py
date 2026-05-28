@@ -14,11 +14,12 @@ Validates: AC-1.1.1 through AC-1.1.5
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
+
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -109,8 +110,7 @@ class ComputeMechanism(Enum):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class ServiceLabels:
+class ServiceLabels(BaseModel):
     """Standard labels for identifying a service/compute instance.
 
     Naming follows OTel semantic conventions where applicable:
@@ -124,14 +124,16 @@ class ServiceLabels:
     Container Instance targets.
     """
 
+    model_config = ConfigDict(frozen=True)
+
     service: str
     namespace: str = ""
     compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
     resource_id: str = ""  # Universal ID: Pod UID, ECS Task ARN, Lambda ARN, etc.
     pod: str = ""
     node: str = ""
-    platform_metadata: dict[str, Any] = field(default_factory=dict)
-    extra: dict[str, str] = field(default_factory=dict)
+    platform_metadata: dict[str, Any] = Field(default_factory=dict)
+    extra: dict[str, str] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -139,8 +141,7 @@ class ServiceLabels:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class CanonicalMetric:
+class CanonicalMetric(BaseModel):
     """Provider-independent metric data point.
 
     Downstream consumers (anomaly detection, diagnostics, dashboard) use ONLY
@@ -168,8 +169,7 @@ class CanonicalMetric:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class TraceSpan:
+class TraceSpan(BaseModel):
     """A single span within a distributed trace."""
 
     span_id: str
@@ -179,13 +179,12 @@ class TraceSpan:
     duration_ms: float
     status_code: int = 200
     error: str | None = None
-    attributes: dict[str, Any] = field(default_factory=dict)
+    attributes: dict[str, Any] = Field(default_factory=dict)
     start_time: datetime | None = None
     end_time: datetime | None = None
 
 
-@dataclass
-class CanonicalTrace:
+class CanonicalTrace(BaseModel):
     """Provider-independent distributed trace.
 
     Assembled from spans across multiple services. Completeness flag indicates
@@ -193,9 +192,9 @@ class CanonicalTrace:
     """
 
     trace_id: str
-    spans: list[TraceSpan] = field(default_factory=list)
+    spans: list[TraceSpan] = Field(default_factory=list)
     is_complete: bool = True
-    missing_services: list[str] = field(
+    missing_services: list[str] = Field(
         default_factory=list
     )  # Services with expected but absent spans
     quality: DataQuality = DataQuality.HIGH
@@ -229,8 +228,7 @@ class CanonicalTrace:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class CanonicalLogEntry:
+class CanonicalLogEntry(BaseModel):
     """Provider-independent log entry with trace correlation."""
 
     timestamp: datetime
@@ -239,7 +237,7 @@ class CanonicalLogEntry:
     labels: ServiceLabels
     trace_id: str | None = None
     span_id: str | None = None
-    attributes: dict[str, Any] = field(default_factory=dict)
+    attributes: dict[str, Any] = Field(default_factory=dict)
     quality: DataQuality = DataQuality.HIGH
 
     # Metadata
@@ -252,14 +250,13 @@ class CanonicalLogEntry:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class CanonicalEvent:
+class CanonicalEvent(BaseModel):
     """Provider-independent system event (eBPF, K8s, deployment, etc.)."""
 
     event_type: str  # "oom_kill", "network_flow", "syscall", "deployment", etc.
     source: str  # "ebpf", "kubernetes", "argocd", etc.
     timestamp: datetime
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     labels: ServiceLabels | None = None
     quality: DataQuality = DataQuality.HIGH
 
@@ -273,9 +270,10 @@ class CanonicalEvent:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class ServiceNode:
+class ServiceNode(BaseModel):
     """A node in the service dependency graph."""
+
+    model_config = ConfigDict(frozen=True)
 
     service: str
     version: str = ""
@@ -285,9 +283,10 @@ class ServiceNode:
     is_healthy: bool = True
 
 
-@dataclass(frozen=True)
-class ServiceEdge:
+class ServiceEdge(BaseModel):
     """A directed edge in the service dependency graph (caller → callee)."""
+
+    model_config = ConfigDict(frozen=True)
 
     source: str  # Caller service name
     target: str  # Callee service name
@@ -296,12 +295,11 @@ class ServiceEdge:
     error_rate: float = 0.0
 
 
-@dataclass
-class ServiceGraph:
+class ServiceGraph(BaseModel):
     """Complete service dependency graph with health information."""
 
-    nodes: dict[str, ServiceNode] = field(default_factory=dict)
-    edges: list[ServiceEdge] = field(default_factory=list)
+    nodes: dict[str, ServiceNode] = Field(default_factory=dict)
+    edges: list[ServiceEdge] = Field(default_factory=list)
     last_updated: datetime | None = None
 
     def get_upstream(self, service: str) -> list[str]:
@@ -328,8 +326,7 @@ class ServiceGraph:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class CorrelatedSignals:
+class CorrelatedSignals(BaseModel):
     """Unified view of all signals for a service within a time window.
 
     Produced by the signal correlator (Task 1.4). Used by anomaly detection
@@ -338,13 +335,13 @@ class CorrelatedSignals:
 
     service: str
     namespace: str = ""
-    time_window_start: datetime = field(default_factory=lambda: datetime.now(UTC))
-    time_window_end: datetime = field(default_factory=lambda: datetime.now(UTC))
+    time_window_start: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    time_window_end: datetime = Field(default_factory=lambda: datetime.now(UTC))
     compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
-    metrics: list[CanonicalMetric] = field(default_factory=list)
-    traces: list[CanonicalTrace] = field(default_factory=list)
-    logs: list[CanonicalLogEntry] = field(default_factory=list)
-    events: list[CanonicalEvent] = field(default_factory=list)
+    metrics: list[CanonicalMetric] = Field(default_factory=list)
+    traces: list[CanonicalTrace] = Field(default_factory=list)
+    logs: list[CanonicalLogEntry] = Field(default_factory=list)
+    events: list[CanonicalEvent] = Field(default_factory=list)
     has_degraded_observability: bool = False
     degradation_reason: str | None = None
 
@@ -354,22 +351,21 @@ class CorrelatedSignals:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class AnomalyAlert:
+class AnomalyAlert(BaseModel):
     """An anomaly detected by the detection engine.
 
     This is the primary output of Phase 1 — a structured alert that downstream
     phases (diagnosis, remediation) consume.
     """
 
-    alert_id: UUID = field(default_factory=uuid4)
+    alert_id: UUID = Field(default_factory=uuid4)
     anomaly_type: AnomalyType = AnomalyType.LATENCY_SPIKE
     service: str = ""
     namespace: str = ""
     resource_id: str = ""  # Phase 1.5: Universal compute unit identifier
     compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES
     severity: Severity | None = None  # Assigned in Phase 2 by severity classifier
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # Detection details
     metric_name: str = ""
@@ -386,7 +382,7 @@ class AnomalyAlert:
 
     # Context
     correlated_signals: CorrelatedSignals | None = None
-    related_alerts: list[UUID] = field(default_factory=list)
+    related_alerts: list[UUID] = Field(default_factory=list)
 
     # Stage timing (AC-4.4 — per-stage latency instrumentation)
     detected_at: datetime | None = None
@@ -398,15 +394,14 @@ class AnomalyAlert:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class DomainEvent:
+class DomainEvent(BaseModel):
     """Base class for all domain events in the event store."""
 
-    event_id: UUID = field(default_factory=uuid4)
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    event_id: UUID = Field(default_factory=uuid4)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     event_type: str = ""
     aggregate_id: UUID | None = None  # Incident ID this event belongs to
-    payload: dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def is_valid(self) -> bool:

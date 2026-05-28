@@ -75,6 +75,6 @@ ML baselines require sufficient historical data to tune parameters properly.
 
 ## 3. Technology Stack
 
-*   **Feature Store:** A low-latency store (e.g., Redis) maintaining the rolling metric windows and historical baselines used for real-time comparison.
+*   **Temporal Feature Store:** Rolling metric windows and historical baselines for real-time comparison are persisted to **TimescaleDB** (hypertable partitioned by time). Redis is used only for short-lived lock coordination and the event bus — not as a feature store. See [`docs/architecture/persistence_architecture.md`](../persistence_architecture.md) for the canonical three-store design.
 *   **Anomaly Engine:** Python-based ML services utilizing libraries like `scikit-learn` or `Prophet` for seasonality detection.
 *   **Correlation Processor:** Stream processing (e.g., generic Python async queues or Kafka for higher scale) to group anomalous signals occurring within the same time boundary.

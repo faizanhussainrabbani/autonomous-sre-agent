@@ -21,6 +21,7 @@ from sre_agent.domain.models.canonical import (
     SignalType,
     TraceSpan,
 )
+from sre_agent.domain.models.vector import SearchResult, VectorDocument
 
 __all__ = [
     "AnomalyAlert",
@@ -35,6 +36,7 @@ __all__ = [
     "EventTypes",
     "IncidentPhase",
     "OperationalPhase",
+    "SearchResult",
     "ServiceEdge",
     "ServiceGraph",
     "ServiceLabels",
@@ -42,4 +44,5 @@ __all__ = [
     "Severity",
     "SignalType",
     "TraceSpan",
+    "VectorDocument",
 ]

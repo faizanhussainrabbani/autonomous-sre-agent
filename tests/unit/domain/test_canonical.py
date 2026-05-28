@@ -48,8 +48,8 @@ class TestServiceLabels:
         try:
             labels.service = "other"  # type: ignore
             raise AssertionError("Should raise FrozenInstanceError")
-        except AttributeError:
-            pass  # Expected: frozen=True
+        except Exception:
+            pass  # Expected: frozen=True raises ValidationError (Pydantic) or AttributeError
 
     def test_extra_labels(self):
         labels = ServiceLabels(

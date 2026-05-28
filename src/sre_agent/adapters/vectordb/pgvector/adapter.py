@@ -46,6 +46,7 @@ from uuid import uuid4
 
 import structlog
 
+from sre_agent.domain.models.vector import SearchResult, VectorDocument
 from sre_agent.observability.metrics import (
     DB_POOL_ACTIVE_CONNECTIONS,
     DB_QUERY_DURATION,
@@ -54,8 +55,6 @@ from sre_agent.observability.metrics import (
 )
 from sre_agent.ports.vector_store import (
     SearchQuery,
-    SearchResult,
-    VectorDocument,
     VectorStorePort,
 )
 

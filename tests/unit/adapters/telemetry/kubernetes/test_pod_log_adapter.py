@@ -27,6 +27,7 @@ def _make_pod(name: str) -> MagicMock:
     """Create a mock Kubernetes pod object."""
     pod = MagicMock()
     pod.metadata.name = name
+    pod.metadata.labels = None  # No app label — falls back to "unknown-service"
     return pod
 
 

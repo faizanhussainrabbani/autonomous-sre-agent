@@ -109,6 +109,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
 
         from sre_agent.adapters.bootstrap import (
             bootstrap_asyncpg_pool,
+            bootstrap_coordination_audit,
             bootstrap_diagnosis_store,
             bootstrap_event_bus,
             bootstrap_incident_store,
@@ -137,6 +138,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         reasoning_trace_store = bootstrap_reasoning_trace_store(pool)
         remediation_store = bootstrap_remediation_store(pool)
         retention_executor = bootstrap_retention_executor(pool, config)
+        coordination_audit = await bootstrap_coordination_audit(pool)
         event_bus = bootstrap_event_bus(config)
 
         _app.state.pool = pool
@@ -146,6 +148,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         _app.state.reasoning_trace_store = reasoning_trace_store
         _app.state.remediation_store = remediation_store
         _app.state.retention_executor = retention_executor
+        _app.state.coordination_audit = coordination_audit
         _app.state.event_bus = event_bus
 
         _log.info(
@@ -156,6 +159,7 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
             reasoning_trace_store=reasoning_trace_store is not None,
             remediation_store=remediation_store is not None,
             retention_executor=retention_executor is not None,
+            coordination_audit=coordination_audit is not None,
             event_bus=type(event_bus).__name__,
         )
 

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
+
 from sre_agent.domain.models.canonical import ComputeMechanism
 from sre_agent.domain.remediation.models import (
     ApprovalState,
@@ -7,10 +12,11 @@ from sre_agent.domain.remediation.models import (
     RemediationAction,
     RemediationPlan,
     RemediationStrategy,
+    SafetyConstraints,
 )
 from sre_agent.domain.safety.blast_radius import BlastRadiusCalculator
 from sre_agent.domain.safety.cooldown import CooldownEnforcer
-from sre_agent.domain.safety.guardrails import GuardrailOrchestrator
+from sre_agent.domain.safety.guardrails import GuardrailOrchestrator, _namespace_for
 from sre_agent.domain.safety.kill_switch import KillSwitch
 from sre_agent.domain.safety.phase_gate import PhaseGate, PhaseMetrics
 
@@ -92,3 +98,139 @@ def test_phase_gate_failure_and_pass() -> None:
     )
     assert ok2 is False
     assert len(failures2) >= 3
+
+
+# ---------------------------------------------------------------------------
+# New coverage: approval gate, blast radius, cooldown, _emit, _namespace_for
+# ---------------------------------------------------------------------------
+
+
+def _make_plan_ext(
+    requires_human_approval: bool = False,
+    approval_state: ApprovalState = ApprovalState.APPROVED,
+    blast_radius_pct: float = 5.0,
+    namespace: str = "prod",
+) -> RemediationPlan:
+    action = RemediationAction(
+        action_type=RemediationStrategy.RESTART,
+        target_resource="deployment/svc",
+        compute_mechanism=ComputeMechanism.KUBERNETES,
+        provider="kubernetes",
+        metadata={"namespace": namespace},
+    )
+    return RemediationPlan(
+        incident_id=uuid4(),
+        strategy=RemediationStrategy.RESTART,
+        target_resource="deployment/svc",
+        compute_mechanism=ComputeMechanism.KUBERNETES,
+        provider="kubernetes",
+        approval_state=approval_state,
+        safety_constraints=SafetyConstraints(
+            requires_human_approval=requires_human_approval,
+            max_blast_radius_percentage=20.0,
+        ),
+        blast_radius_estimate=BlastRadiusEstimate(
+            affected_pods_percentage=blast_radius_pct,
+            affected_pods_count=1,
+        ),
+        actions=[action],
+    )
+
+
+@pytest.mark.asyncio
+async def test_approval_required_and_pending_blocks() -> None:
+    orch = GuardrailOrchestrator(
+        kill_switch=KillSwitch(),
+        blast_radius=BlastRadiusCalculator(),
+        cooldown=CooldownEnforcer(),
+    )
+    result = await orch.validate(
+        _make_plan_ext(requires_human_approval=True, approval_state=ApprovalState.PENDING)
+    )
+    assert result.allowed is False
+    assert result.reason == "approval_required"
+
+
+@pytest.mark.asyncio
+async def test_blast_radius_exceeded_blocks_and_emits() -> None:
+    ks = KillSwitch()
+    br = MagicMock(spec=BlastRadiusCalculator)
+    br.validate.return_value = (False, "too_many_pods")
+    cd = MagicMock(spec=CooldownEnforcer)
+    cd.is_in_cooldown = AsyncMock(return_value=(False, 0))
+
+    bus = MagicMock()
+    bus.publish = AsyncMock()
+    store = MagicMock()
+    store.append = AsyncMock()
+
+    orch = GuardrailOrchestrator(
+        kill_switch=ks, blast_radius=br, cooldown=cd, event_bus=bus, event_store=store
+    )
+    result = await orch.validate(_make_plan_ext())
+    assert result.allowed is False
+    assert "too_many_pods" in result.reason
+    bus.publish.assert_awaited_once()
+    store.append.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_blast_radius_exceeded_empty_reason_defaults() -> None:
+    ks = KillSwitch()
+    br = MagicMock(spec=BlastRadiusCalculator)
+    br.validate.return_value = (False, None)
+    cd = MagicMock(spec=CooldownEnforcer)
+    cd.is_in_cooldown = AsyncMock(return_value=(False, 0))
+
+    orch = GuardrailOrchestrator(kill_switch=ks, blast_radius=br, cooldown=cd)
+    result = await orch.validate(_make_plan_ext())
+    assert result.reason == "blast_radius_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_cooldown_active_blocks_and_emits() -> None:
+    ks = KillSwitch()
+    br = MagicMock(spec=BlastRadiusCalculator)
+    br.validate.return_value = (True, "ok")
+    cd = MagicMock(spec=CooldownEnforcer)
+    cd.is_in_cooldown = AsyncMock(return_value=(True, 42))
+
+    bus = MagicMock()
+    bus.publish = AsyncMock()
+    store = MagicMock()
+    store.append = AsyncMock()
+
+    orch = GuardrailOrchestrator(
+        kill_switch=ks, blast_radius=br, cooldown=cd, event_bus=bus, event_store=store
+    )
+    result = await orch.validate(_make_plan_ext())
+    assert result.allowed is False
+    assert "42s" in result.reason
+    bus.publish.assert_awaited_once()
+    store.append.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_all_guards_pass_returns_allowed() -> None:
+    ks = KillSwitch()
+    br = MagicMock(spec=BlastRadiusCalculator)
+    br.validate.return_value = (True, "ok")
+    cd = MagicMock(spec=CooldownEnforcer)
+    cd.is_in_cooldown = AsyncMock(return_value=(False, 0))
+
+    orch = GuardrailOrchestrator(kill_switch=ks, blast_radius=br, cooldown=cd)
+    result = await orch.validate(_make_plan_ext())
+    assert result.allowed is True
+    assert result.reason == "allowed"
+
+
+def test_namespace_for_no_actions() -> None:
+    plan = _make_plan_ext()
+    plan.actions.clear()
+    assert _namespace_for(plan) == ""
+
+
+def test_namespace_for_with_action() -> None:
+    plan = _make_plan_ext(namespace="staging")
+    assert _namespace_for(plan) == "staging"
+

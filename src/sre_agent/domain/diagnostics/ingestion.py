@@ -14,8 +14,9 @@ from datetime import UTC, datetime
 
 import structlog
 
+from sre_agent.domain.models.vector import VectorDocument
 from sre_agent.ports.embedding import EmbeddingPort
-from sre_agent.ports.vector_store import VectorDocument, VectorStorePort
+from sre_agent.ports.vector_store import VectorStorePort
 
 logger = structlog.get_logger(__name__)
 

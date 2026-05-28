@@ -10,9 +10,10 @@ Phase 2: Intelligence Layer — Sprint 1 (Foundation & Dependency Injection)
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from enum import Enum
+
+from sre_agent.domain.models.vector import SearchResult, VectorDocument
 
 
 class DistanceMetric(Enum):
@@ -23,30 +24,7 @@ class DistanceMetric(Enum):
     DOT_PRODUCT = "dot_product"
 
 
-@dataclass(frozen=True)
-class VectorDocument:
-    """A document chunk with its vector embedding and metadata.
-
-    Stored in the vector database for semantic retrieval.
-    """
-
-    doc_id: str
-    content: str
-    embedding: list[float]
-    metadata: dict[str, str] = field(default_factory=dict)
-    source: str = ""
-    created_at: datetime | None = None
-
-
-@dataclass(frozen=True)
-class SearchResult:
-    """A single result from a vector similarity search."""
-
-    doc_id: str
-    content: str
-    score: float
-    metadata: dict[str, str] = field(default_factory=dict)
-    source: str = ""
+__all__ = ["VectorDocument", "SearchResult"]
 
 
 @dataclass

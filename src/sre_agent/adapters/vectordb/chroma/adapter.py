@@ -14,11 +14,10 @@ from typing import Any, cast
 
 import structlog
 
+from sre_agent.domain.models.vector import SearchResult, VectorDocument
 from sre_agent.ports.vector_store import (
     DistanceMetric,
     SearchQuery,
-    SearchResult,
-    VectorDocument,
     VectorStorePort,
 )
 

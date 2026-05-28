@@ -233,15 +233,38 @@ class EtcdDistributedLockManager(DistributedLockManagerPort):
 
     async def _next_fencing_token(self, lock_key: str) -> int:
         token_key = f"{lock_key}:fencing"
-        raw, _meta = await anyio.to_thread.run_sync(self._client.get, token_key)
-        current = 0
-        if raw is not None:
-            if isinstance(raw, bytes):
-                raw = raw.decode("utf-8")
-            current = int(raw)
-        next_token = current + 1
-        await anyio.to_thread.run_sync(self._client.put, token_key, str(next_token))
-        return next_token
+        while True:
+            raw, _meta = await anyio.to_thread.run_sync(self._client.get, token_key)
+            if raw is None:
+                # Key does not exist — attempt atomic creation with value "1"
+                success, _responses = await anyio.to_thread.run_sync(
+                    lambda: self._client.transaction(
+                        compare=[self._client.transactions.version(token_key) == 0],
+                        success=[self._client.transactions.put(token_key, "1")],
+                        failure=[],
+                    )
+                )
+                if success:
+                    return 1
+                # Another writer won the race; retry to read the new value
+            else:
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8")
+                current = int(raw)
+                next_token = current + 1
+                current_str = str(current)
+                next_str = str(next_token)
+                # Atomic CAS: only write next_str when stored value is still current_str
+                success, _responses = await anyio.to_thread.run_sync(
+                    lambda _cv=current_str, _nv=next_str: self._client.transaction(
+                        compare=[self._client.transactions.value(token_key) == _cv],
+                        success=[self._client.transactions.put(token_key, _nv)],
+                        failure=[],
+                    )
+                )
+                if success:
+                    return next_token
+                # CAS lost to a concurrent writer; retry with the updated value
 
     def _lock_key(self, request: LockRequest) -> str:
         if request.compute_mechanism == ComputeMechanism.KUBERNETES:
