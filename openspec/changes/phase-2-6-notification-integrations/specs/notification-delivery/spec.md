@@ -1,4 +1,4 @@
-## ADDED Requirements — Phase 2.6 Notification Delivery
+## ADDED Requirements
 
 > **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Items 2+3
 > **Competitive Context:** Every competitor (PagerDuty, Rootly, BigPanda, Robusta) has deep Slack integration. PagerDuty on-call is the enterprise standard.

@@ -42,6 +42,7 @@ METRIC_MAP: dict[str, tuple[str, str]] = {
     "ecs_memory_utilization": ("ECS/ContainerInsights", "MemoryUtilized"),
     "ecs_running_tasks": ("ECS/ContainerInsights", "RunningTaskCount"),
     "ecs_running_task_count": ("ECS/ContainerInsights", "RunningTaskCount"),
+    "ecs_response_time_ms": ("ECS/ContainerInsights", "ResponseTime"),  # Phase 2.5
     # ALB
     "http_request_duration_seconds": ("AWS/ApplicationELB", "TargetResponseTime"),
     "alb_target_response_time": ("AWS/ApplicationELB", "TargetResponseTime"),
@@ -75,15 +76,20 @@ class CloudWatchMetricsAdapter(MetricsQuery):
         self,
         cloudwatch_client: Any,
         region: str = "us-east-1",
+        metadata_fetcher: Any | None = None,
     ) -> None:
         """Initialise with an injected boto3 CloudWatch client.
 
         Args:
             cloudwatch_client: A ``boto3.client("cloudwatch")`` instance.
             region: AWS region for labelling purposes.
+            metadata_fetcher: Optional AWSResourceMetadataFetcher for enriching
+                Lambda duration metrics with ``timeout_ms`` platform metadata
+                (Phase 2.5 timeout-proximity detection).
         """
         self._client = cloudwatch_client
         self._region = region
+        self._metadata_fetcher = metadata_fetcher
 
     async def query(
         self,
@@ -145,7 +151,51 @@ class CloudWatchMetricsAdapter(MetricsQuery):
             )
             return []
 
-        return self._parse_metric_data(response, metric, service)
+        metrics = self._parse_metric_data(response, metric, service)
+
+        # Phase 2.5: Enrich Lambda duration with timeout_ms for timeout-proximity detection
+        if metric == "lambda_duration_ms" and self._metadata_fetcher is not None:
+            metrics = await self._enrich_lambda_timeout(metrics, service)
+
+        return metrics
+
+    async def _enrich_lambda_timeout(
+        self, metrics: list[CanonicalMetric], service: str
+    ) -> list[CanonicalMetric]:
+        """Enrich Lambda duration metrics with ``timeout_ms`` platform metadata.
+
+        Calls AWSResourceMetadataFetcher.fetch_lambda_context() and stores
+        the timeout (converted from seconds to milliseconds) in each metric's
+        labels.platform_metadata so that _detect_timeout_proximity() can use it.
+
+        Phase 2.5: AC-2.5-3.2
+        """
+        if self._metadata_fetcher is None or not metrics:
+            return metrics
+
+        try:
+            lambda_ctx = await self._metadata_fetcher.fetch_lambda_context(service)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "cloudwatch_lambda_metadata_fetch_failed",
+                service=service,
+                error=str(exc),
+            )
+            return metrics
+
+        timeout_s = lambda_ctx.get("timeout_s", 0)
+        if not timeout_s:
+            return metrics
+
+        timeout_ms = float(timeout_s) * 1000.0
+        enriched: list[CanonicalMetric] = []
+        for m in metrics:
+            new_platform_metadata = {**m.labels.platform_metadata, "timeout_ms": timeout_ms}
+            new_labels = m.labels.model_copy(
+                update={"platform_metadata": new_platform_metadata}
+            )
+            enriched.append(m.model_copy(update={"labels": new_labels}))
+        return enriched
 
     async def query_instant(
         self,

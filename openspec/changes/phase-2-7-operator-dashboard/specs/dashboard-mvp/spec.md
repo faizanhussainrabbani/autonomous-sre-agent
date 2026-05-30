@@ -1,4 +1,4 @@
-## ADDED Requirements — Phase 2.7 Dashboard MVP
+## ADDED Requirements
 
 > **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Item 4
 > **Competitive Context:** Datadog, Dynatrace, and Sedai all have polished operational dashboards. This is expected by all operator users.

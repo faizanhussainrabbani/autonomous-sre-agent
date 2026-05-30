@@ -1,0 +1,1 @@
+"""Notifications domain sub-package."""

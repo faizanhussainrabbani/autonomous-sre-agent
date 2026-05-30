@@ -115,9 +115,10 @@ def pg_container():  # type: ignore[no-untyped-def]
         yield pg
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 async def pg_pool(pg_container):  # type: ignore[no-untyped-def]
-    pool = await asyncpg.create_pool(dsn=pg_container.get_connection_url())
+    dsn = pg_container.get_connection_url().replace("postgresql+psycopg2://", "postgresql://", 1)
+    pool = await asyncpg.create_pool(dsn=dsn)
     await _apply_migrations(pool)
     yield pool
     await pool.close()
@@ -443,7 +444,7 @@ async def test_migration_007_creates_incident_events_partitioned_mirror(
             """
         )
 
-    assert relkind == "p"
+    assert relkind in ("p", b"p")
     assert trigger_exists is True
 
 

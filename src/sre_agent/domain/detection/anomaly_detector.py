@@ -25,6 +25,13 @@ from sre_agent.domain.models.canonical import (
     EventTypes,
 )
 from sre_agent.domain.models.detection_config import DetectionConfig
+from sre_agent.observability.metrics import (
+    LATENCY_ARBITRATIONS,
+    SLOW_RESPONSE_ALERTS,
+    SLOW_RESPONSE_DETECTION_LATENCY,
+    TIMEOUT_METADATA_FALLBACKS,
+    TIMEOUT_PROXIMITY_ALERTS,
+)
 from sre_agent.ports.events import EventBus
 from sre_agent.ports.telemetry import BaselineQuery
 
@@ -178,6 +185,204 @@ class AnomalyDetector:
                     return float(override)
         return self._config.latency_sigma_threshold
 
+    def _get_effective_slow_response_threshold_ms(self, service: str) -> float:
+        """Get effective absolute slow-response threshold, checking per-service overrides."""
+        if service in self._service_overrides:
+            override = self._service_overrides[service].get("slow_response_threshold_ms")
+            if override is not None:
+                return float(override)
+        return self._config.slow_response_absolute_threshold_ms
+
+    # -----------------------------------------------------------------------
+    # Phase 2.5: Latency candidate-rule model and arbitration
+    # -----------------------------------------------------------------------
+
+    def _evaluate_latency_candidates(
+        self,
+        service: str,
+        metric: CanonicalMetric,
+        namespace: str,
+        compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES,
+    ) -> AnomalyAlert | None:
+        """Evaluate all latency rules and emit at most one alert per evaluation.
+
+        Arbitration order (highest to lowest precedence):
+            1. TIMEOUT_PROXIMITY  (serverless only)
+            2. SLOW_RESPONSE      (absolute threshold)
+            3. LATENCY_SPIKE      (sigma-based)
+
+        Phase 2.5 — replaces direct _detect_latency_spike() call in _evaluate_metric().
+        """
+        timeout_prox = self._detect_timeout_proximity(service, metric, namespace, compute_mechanism)
+        abs_latency = self._detect_absolute_latency(service, metric, namespace, compute_mechanism)
+        sigma_spike = self._detect_latency_spike(service, metric, namespace, compute_mechanism)
+
+        # Collect non-None candidates in precedence order
+        winner = timeout_prox or abs_latency or sigma_spike
+
+        if winner is None:
+            return None
+
+        # Count suppressed candidates for observability
+        all_candidates = [c for c in [timeout_prox, abs_latency, sigma_spike] if c is not None]
+        suppressed_count = len(all_candidates) - 1  # winner counts as 1
+
+        if suppressed_count > 0:
+            logger.debug(
+                "latency_arbitration_winner",
+                service=service,
+                metric=metric.name,
+                winner=winner.anomaly_type.value,
+                candidate_count=len(all_candidates),
+                suppressed_count=suppressed_count,
+                compute_mechanism=compute_mechanism.value,
+            )
+            LATENCY_ARBITRATIONS.labels(
+                winner=winner.anomaly_type.value, service=service
+            ).inc()
+
+        return winner
+
+    def _detect_absolute_latency(
+        self,
+        service: str,
+        metric: CanonicalMetric,
+        namespace: str,
+        compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES,
+    ) -> AnomalyAlert | None:
+        """Phase 2.5: Fire SLOW_RESPONSE when latency exceeds absolute threshold for duration.
+
+        Unlike sigma-based detection, this rule does not require an established baseline.
+        Metric value is expected in milliseconds.
+        """
+        threshold_ms = self._get_effective_slow_response_threshold_ms(service)
+
+        if metric.value < threshold_ms:
+            self._active_conditions.pop(f"{service}:{metric.name}:abs_latency", None)
+            return None
+
+        condition_key = f"{service}:{metric.name}:abs_latency"
+        now = metric.timestamp
+
+        if condition_key not in self._active_conditions:
+            self._active_conditions[condition_key] = now
+            return None  # First detection — start timer
+
+        first_seen = self._active_conditions[condition_key]
+        duration = (now - first_seen).total_seconds()
+
+        if duration < self._config.slow_response_duration_seconds:
+            return None  # Not sustained long enough
+
+        logger.info(
+            "slow_response_detected",
+            service=service,
+            metric_name=metric.name,
+            value_ms=metric.value,
+            threshold_ms=threshold_ms,
+            duration_seconds=duration,
+            compute_mechanism=compute_mechanism.value,
+        )
+        SLOW_RESPONSE_ALERTS.labels(
+            service=service, compute_mechanism=compute_mechanism.value
+        ).inc()
+        SLOW_RESPONSE_DETECTION_LATENCY.observe(duration)
+
+        return AnomalyAlert(
+            anomaly_type=AnomalyType.SLOW_RESPONSE,
+            service=service,
+            namespace=namespace,
+            compute_mechanism=compute_mechanism,
+            metric_name=metric.name,
+            current_value=metric.value,
+            baseline_value=threshold_ms,
+            description=(
+                f"Response time {metric.value:.0f}ms exceeds absolute threshold "
+                f"{threshold_ms:.0f}ms for {duration:.0f}s "
+                f"(required: {self._config.slow_response_duration_seconds}s)"
+            ),
+        )
+
+    def _detect_timeout_proximity(
+        self,
+        service: str,
+        metric: CanonicalMetric,
+        namespace: str,
+        compute_mechanism: ComputeMechanism = ComputeMechanism.KUBERNETES,
+    ) -> AnomalyAlert | None:
+        """Phase 2.5: Fire TIMEOUT_PROXIMITY when Lambda duration approaches its timeout.
+
+        Only applies to SERVERLESS compute. Cold-start suppression is applied.
+        Requires ``timeout_ms`` in ``metric.labels.platform_metadata``.
+        If timeout metadata is absent, the rule is skipped and a warning is logged.
+        """
+        if compute_mechanism != ComputeMechanism.SERVERLESS:
+            return None
+
+        # Phase 2.5 task 2.4: Apply cold-start suppression (same window as sigma rule)
+        if service not in self._cold_start_init_times:
+            self._cold_start_init_times[service] = metric.timestamp
+        init_time = self._cold_start_init_times[service]
+        elapsed = (metric.timestamp - init_time).total_seconds()
+        if elapsed <= self._config.cold_start_suppression_window_seconds:
+            logger.debug(
+                "timeout_proximity_cold_start_suppressed",
+                service=service,
+                elapsed_seconds=elapsed,
+            )
+            return None
+
+        # Retrieve timeout_ms from metric label metadata
+        timeout_ms_raw = metric.labels.platform_metadata.get("timeout_ms")
+        if timeout_ms_raw is None:
+            logger.warning(
+                "timeout_proximity_metadata_missing",
+                service=service,
+                metric_name=metric.name,
+                suppressed=True,
+            )
+            TIMEOUT_METADATA_FALLBACKS.labels(service=service).inc()
+            return None
+
+        timeout_ms = float(timeout_ms_raw)
+        if timeout_ms <= 0:
+            return None
+
+        proximity_ratio = metric.value / timeout_ms
+        threshold_ratio = self._config.timeout_proximity_percent / 100.0
+
+        if proximity_ratio < threshold_ratio:
+            return None
+
+        logger.info(
+            "timeout_proximity_detected",
+            service=service,
+            metric_name=metric.name,
+            value_ms=metric.value,
+            timeout_ms=timeout_ms,
+            proximity_ratio=round(proximity_ratio, 3),
+            threshold_ratio=threshold_ratio,
+            compute_mechanism=compute_mechanism.value,
+        )
+        TIMEOUT_PROXIMITY_ALERTS.labels(service=service).inc()
+        SLOW_RESPONSE_DETECTION_LATENCY.observe(0.0)  # Immediate detection
+
+        return AnomalyAlert(
+            anomaly_type=AnomalyType.TIMEOUT_PROXIMITY,
+            service=service,
+            namespace=namespace,
+            compute_mechanism=compute_mechanism,
+            metric_name=metric.name,
+            current_value=metric.value,
+            baseline_value=timeout_ms,
+            deviation_sigma=proximity_ratio,
+            description=(
+                f"Lambda duration {metric.value:.0f}ms is "
+                f"{proximity_ratio * 100:.0f}% of configured timeout {timeout_ms:.0f}ms "
+                f"(threshold: {self._config.timeout_proximity_percent:.0f}%)"
+            ),
+        )
+
     async def _evaluate_metric(
         self,
         service: str,
@@ -187,9 +392,9 @@ class AnomalyDetector:
     ) -> AnomalyAlert | None:
         """Evaluate a single metric against all detection rules."""
 
-        # Latency spike detection (AC-3.1.2)
-        if "duration" in metric.name or "latency" in metric.name:
-            return self._detect_latency_spike(service, metric, namespace, compute_mechanism)
+        # Latency evaluation — candidate-rule model with arbitration (Phase 2.5)
+        if "duration" in metric.name or "latency" in metric.name or "response_time" in metric.name:
+            return self._evaluate_latency_candidates(service, metric, namespace, compute_mechanism)
 
         # Phase 1.5: InvocationError surge detection (serverless OOM replacement)
         # Must precede generic "error" check so invocation-specific metrics are routed here.
@@ -636,6 +841,7 @@ class AnomalyDetector:
         sigma_threshold: float | None = None,
         error_rate_surge_percent: float | None = None,
         memory_pressure_percent: float | None = None,
+        slow_response_threshold_ms: float | None = None,
     ) -> None:
         """Configure detection sensitivity per service.
 
@@ -647,6 +853,7 @@ class AnomalyDetector:
             sigma_threshold: Custom sigma threshold (e.g., 2.0 for high sensitivity).
             error_rate_surge_percent: Custom error rate threshold.
             memory_pressure_percent: Custom memory pressure threshold.
+            slow_response_threshold_ms: Custom absolute latency threshold (ms) for Phase 2.5.
         """
         overrides: dict[str, Any] = {}
         if sigma_threshold is not None:
@@ -655,6 +862,8 @@ class AnomalyDetector:
             overrides["error_rate_surge_percent"] = error_rate_surge_percent
         if memory_pressure_percent is not None:
             overrides["memory_pressure_percent"] = memory_pressure_percent
+        if slow_response_threshold_ms is not None:
+            overrides["slow_response_threshold_ms"] = slow_response_threshold_ms
 
         self._service_overrides[service] = overrides
         logger.info("service_sensitivity_configured", service=service, overrides=overrides)

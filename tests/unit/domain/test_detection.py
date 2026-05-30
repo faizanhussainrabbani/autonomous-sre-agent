@@ -261,6 +261,313 @@ class TestAnomalyDetector:
 
 
 # ---------------------------------------------------------------------------
+# Phase 2.5 Slow Response Detection Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSlowResponseDetection:
+    """Tests for Phase 2.5 absolute-threshold and timeout-proximity detection."""
+
+    def _make_metric(
+        self,
+        name: str,
+        value: float,
+        ts: datetime | None = None,
+        platform_metadata: dict | None = None,
+    ) -> CanonicalMetric:
+        return CanonicalMetric(
+            name=name,
+            value=value,
+            timestamp=ts or datetime.now(UTC),
+            labels=ServiceLabels(
+                service="checkout",
+                namespace="prod",
+                platform_metadata=platform_metadata or {},
+            ),
+        )
+
+    def _make_serverless_metric(
+        self,
+        value: float,
+        ts: datetime | None = None,
+        timeout_ms: float | None = None,
+    ) -> CanonicalMetric:
+        from sre_agent.domain.models.canonical import ComputeMechanism
+
+        meta = {"timeout_ms": timeout_ms} if timeout_ms is not None else {}
+        return CanonicalMetric(
+            name="lambda_duration_ms",
+            value=value,
+            timestamp=ts or datetime.now(UTC),
+            labels=ServiceLabels(
+                service="checkout",
+                compute_mechanism=ComputeMechanism.SERVERLESS,
+                platform_metadata=meta,
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_absolute_threshold_fires_after_duration(self):
+        """Phase 2.5: SLOW_RESPONSE fires when latency > threshold sustained for duration."""
+        baseline_svc = BaselineService()
+        config = DetectionConfig(
+            slow_response_absolute_threshold_ms=1000.0,
+            slow_response_duration_seconds=0,  # Disable for unit test
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts1 = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        # First detection starts timer — no alert
+        r1 = await detector.detect(
+            "checkout", [self._make_metric("http_request_duration_p99", 2000.0, ts1)]
+        )
+        assert len(r1.alerts) == 0
+
+        ts2 = ts1 + timedelta(seconds=1)
+        r2 = await detector.detect(
+            "checkout", [self._make_metric("http_request_duration_p99", 2000.0, ts2)]
+        )
+        assert len(r2.alerts) == 1
+        assert r2.alerts[0].anomaly_type == AnomalyType.SLOW_RESPONSE
+
+    @pytest.mark.asyncio
+    async def test_absolute_threshold_suppressed_before_duration(self):
+        """Phase 2.5: SLOW_RESPONSE NOT fired when duration requirement unmet."""
+        baseline_svc = BaselineService()
+        config = DetectionConfig(
+            slow_response_absolute_threshold_ms=1000.0,
+            slow_response_duration_seconds=120,  # 2 minutes required
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts1 = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        # First detection starts timer
+        await detector.detect(
+            "checkout", [self._make_metric("http_request_duration_p99", 2000.0, ts1)]
+        )
+
+        ts2 = ts1 + timedelta(seconds=30)  # Only 30s elapsed, < 120s required
+        r2 = await detector.detect(
+            "checkout", [self._make_metric("http_request_duration_p99", 2000.0, ts2)]
+        )
+        assert len(r2.alerts) == 0
+
+    @pytest.mark.asyncio
+    async def test_absolute_threshold_clears_below_threshold(self):
+        """Phase 2.5: Active condition cleared when metric drops below threshold."""
+        from sre_agent.domain.models.canonical import ComputeMechanism
+
+        baseline_svc = BaselineService()
+        config = DetectionConfig(
+            slow_response_absolute_threshold_ms=1000.0,
+            slow_response_duration_seconds=0,
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts1 = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        await detector.detect("checkout", [self._make_metric("http_request_duration_p99", 2000.0, ts1)])
+
+        # Drop below threshold — condition should clear
+        ts2 = ts1 + timedelta(seconds=5)
+        await detector.detect("checkout", [self._make_metric("http_request_duration_p99", 500.0, ts2)])
+
+        # Timer reset — first detection above threshold again, no alert
+        ts3 = ts2 + timedelta(seconds=5)
+        r3 = await detector.detect("checkout", [self._make_metric("http_request_duration_p99", 2000.0, ts3)])
+        assert len(r3.alerts) == 0
+
+    @pytest.mark.asyncio
+    async def test_timeout_proximity_fires_at_configured_threshold(self):
+        """Phase 2.5: TIMEOUT_PROXIMITY fires when Lambda duration >= 80% of timeout."""
+        from sre_agent.domain.models.canonical import ComputeMechanism
+
+        baseline_svc = BaselineService()
+        # Use -1 to fully disable cold-start suppression (elapsed >= 0 > -1 always).
+        config = DetectionConfig(
+            timeout_proximity_percent=80.0,
+            cold_start_suppression_window_seconds=-1,
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        # duration=8500ms, timeout=10000ms → 85% > 80% threshold
+        metric = self._make_serverless_metric(8500.0, ts, timeout_ms=10000.0)
+        result = await detector.detect(
+            "checkout",
+            [metric],
+            compute_mechanism=ComputeMechanism.SERVERLESS,
+        )
+
+        assert len(result.alerts) == 1
+        assert result.alerts[0].anomaly_type == AnomalyType.TIMEOUT_PROXIMITY
+
+    @pytest.mark.asyncio
+    async def test_timeout_proximity_not_fired_below_threshold(self):
+        """Phase 2.5: TIMEOUT_PROXIMITY not fired when duration below threshold."""
+        from sre_agent.domain.models.canonical import ComputeMechanism
+
+        baseline_svc = BaselineService()
+        config = DetectionConfig(
+            timeout_proximity_percent=80.0,
+            cold_start_suppression_window_seconds=-1,
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        # duration=5000ms, timeout=10000ms → 50% < 80% threshold
+        metric = self._make_serverless_metric(5000.0, ts, timeout_ms=10000.0)
+        result = await detector.detect(
+            "checkout",
+            [metric],
+            compute_mechanism=ComputeMechanism.SERVERLESS,
+        )
+
+        slow_resp_or_timeout = [
+            a
+            for a in result.alerts
+            if a.anomaly_type in (AnomalyType.TIMEOUT_PROXIMITY, AnomalyType.SLOW_RESPONSE)
+        ]
+        assert len(slow_resp_or_timeout) == 0
+
+    @pytest.mark.asyncio
+    async def test_timeout_proximity_suppressed_during_cold_start_window(self):
+        """Phase 2.5 / task 2.4: TIMEOUT_PROXIMITY suppressed within cold-start window."""
+        from sre_agent.domain.models.canonical import ComputeMechanism
+
+        baseline_svc = BaselineService()
+        config = DetectionConfig(
+            timeout_proximity_percent=80.0,
+            cold_start_suppression_window_seconds=15,
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        # duration=9000ms (90% of 10s timeout) but in cold-start window
+        metric = self._make_serverless_metric(9000.0, ts, timeout_ms=10000.0)
+        result = await detector.detect(
+            "checkout",
+            [metric],
+            compute_mechanism=ComputeMechanism.SERVERLESS,
+        )
+
+        timeout_alerts = [a for a in result.alerts if a.anomaly_type == AnomalyType.TIMEOUT_PROXIMITY]
+        assert len(timeout_alerts) == 0
+
+    @pytest.mark.asyncio
+    async def test_timeout_proximity_fallback_when_metadata_unavailable(self):
+        """Phase 2.5: Timeout proximity skipped when timeout_ms metadata missing."""
+        from sre_agent.domain.models.canonical import ComputeMechanism
+
+        baseline_svc = BaselineService()
+        config = DetectionConfig(
+            timeout_proximity_percent=80.0,
+            cold_start_suppression_window_seconds=-1,
+            slow_response_absolute_threshold_ms=100000.0,  # Very high → won't fire
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        # No timeout_ms in platform_metadata
+        metric = self._make_serverless_metric(9000.0, ts, timeout_ms=None)
+        result = await detector.detect(
+            "checkout",
+            [metric],
+            compute_mechanism=ComputeMechanism.SERVERLESS,
+        )
+
+        timeout_alerts = [a for a in result.alerts if a.anomaly_type == AnomalyType.TIMEOUT_PROXIMITY]
+        assert len(timeout_alerts) == 0
+
+    @pytest.mark.asyncio
+    async def test_arbitration_emits_single_alert_timeout_proximity_wins(self):
+        """Phase 2.5 / task 2.3: TIMEOUT_PROXIMITY > SLOW_RESPONSE — only one alert emitted."""
+        from sre_agent.domain.models.canonical import ComputeMechanism
+
+        baseline_svc = BaselineService()
+        # Both absolute and timeout-proximity should qualify; timeout-proximity wins
+        config = DetectionConfig(
+            slow_response_absolute_threshold_ms=500.0,  # Very low → fires
+            slow_response_duration_seconds=0,
+            timeout_proximity_percent=80.0,
+            cold_start_suppression_window_seconds=-1,  # Disable cold-start suppression
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts1 = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        # Prime the abs timer
+        await detector.detect(
+            "checkout",
+            [self._make_serverless_metric(9000.0, ts1, timeout_ms=10000.0)],
+            compute_mechanism=ComputeMechanism.SERVERLESS,
+        )
+
+        ts2 = ts1 + timedelta(seconds=1)
+        metric = self._make_serverless_metric(9000.0, ts2, timeout_ms=10000.0)
+        result = await detector.detect(
+            "checkout",
+            [metric],
+            compute_mechanism=ComputeMechanism.SERVERLESS,
+        )
+
+        # At most one alert emitted per evaluation
+        latency_alerts = [
+            a
+            for a in result.alerts
+            if a.anomaly_type in (
+                AnomalyType.TIMEOUT_PROXIMITY,
+                AnomalyType.SLOW_RESPONSE,
+                AnomalyType.LATENCY_SPIKE,
+            )
+        ]
+        assert len(latency_alerts) == 1
+        assert latency_alerts[0].anomaly_type == AnomalyType.TIMEOUT_PROXIMITY
+
+    @pytest.mark.asyncio
+    async def test_per_service_slow_response_threshold_override(self):
+        """Phase 2.5 / task 1.4: Per-service slow_response_threshold_ms override."""
+        baseline_svc = BaselineService()
+        config = DetectionConfig(
+            slow_response_absolute_threshold_ms=2000.0,
+            slow_response_duration_seconds=0,
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        # Set a lower threshold for "checkout" service
+        detector.set_service_sensitivity("checkout", slow_response_threshold_ms=800.0)
+
+        ts1 = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        await detector.detect("checkout", [self._make_metric("http_request_duration_p99", 900.0, ts1)])
+
+        ts2 = ts1 + timedelta(seconds=1)
+        r2 = await detector.detect("checkout", [self._make_metric("http_request_duration_p99", 900.0, ts2)])
+
+        assert len(r2.alerts) == 1
+        assert r2.alerts[0].anomaly_type == AnomalyType.SLOW_RESPONSE
+        assert r2.alerts[0].baseline_value == 800.0
+
+    @pytest.mark.asyncio
+    async def test_sigma_rule_not_fired_without_baseline(self):
+        """Phase 2.5 regression: sigma rule still requires established baseline."""
+        baseline_svc = BaselineService()
+        config = DetectionConfig(
+            latency_sigma_threshold=3.0,
+            slow_response_absolute_threshold_ms=100000.0,  # Very high → won't fire abs rule
+            slow_response_duration_seconds=0,
+        )
+        detector = AnomalyDetector(baseline_svc, config)
+
+        ts = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
+        # No baseline established
+        r = await detector.detect(
+            "checkout", [self._make_metric("http_request_duration_p99", 10000.0, ts)]
+        )
+
+        latency_spike = [a for a in r.alerts if a.anomaly_type == AnomalyType.LATENCY_SPIKE]
+        assert len(latency_spike) == 0
+
+
+# ---------------------------------------------------------------------------
 # Alert Correlation Engine Tests (Task 2.3)
 # ---------------------------------------------------------------------------
 

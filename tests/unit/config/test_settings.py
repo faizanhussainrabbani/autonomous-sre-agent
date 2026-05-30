@@ -202,3 +202,54 @@ def test_feature_flags_bridge_enrichment_defaults_true():
     """FeatureFlags.bridge_enrichment defaults to True (Phase 2.9)."""
     flags = FeatureFlags()
     assert flags.bridge_enrichment is True
+
+
+# ---------------------------------------------------------------------------
+# Tests: Phase 2.5 detection config fields wired through settings
+# ---------------------------------------------------------------------------
+
+
+def test_detection_slow_response_defaults():
+    """Phase 2.5: AgentConfig.detection carries slow-response defaults."""
+    config = AgentConfig()
+    assert config.detection.slow_response_absolute_threshold_ms == 2000.0
+    assert config.detection.slow_response_duration_seconds == 60
+    assert config.detection.timeout_proximity_percent == 80.0
+
+
+def test_detection_slow_response_from_dict():
+    """Phase 2.5: slow-response fields are loaded from YAML/dict."""
+    data = {
+        "detection": {
+            "slow_response_absolute_threshold_ms": 500.0,
+            "slow_response_duration_seconds": 30,
+            "timeout_proximity_percent": 90.0,
+        }
+    }
+    config = AgentConfig.from_dict(data)
+    assert config.detection.slow_response_absolute_threshold_ms == 500.0
+    assert config.detection.slow_response_duration_seconds == 30
+    assert config.detection.timeout_proximity_percent == 90.0
+
+
+def test_detection_slow_response_from_yaml():
+    """Phase 2.5: slow-response fields are loaded from a YAML file."""
+    import tempfile
+
+    import yaml
+
+    data = {
+        "detection": {
+            "slow_response_absolute_threshold_ms": 1500.0,
+            "slow_response_duration_seconds": 45,
+            "timeout_proximity_percent": 75.0,
+        }
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(data, f)
+        f.flush()
+        config = AgentConfig.from_yaml(f.name)
+
+    assert config.detection.slow_response_absolute_threshold_ms == 1500.0
+    assert config.detection.slow_response_duration_seconds == 45
+    assert config.detection.timeout_proximity_percent == 75.0

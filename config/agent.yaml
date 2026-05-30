@@ -90,6 +90,10 @@ detection:
   cert_expiry_critical_days: 3
   deployment_correlation_window_minutes: 60
   suppression_window_seconds: 30
+  # Phase 2.5: Slow response and timeout proximity thresholds
+  slow_response_absolute_threshold_ms: 2000.0
+  slow_response_duration_seconds: 60
+  timeout_proximity_percent: 80.0
 
 # Performance SLO targets
 performance:

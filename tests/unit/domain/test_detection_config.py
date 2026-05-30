@@ -84,3 +84,35 @@ class TestDetectionConfigOverrides:
         """AC-3.2.3: Multi-dimensional error correlation defaults."""
         config = DetectionConfig()
         assert config.multi_dim_error_percent == 80.0
+
+    # Phase 2.5 defaults
+
+    def test_default_slow_response_absolute_threshold_ms(self) -> None:
+        """Phase 2.5: Absolute slow-response threshold defaults to 2000ms."""
+        config = DetectionConfig()
+        assert config.slow_response_absolute_threshold_ms == 2000.0
+
+    def test_default_slow_response_duration_seconds(self) -> None:
+        """Phase 2.5: Slow-response sustained duration defaults to 60s."""
+        config = DetectionConfig()
+        assert config.slow_response_duration_seconds == 60
+
+    def test_default_timeout_proximity_percent(self) -> None:
+        """Phase 2.5: Timeout proximity threshold defaults to 80%."""
+        config = DetectionConfig()
+        assert config.timeout_proximity_percent == 80.0
+
+    def test_custom_slow_response_threshold(self) -> None:
+        """Phase 2.5: Custom absolute threshold accepted."""
+        config = DetectionConfig(slow_response_absolute_threshold_ms=500.0)
+        assert config.slow_response_absolute_threshold_ms == 500.0
+
+    def test_custom_slow_response_duration(self) -> None:
+        """Phase 2.5: Custom sustained duration accepted."""
+        config = DetectionConfig(slow_response_duration_seconds=30)
+        assert config.slow_response_duration_seconds == 30
+
+    def test_custom_timeout_proximity_percent(self) -> None:
+        """Phase 2.5: Custom timeout proximity percent accepted."""
+        config = DetectionConfig(timeout_proximity_percent=90.0)
+        assert config.timeout_proximity_percent == 90.0

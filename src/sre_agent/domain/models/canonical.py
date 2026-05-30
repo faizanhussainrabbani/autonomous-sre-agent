@@ -65,6 +65,8 @@ class AnomalyType(Enum):
     DEPLOYMENT_INDUCED = "deployment_induced"
     INVOCATION_ERROR_SURGE = "invocation_error_surge"  # Phase 1.5: Serverless
     TRAFFIC_ANOMALY = "traffic_anomaly"
+    SLOW_RESPONSE = "slow_response"          # Phase 2.5: Absolute latency SLA breach
+    TIMEOUT_PROXIMITY = "timeout_proximity"  # Phase 2.5: Serverless timeout risk
 
 
 class IncidentPhase(Enum):

@@ -27,6 +27,8 @@ DEFAULT_WATCHLIST: list[dict[str, str]] = [
     {"service": "payment-processor", "metric": "error_rate"},
     {"service": "payment-processor", "metric": "lambda_duration_ms"},
     {"service": "payment-processor", "metric": "lambda_throttles"},
+    # Phase 2.5: Kubernetes p99 latency for absolute-threshold and sigma detection
+    {"service": "payment-processor", "metric": "http_request_duration_p99"},
 ]
 
 

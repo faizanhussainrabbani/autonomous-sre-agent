@@ -1,4 +1,4 @@
-## ADDED Requirements — Phase 4.0 Persistence Architecture Reconciliation
+## ADDED Requirements
 
 > **Source:** [2026-04-07 Persistence Architecture Review](../../../../../.copilot-tracking/research/2026-04-07/persistence-architecture-review-research.md), [2026-04-08 Reconciliation Clarifications](../../../../../.copilot-tracking/research/2026-04-08/persistence-architecture-reconciliation-research.md)
 > **Architectural Context:** Resolves six clarification gates (C-01 through C-06) identified in the comprehensive persistence review before implementation begins. Enforces `AGENTS.md` multi-agent coordination policy alignment.

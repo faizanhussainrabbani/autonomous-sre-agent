@@ -62,3 +62,27 @@ Safety references:
 * [Multi-agent coordination](multi-agent-coordination.md)
 * [Permissions and RBAC](permissions-and-rbac.md)
 * [Guardrails configuration](../security/guardrails_configuration.md)
+
+## Slow-response detection model (Phase 2.5)
+
+Phase 2.5 introduced a hybrid latency detection model alongside the existing sigma-based spike detector.
+
+Detection rules are evaluated as candidates for every latency metric. A single alert is emitted per evaluation cycle using the following precedence:
+
+```
+TIMEOUT_PROXIMITY > SLOW_RESPONSE > LATENCY_SPIKE
+```
+
+Rules:
+
+* **LATENCY_SPIKE** (pre-existing): sigma-based, requires an established baseline, fires when deviation exceeds the configured multiplier.
+* **SLOW_RESPONSE** (Phase 2.5): absolute-threshold, no baseline required. Fires when a latency metric exceeds `slow_response_absolute_threshold_ms` for `slow_response_duration_seconds` consecutively. Applies to Kubernetes, ECS, and Lambda.
+* **TIMEOUT_PROXIMITY** (Phase 2.5): serverless-only. Fires when Lambda duration is at or above `timeout_proximity_percent` of the function's configured timeout. Cold-start suppression is applied during the first `cold_start_suppression_window_seconds` of a function's lifecycle.
+
+Platform metric support added in Phase 2.5A:
+
+* `http_request_duration_p99` — Kubernetes p99 response time
+* `ecs_response_time_ms` — ECS Container Insights `ResponseTime`
+* `lambda_duration_ms` — Lambda duration enriched with `timeout_ms` metadata via `AWSResourceMetadataFetcher`
+
+Azure App Service support (`appservice_response_time_ms`) is deferred to Phase 2.5B, pending availability of the Azure Monitor adapter.

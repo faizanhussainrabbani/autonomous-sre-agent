@@ -5,7 +5,7 @@ Unit tests for CloudWatch Metrics Adapter.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -47,6 +47,9 @@ def test_metric_map_contains_ecs_metrics():
     assert "ecs_cpu_utilization" in METRIC_MAP
     assert "ecs_memory_utilization" in METRIC_MAP
     assert "ecs_running_task_count" in METRIC_MAP
+    # Phase 2.5: ECS response time mapping
+    assert "ecs_response_time_ms" in METRIC_MAP
+    assert METRIC_MAP["ecs_response_time_ms"] == ("ECS/ContainerInsights", "ResponseTime")
 
 
 def test_metric_map_contains_alb_metrics():
@@ -200,3 +203,122 @@ async def test_health_check_fail():
 async def test_close_is_noop():
     adapter = _make_adapter()
     await adapter.close()  # Should not raise
+
+
+# ── Phase 2.5: ECS ResponseTime mapping ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_query_ecs_response_time_ms():
+    """Phase 2.5: query() resolves ecs_response_time_ms → ECS/ContainerInsights ResponseTime."""
+    client = _make_client(
+        metric_data_results=[
+            {
+                "Id": "m0",
+                "Timestamps": [datetime(2024, 6, 1, tzinfo=UTC)],
+                "Values": [350.0],
+            },
+        ]
+    )
+    adapter = _make_adapter(client)
+    now = datetime.now(UTC)
+    results = await adapter.query(
+        service="checkout-svc",
+        metric="ecs_response_time_ms",
+        start_time=now,
+        end_time=now,
+    )
+    assert len(results) == 1
+    assert results[0].value == 350.0
+    # Confirm correct namespace was requested
+    call_kwargs = client.get_metric_data.call_args[1]
+    query = call_kwargs["MetricDataQueries"][0]["MetricStat"]["Metric"]
+    assert query["Namespace"] == "ECS/ContainerInsights"
+    assert query["MetricName"] == "ResponseTime"
+
+
+# ── Phase 2.5: Lambda timeout_ms enrichment ───────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_lambda_duration_enriched_with_timeout_ms():
+    """Phase 2.5: lambda_duration_ms metrics get timeout_ms in platform_metadata."""
+    client = _make_client(
+        metric_data_results=[
+            {
+                "Id": "m0",
+                "Timestamps": [datetime(2024, 6, 1, tzinfo=UTC)],
+                "Values": [800.0],
+            },
+        ]
+    )
+    metadata_fetcher = MagicMock()
+    metadata_fetcher.fetch_lambda_context = AsyncMock(
+        return_value={"timeout_s": 15, "memory_mb": 512}
+    )
+
+    adapter = CloudWatchMetricsAdapter(client, metadata_fetcher=metadata_fetcher)
+    now = datetime.now(UTC)
+    results = await adapter.query(
+        service="payment-handler",
+        metric="lambda_duration_ms",
+        start_time=now,
+        end_time=now,
+    )
+
+    assert len(results) == 1
+    assert results[0].labels.platform_metadata["timeout_ms"] == 15000.0
+    metadata_fetcher.fetch_lambda_context.assert_called_once_with("payment-handler")
+
+
+@pytest.mark.asyncio
+async def test_lambda_duration_no_enrichment_without_metadata_fetcher():
+    """Phase 2.5: lambda_duration_ms metrics have no timeout_ms when no fetcher is set."""
+    client = _make_client(
+        metric_data_results=[
+            {
+                "Id": "m0",
+                "Timestamps": [datetime(2024, 6, 1, tzinfo=UTC)],
+                "Values": [800.0],
+            },
+        ]
+    )
+    adapter = CloudWatchMetricsAdapter(client)  # no metadata_fetcher
+    now = datetime.now(UTC)
+    results = await adapter.query(
+        service="payment-handler",
+        metric="lambda_duration_ms",
+        start_time=now,
+        end_time=now,
+    )
+
+    assert len(results) == 1
+    assert "timeout_ms" not in results[0].labels.platform_metadata
+
+
+@pytest.mark.asyncio
+async def test_lambda_duration_enrichment_handles_fetcher_error():
+    """Phase 2.5: Enrichment failure does not raise; original metrics returned."""
+    client = _make_client(
+        metric_data_results=[
+            {
+                "Id": "m0",
+                "Timestamps": [datetime(2024, 6, 1, tzinfo=UTC)],
+                "Values": [800.0],
+            },
+        ]
+    )
+    metadata_fetcher = MagicMock()
+    metadata_fetcher.fetch_lambda_context = AsyncMock(side_effect=RuntimeError("AWS error"))
+
+    adapter = CloudWatchMetricsAdapter(client, metadata_fetcher=metadata_fetcher)
+    now = datetime.now(UTC)
+    results = await adapter.query(
+        service="payment-handler",
+        metric="lambda_duration_ms",
+        start_time=now,
+        end_time=now,
+    )
+
+    assert len(results) == 1
+    assert "timeout_ms" not in results[0].labels.platform_metadata

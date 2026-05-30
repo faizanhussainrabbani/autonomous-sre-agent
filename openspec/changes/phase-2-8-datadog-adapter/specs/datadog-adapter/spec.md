@@ -1,4 +1,4 @@
-## ADDED Requirements — Phase 2.8 Datadog Adapter
+## ADDED Requirements
 
 > **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Item 8
 > **Competitive Context:** Many enterprises use Datadog for observability. This adapter enables adoption without telemetry stack migration.

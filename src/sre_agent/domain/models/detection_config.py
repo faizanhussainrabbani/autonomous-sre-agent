@@ -48,3 +48,8 @@ class DetectionConfig(BaseModel):
     multi_dim_latency_percent: float = 50.0  # +50% latency shift
     multi_dim_error_percent: float = 80.0  # +80% error rate shift
     multi_dim_window_minutes: int = 5  # Window to observe both shifts
+
+    # Phase 2.5: Slow response and timeout proximity detection
+    slow_response_absolute_threshold_ms: float = 2000.0  # Absolute latency SLA threshold
+    slow_response_duration_seconds: int = 60  # Sustained duration before alert
+    timeout_proximity_percent: float = 80.0  # Lambda duration as % of timeout to alert

@@ -232,6 +232,50 @@ CIRCUIT_BREAKER_STATE: Gauge = _get_or_create(
     labelnames=["provider", "resource_type"],
 )
 
+# ---------------------------------------------------------------------------
+# Phase 2.5: Slow response and timeout proximity detection metrics
+# ---------------------------------------------------------------------------
+
+# Total slow response (absolute threshold) alerts fired.
+SLOW_RESPONSE_ALERTS: Counter = _get_or_create(
+    Counter,
+    "sre_agent_slow_response_alerts_total",
+    "Total slow response (absolute-threshold) alerts fired.",
+    labelnames=["service", "compute_mechanism"],
+)
+
+# Total timeout proximity alerts fired (serverless only).
+TIMEOUT_PROXIMITY_ALERTS: Counter = _get_or_create(
+    Counter,
+    "sre_agent_timeout_proximity_alerts_total",
+    "Total timeout proximity alerts fired for serverless targets.",
+    labelnames=["service"],
+)
+
+# Total times timeout metadata was unavailable and proximity rule was skipped.
+TIMEOUT_METADATA_FALLBACKS: Counter = _get_or_create(
+    Counter,
+    "sre_agent_timeout_metadata_fallback_total",
+    "Total times timeout_ms metadata was missing; proximity rule skipped.",
+    labelnames=["service"],
+)
+
+# Total latency rule arbitrations where multiple candidates were evaluated.
+LATENCY_ARBITRATIONS: Counter = _get_or_create(
+    Counter,
+    "sre_agent_latency_arbitration_total",
+    "Total latency evaluations where rule arbitration selected a winner.",
+    labelnames=["winner", "service"],
+)
+
+# Detection-to-alert latency for slow response alert types.
+SLOW_RESPONSE_DETECTION_LATENCY: Histogram = _get_or_create(
+    Histogram,
+    "sre_agent_slow_response_detection_latency_seconds",
+    "Wall-clock seconds from metric receipt to slow response or timeout proximity alert.",
+    buckets=(1.0, 5.0, 10.0, 30.0, 60.0, 120.0),
+)
+
 __all__ = [
     "CIRCUIT_BREAKER_STATE",
     "DB_POOL_ACTIVE_CONNECTIONS",
@@ -241,6 +285,7 @@ __all__ = [
     "EMBEDDING_COLD_START",
     "EMBEDDING_DURATION",
     "EVIDENCE_RELEVANCE",
+    "LATENCY_ARBITRATIONS",
     "LLM_CALL_DURATION",
     "LLM_PARSE_FAILURES",
     "LLM_QUEUE_DEPTH",
@@ -250,6 +295,10 @@ __all__ = [
     "OUTBOX_PENDING_ROWS",
     "REDIS_STREAM_LAG",
     "SEVERITY_ASSIGNED",
+    "SLOW_RESPONSE_ALERTS",
+    "SLOW_RESPONSE_DETECTION_LATENCY",
+    "TIMEOUT_METADATA_FALLBACKS",
+    "TIMEOUT_PROXIMITY_ALERTS",
     "VECTOR_FALLBACK_TRUNCATED",
     "VECTOR_MODE",
     "_current_alert_id",

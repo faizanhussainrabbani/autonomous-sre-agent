@@ -45,7 +45,7 @@ class SentenceTransformersEmbeddingAdapter(EmbeddingPort):
                 raise ImportError(msg) from exc
 
             _t0 = time.monotonic()
-            self._model = SentenceTransformer(self._config.model_name)
+            self._model = SentenceTransformer(self._config.model_name, device="cpu")
             _cold_start = time.monotonic() - _t0
             EMBEDDING_COLD_START.set(_cold_start)
             logger.info(

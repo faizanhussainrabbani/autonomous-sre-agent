@@ -46,7 +46,7 @@ class CrossEncoderReranker(RerankerPort):
         try:
             from sentence_transformers import CrossEncoder
 
-            self._model = CrossEncoder(self._model_name)
+            self._model = CrossEncoder(self._model_name, device="cpu")
             self._available = True
             logger.info("cross_encoder_reranker_initialized", model=self._model_name)
         except (ImportError, Exception) as exc:  # noqa: BLE001

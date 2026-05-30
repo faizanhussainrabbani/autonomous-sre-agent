@@ -305,7 +305,8 @@ class TestEnums:
         assert len(phases) == 4
 
     def test_anomaly_types(self):
-        assert len(AnomalyType) == 9
+        # Phase 2.5 added SLOW_RESPONSE and TIMEOUT_PROXIMITY
+        assert len(AnomalyType) == 11
 
     def test_data_quality_values(self):
         assert DataQuality.HIGH.value == "high"

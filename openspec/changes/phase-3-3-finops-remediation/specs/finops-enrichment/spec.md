@@ -1,4 +1,4 @@
-## ADDED Requirements — Phase 3.3 FinOps-Aware Remediation
+## ADDED Requirements
 
 > **Source:** [Competitively-Driven Roadmap](../../../../../docs/project/roadmap_competitive_driven.md) — Item 11
 > **Competitive Context:** Sedai's strongest differentiator is combining reliability + cost optimization. This adds cost visibility without compromising remediation speed.

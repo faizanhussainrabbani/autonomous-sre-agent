@@ -81,6 +81,33 @@ Used when `cloud_provider: azure`.
 | `cert_expiry_critical_days` | `int` | `3` | Days before cert expiry for CRITICAL alert. |
 | `deployment_correlation_window_minutes` | `int` | `60` | Time window to correlate anomalies with recent deployments. |
 | `suppression_window_seconds` | `int` | `30` | Duration of alert suppression during active deployment windows. |
+| `slow_response_absolute_threshold_ms` | `float` | `2000.0` | Absolute latency threshold in milliseconds for `SLOW_RESPONSE` alerts. No baseline required. Applies to all compute mechanisms. |
+| `slow_response_duration_seconds` | `int` | `60` | Minimum sustained duration in seconds before a `SLOW_RESPONSE` alert is emitted. Set to `0` in tests to fire immediately. |
+| `timeout_proximity_percent` | `float` | `80.0` | Percentage of a Lambda function's configured timeout at which `TIMEOUT_PROXIMITY` fires (e.g. `80.0` means 8 s of a 10 s timeout). Serverless only. |
+
+### Latency rule arbitration (Phase 2.5)
+
+When a latency metric is evaluated, three candidate rules are assessed in parallel:
+
+1. `LATENCY_SPIKE` — sigma-based, requires an established baseline.
+2. `SLOW_RESPONSE` — absolute threshold, no baseline required.
+3. `TIMEOUT_PROXIMITY` — serverless-only, requires `timeout_ms` in metric metadata.
+
+At most **one alert** is emitted per evaluation cycle. Precedence order:
+
+```
+TIMEOUT_PROXIMITY  >  SLOW_RESPONSE  >  LATENCY_SPIKE
+```
+
+Per-service slow-response thresholds can be set at runtime:
+
+```python
+detector.set_service_sensitivity(
+    "my-service",
+    latency_sigma_threshold=2.0,
+    slow_response_threshold_ms=1500.0,  # Override for this service only
+)
+```
 
 ---
 

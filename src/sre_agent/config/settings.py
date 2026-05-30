@@ -200,6 +200,71 @@ class PerformanceConfig:
     max_concurrent_remediations: int = 3
 
 
+# ---------------------------------------------------------------------------
+# Phase 2.6 — Notification channel configuration (Task 6.1)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class NotificationChannelConfig:
+    """Credentials and endpoints for each notification channel."""
+
+    # Slack
+    slack_bot_token: str = ""
+    slack_default_channel: str = "#sre-alerts"
+    slack_approval_channel: str = "#sre-approvals"
+
+    # Teams
+    teams_webhook_url: str = ""
+    teams_action_callback_url: str = ""
+
+    # PagerDuty
+    pagerduty_routing_key: str = ""
+
+    # OpsGenie
+    opsgenie_api_key: str = ""
+    opsgenie_team_name: str = ""
+    opsgenie_region: str = "us"  # "us" or "eu"
+
+
+@dataclass
+class NotificationSettings:
+    """Top-level notification configuration.
+
+    Task 6.2 — Routing:
+      - SEV 1-2  → escalation (PagerDuty / OpsGenie) + notification (Slack / Teams)
+      - SEV 3-4  → notification only (Slack / Teams)
+
+    Task 6.3 — Fallback chain:
+      Channels are tried in ``fallback_order`` until one succeeds.
+    """
+
+    # Enable/disable individual channels
+    slack_enabled: bool = False
+    teams_enabled: bool = False
+    pagerduty_enabled: bool = False
+    opsgenie_enabled: bool = False
+
+    # Task 6.2: minimum severity (integer) that triggers escalation (1 or 2)
+    escalation_min_severity: int = 2  # SEV 1-2
+
+    # Task 6.3: fallback order for notification channels
+    notification_fallback_order: list[str] = field(
+        default_factory=lambda: ["slack", "teams"]
+    )
+    # fallback order for escalation channels
+    escalation_fallback_order: list[str] = field(
+        default_factory=lambda: ["pagerduty", "opsgenie"]
+    )
+
+    # Circuit breaker shared settings
+    circuit_failure_threshold: int = 5
+    circuit_recovery_timeout_seconds: float = 30.0
+
+    # Channel credentials/endpoints
+    channel: NotificationChannelConfig = field(default_factory=NotificationChannelConfig)
+
+
 @dataclass
 class FeatureFlags:
     """Feature flags for capability toggling.
@@ -247,6 +312,9 @@ class AgentConfig:
     # Detection & performance
     detection: DetectionConfig = field(default_factory=DetectionConfig)
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
+
+    # Notifications (Phase 2.6)
+    notifications: NotificationSettings = field(default_factory=NotificationSettings)
 
     # Feature flags
     features: FeatureFlags = field(default_factory=FeatureFlags)
@@ -319,6 +387,12 @@ class AgentConfig:
             config.detection = DetectionConfig(**data["detection"])
         if "performance" in data:
             config.performance = PerformanceConfig(**data["performance"])
+        if "notifications" in data:
+            notif_data = dict(data["notifications"])
+            channel_data = notif_data.pop("channel", {})
+            config.notifications = NotificationSettings(**notif_data)
+            if channel_data:
+                config.notifications.channel = NotificationChannelConfig(**channel_data)
         if "features" in data:
             config.features = FeatureFlags(**data["features"])
 

@@ -14,6 +14,53 @@ Format is based on [Keep a Changelog](https://keepachangelog.com), versioned by 
 
 ---
 
+## [Unreleased] Phase 2.5A — Slow-Response Detection (K8s + AWS)
+
+Introduced a hybrid slow-response detection model alongside the existing sigma-based latency spike detector. This phase adds two new detection rules, expands platform metric coverage for ECS and Lambda, and adds per-rule Prometheus observability.
+
+### Added
+
+**Domain**
+
+- `AnomalyType.SLOW_RESPONSE` — absolute-threshold latency SLA breach, no baseline required. Fires when a latency metric exceeds the configured threshold for a sustained duration.
+- `AnomalyType.TIMEOUT_PROXIMITY` — serverless-only rule. Fires when Lambda duration reaches or exceeds a configured percentage of the function's configured timeout.
+- `DetectionConfig` fields: `slow_response_absolute_threshold_ms` (default `2000.0 ms`), `slow_response_duration_seconds` (default `60 s`), `timeout_proximity_percent` (default `80.0 %`).
+- `AnomalyDetector._detect_absolute_latency()` — evaluates the absolute threshold rule for any compute mechanism.
+- `AnomalyDetector._detect_timeout_proximity()` — evaluates the timeout proximity rule for serverless compute. Applies cold-start suppression. Logs a warning and skips the rule when `timeout_ms` metadata is absent.
+- `AnomalyDetector._evaluate_latency_candidates()` — candidate-rule model that evaluates all three latency rules and emits at most one alert per cycle using precedence `TIMEOUT_PROXIMITY > SLOW_RESPONSE > LATENCY_SPIKE`.
+- `set_service_sensitivity()` extended with optional `slow_response_threshold_ms` for per-service threshold overrides.
+
+**Platform metrics**
+
+- `ecs_response_time_ms` added to CloudWatch `METRIC_MAP` (ECS Container Insights `ResponseTime`).
+- Lambda duration metrics enriched with `timeout_ms` from `AWSResourceMetadataFetcher.fetch_lambda_context()` via `CloudWatchMetricsAdapter._enrich_lambda_timeout()`.
+- `http_request_duration_p99` added to `PollingAgent.DEFAULT_WATCHLIST`.
+- Latency routing in `_evaluate_metric` extended to include `response_time` metric names (covers ECS).
+
+**Observability**
+
+- Prometheus counters: `sre_slow_response_alerts_total`, `sre_timeout_proximity_alerts_total`, `sre_timeout_metadata_fallbacks_total`, `sre_latency_arbitrations_total`.
+- Prometheus histogram: `sre_slow_response_detection_latency_seconds`.
+- Structured log events: `slow_response_detected`, `timeout_proximity_detected`, `timeout_proximity_metadata_missing`, `latency_arbitration_winner`.
+
+**Tests**
+
+- 10 new unit tests in `tests/unit/domain/test_detection.py` covering all Phase 2.5A detection paths.
+- 6 new tests in `tests/unit/domain/test_detection_config.py` for new config field defaults and overrides.
+- 4 new adapter tests in `tests/unit/adapters/test_cloudwatch_metrics_adapter.py` (ECS mapping, Lambda enrichment).
+- 3 new settings tests in `tests/unit/config/test_settings.py`.
+- New e2e test file `tests/e2e/test_slow_response_e2e.py` with 5 scenario tests including SLO latency assertion.
+
+**Config**
+
+- `config/agent.yaml` updated with new `detection` keys: `slow_response_absolute_threshold_ms`, `slow_response_duration_seconds`, `timeout_proximity_percent`.
+
+### Deferred
+
+- Phase 2.5B (Azure App Service slow-response detection) is deferred. The Azure Monitor adapter (`src/sre_agent/adapters/telemetry/azure/`) does not yet exist. Tasks 7.1–7.4 remain open.
+
+---
+
 ## [2026-04-12] Phase 4.0 — Persistence Findings Remediation (F1–F10)
 
 Addressed all 10 findings from the Phase 4.0 persistence layer code review.

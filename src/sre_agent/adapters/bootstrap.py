@@ -638,3 +638,118 @@ def bootstrap_event_store(pool: object | None) -> EventStore | None:
 
     logger.info("event_store_bootstrapped")
     return PostgresEventStore(pool=pool)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.6 — Notification adapter bootstrap (Task 6.4)
+# ---------------------------------------------------------------------------
+
+
+def bootstrap_notifications(
+    config: AgentConfig,
+    event_bus: EventBus | None = None,
+) -> tuple[
+    dict[str, object],  # notification adapters (channel → NotificationPort)
+    dict[str, object],  # escalation adapters (provider → EscalationPort)
+]:
+    """Bootstrap notification and escalation adapters from configuration.
+
+    Returns two dicts keyed by channel/provider name.  Only adapters whose
+    credentials are present in config are instantiated.
+
+    Args:
+        config: Root agent config (reads ``config.notifications``).
+        event_bus: Optional EventBus for approval interaction handlers.
+
+    Returns:
+        Tuple of (notification_adapters, escalation_adapters).
+    """
+    ns = config.notifications
+    ch = ns.channel
+    notification_adapters: dict[str, object] = {}
+    escalation_adapters: dict[str, object] = {}
+
+    # -- Slack ----------------------------------------------------------------
+    if ns.slack_enabled and ch.slack_bot_token:
+        from sre_agent.adapters.notifications.slack import SlackConfig, SlackNotificationAdapter
+
+        slack_cfg = SlackConfig(
+            bot_token=ch.slack_bot_token,
+            default_channel=ch.slack_default_channel,
+            approval_channel=ch.slack_approval_channel,
+            circuit_failure_threshold=ns.circuit_failure_threshold,
+            circuit_recovery_timeout_seconds=ns.circuit_recovery_timeout_seconds,
+        )
+        notification_adapters["slack"] = SlackNotificationAdapter(slack_cfg, event_bus)
+        logger.info("notification_adapter_bootstrapped", channel="slack")
+    elif ns.slack_enabled:
+        logger.warning("slack_adapter_skipped", reason="no bot_token configured")
+
+    # -- Teams ----------------------------------------------------------------
+    if ns.teams_enabled and ch.teams_webhook_url:
+        from sre_agent.adapters.notifications.teams import TeamsConfig, TeamsNotificationAdapter
+
+        teams_cfg = TeamsConfig(
+            webhook_url=ch.teams_webhook_url,
+            action_callback_url=ch.teams_action_callback_url,
+            circuit_failure_threshold=ns.circuit_failure_threshold,
+            circuit_recovery_timeout_seconds=ns.circuit_recovery_timeout_seconds,
+        )
+        notification_adapters["teams"] = TeamsNotificationAdapter(teams_cfg, event_bus)
+        logger.info("notification_adapter_bootstrapped", channel="teams")
+    elif ns.teams_enabled:
+        logger.warning("teams_adapter_skipped", reason="no webhook_url configured")
+
+    # -- PagerDuty ------------------------------------------------------------
+    if ns.pagerduty_enabled and ch.pagerduty_routing_key:
+        from sre_agent.adapters.oncall.pagerduty import PagerDutyConfig, PagerDutyEscalationAdapter
+
+        pd_cfg = PagerDutyConfig(
+            routing_key=ch.pagerduty_routing_key,
+            circuit_failure_threshold=ns.circuit_failure_threshold,
+            circuit_recovery_timeout_seconds=ns.circuit_recovery_timeout_seconds,
+        )
+        escalation_adapters["pagerduty"] = PagerDutyEscalationAdapter(pd_cfg)
+        logger.info("escalation_adapter_bootstrapped", provider="pagerduty")
+    elif ns.pagerduty_enabled:
+        logger.warning("pagerduty_adapter_skipped", reason="no routing_key configured")
+
+    # -- OpsGenie -------------------------------------------------------------
+    if ns.opsgenie_enabled and ch.opsgenie_api_key:
+        from sre_agent.adapters.oncall.opsgenie import OpsGenieConfig, OpsGenieEscalationAdapter
+
+        og_cfg = OpsGenieConfig(
+            api_key=ch.opsgenie_api_key,
+            team_name=ch.opsgenie_team_name,
+            region=ch.opsgenie_region,
+            circuit_failure_threshold=ns.circuit_failure_threshold,
+            circuit_recovery_timeout_seconds=ns.circuit_recovery_timeout_seconds,
+        )
+        escalation_adapters["opsgenie"] = OpsGenieEscalationAdapter(og_cfg)
+        logger.info("escalation_adapter_bootstrapped", provider="opsgenie")
+    elif ns.opsgenie_enabled:
+        logger.warning("opsgenie_adapter_skipped", reason="no api_key configured")
+
+    return notification_adapters, escalation_adapters
+
+
+def bootstrap_notification_router(
+    config: AgentConfig,
+    event_bus: EventBus | None = None,
+) -> object:
+    """Convenience helper: bootstrap adapters and return a wired NotificationRouter.
+
+    Returns a ``NotificationRouter`` ready to route alerts and escalations.
+    """
+    from sre_agent.domain.notifications.router import NotificationRouter
+
+    ns = config.notifications
+    notif_adapters, esc_adapters = bootstrap_notifications(config, event_bus)
+
+    return NotificationRouter(
+        notification_adapters=notif_adapters,
+        escalation_adapters=esc_adapters,
+        notification_fallback_order=ns.notification_fallback_order,
+        escalation_fallback_order=ns.escalation_fallback_order,
+        escalation_min_severity=ns.escalation_min_severity,
+    )
