@@ -48,3 +48,6 @@ Thumbs.db
 .agent/
 .agents/
 .gemini/
+
+# Fullstack app workspace
+fullstackapp/
