@@ -26,8 +26,10 @@ def _install_fake_sentence_transformers(monkeypatch):
     created_instances: list[object] = []
 
     class FakeSentenceTransformer:
-        def __init__(self, model_name: str) -> None:
+        def __init__(self, model_name: str, *args, **kwargs) -> None:
             self.model_name = model_name
+            self.args = args
+            self.kwargs = kwargs
             self.calls: list[tuple[object, dict[str, object]]] = []
             created_instances.append(self)
 

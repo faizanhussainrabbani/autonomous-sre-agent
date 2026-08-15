@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import time
 from typing import Any
@@ -62,7 +63,17 @@ class OpenAILLMAdapter(LLMReasoningPort):
                     "Install with: pip install 'sre-agent[intelligence]'"
                 )
                 raise ImportError(msg) from exc
-            self._client = openai.AsyncOpenAI()
+
+            base_url = self._config.base_url or os.environ.get("OPENAI_BASE_URL")
+            api_key = os.environ.get("OPENAI_API_KEY")
+
+            client_kwargs: dict[str, Any] = {}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            if api_key:
+                client_kwargs["api_key"] = api_key
+
+            self._client = openai.AsyncOpenAI(**client_kwargs)
 
     def _ensure_tokenizer(self) -> None:
         """Lazily load the tiktoken tokenizer."""

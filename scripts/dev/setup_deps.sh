@@ -27,8 +27,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.deps.yml"
 LOCALSTACK_HEALTH_URL="http://localhost:4566/_localstack/health"
 LOCALSTACK_REQUIRED_SERVICES="autoscaling,cloudwatch,ec2,ecs,events,iam,lambda,logs,s3,secretsmanager,sns,sts"
-POSTGRES_USER="sre_agent"
-POSTGRES_DB="sre_agent"
+POSTGRES_USER="test"
+POSTGRES_DB="sre_demo"
+POSTGRES_PORT="5434"
+POSTGRES_DSN="postgresql://test:test@localhost:5434/sre_demo"
 
 # Colors
 GREEN='\033[0;32m'
@@ -132,18 +134,20 @@ cmd_start() {
     export LOCALSTACK_AUTH_TOKEN="$resolved_token"
     info "Resolved LOCALSTACK_AUTH_TOKEN for LocalStack Pro startup"
 
+    docker rm -f sre-pg-demo sre-postgres >/dev/null 2>&1 || true
+
     docker compose -f "$COMPOSE_FILE" up -d
 
     echo ""
     info "Services starting..."
     echo ""
-    echo "  PostgreSQL:  localhost:5432"
+    echo "  PostgreSQL:  localhost:${POSTGRES_PORT}"
     echo "  Redis:       localhost:6379"
     echo "  LocalStack:  http://localhost:4566  (AWS API gateway)"
     echo "  Prometheus:  http://localhost:9090"
     echo "  Jaeger UI:   http://localhost:16686"
     echo ""
-    echo "  DSN:         postgresql://sre_agent:sre_agent@localhost:5432/sre_agent"
+    echo "  DSN:         ${POSTGRES_DSN}"
     echo "  Check status:  ./scripts/dev/setup_deps.sh status"
     echo "  View logs:     ./scripts/dev/setup_deps.sh logs"
 }
@@ -190,11 +194,12 @@ cmd_health() {
     fi
 
     # PostgreSQL
-    if docker compose -f "$COMPOSE_FILE" exec -T postgres \
-        pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
-        info "PostgreSQL:   healthy"
+    if docker compose -f "$COMPOSE_FILE" port postgres 5432 | grep -Eq '5434$' \
+        && docker compose -f "$COMPOSE_FILE" exec -T postgres \
+            pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+        info "PostgreSQL:   healthy (5434 / sre_demo)"
     else
-        warn "PostgreSQL:   not reachable"
+        warn "PostgreSQL:   not reachable or misconfigured"
         all_healthy=false
     fi
 

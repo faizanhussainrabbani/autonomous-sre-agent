@@ -76,7 +76,7 @@ bash scripts/dev/run.sh server --reload
 
 Local dependency stack started by `setup_deps.sh` includes PostgreSQL and Redis:
 
-* PostgreSQL DSN: `postgresql://sre_agent:sre_agent@localhost:5432/sre_agent`
+* PostgreSQL DSN: `postgresql://test:test@localhost:5434/sre_demo`
 * Redis URL: `redis://localhost:6379/0`
 
 Open API docs at <http://localhost:8080/docs>.

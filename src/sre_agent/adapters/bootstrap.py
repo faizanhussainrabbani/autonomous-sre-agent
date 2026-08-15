@@ -17,6 +17,7 @@ import structlog
 
 from sre_agent.adapters.coordination.in_memory_lock_manager import InMemoryDistributedLockManager
 from sre_agent.config.plugin import ProviderPlugin
+from sre_agent.config.postgres import ensure_expected_postgres_dsn
 from sre_agent.config.settings import AgentConfig, LockBackendType
 from sre_agent.domain.detection.provider_registry import ProviderRegistry
 from sre_agent.ports.lock_manager import DistributedLockManagerPort
@@ -373,30 +374,36 @@ def bootstrap_lock_manager(
 async def bootstrap_asyncpg_pool(config: AgentConfig) -> object | None:
     """Create and return a shared asyncpg connection pool.
 
-    Returns None when persistence is disabled or asyncpg is unavailable.
+    Returns None when persistence is disabled. When persistence is enabled,
+    the DSN must match the canonical local demo database and the pool must be
+    created successfully or startup fails.
+
     The pool is shared across IncidentStore, OutboxStore, and VectorStore adapters.
     """
-    if not config.persistence.enabled or not config.persistence.postgres_dsn:
+    if not config.persistence.enabled:
         logger.info("asyncpg_pool_skipped", reason="persistence not configured")
         return None
 
-    try:
-        import asyncpg  # type: ignore[import]
+    dsn = ensure_expected_postgres_dsn(config.persistence.postgres_dsn, context="Persistence")
 
+    import asyncpg  # type: ignore[import]
+
+    try:
         pool = await asyncpg.create_pool(
-            dsn=config.persistence.postgres_dsn,
+            dsn=dsn,
             min_size=config.persistence.pool_min_size,
             max_size=config.persistence.pool_max_size,
         )
-        logger.info(
-            "asyncpg_pool_created",
-            pool_min=config.persistence.pool_min_size,
-            pool_max=config.persistence.pool_max_size,
-        )
-        return pool
     except Exception as exc:  # noqa: BLE001
-        logger.warning("asyncpg_pool_failed", error=str(exc), fallback="disabled")
-        return None
+        logger.error("asyncpg_pool_bootstrap_failed", error=str(exc))
+        raise
+
+    logger.info(
+        "asyncpg_pool_created",
+        pool_min=config.persistence.pool_min_size,
+        pool_max=config.persistence.pool_max_size,
+    )
+    return pool
 
 
 def bootstrap_incident_store(pool: object | None) -> IncidentStorePort | None:

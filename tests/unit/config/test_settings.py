@@ -10,6 +10,7 @@ import tempfile
 
 import yaml
 
+from sre_agent.config.postgres import EXPECTED_POSTGRES_DSN
 from sre_agent.config.settings import (
     AgentConfig,
     AWSConfig,
@@ -153,6 +154,35 @@ def test_validate_azure_valid():
     )
     errors = config.validate()
     assert len(errors) == 0
+
+
+def test_validate_persistence_accepts_canonical_postgres_dsn():
+    config = AgentConfig.from_dict(
+        {
+            "persistence": {
+                "enabled": True,
+                "postgres_dsn": EXPECTED_POSTGRES_DSN,
+            }
+        }
+    )
+
+    errors = config.validate()
+    assert errors == []
+
+
+def test_validate_persistence_rejects_old_postgres_dsn():
+    config = AgentConfig.from_dict(
+        {
+            "persistence": {
+                "enabled": True,
+                "postgres_dsn": "postgresql://sre_agent:sre_agent@localhost:5432/sre_agent",
+            }
+        }
+    )
+
+    errors = config.validate()
+    assert any("Persistence:" in error for error in errors)
+    assert any("5434/sre_demo" in error for error in errors)
 
 
 def test_from_dict_lock_backend_parsing():

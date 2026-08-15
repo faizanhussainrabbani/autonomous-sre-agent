@@ -58,6 +58,12 @@ def _resolve_dsn() -> str:
     )
 
 
+def _validate_canonical_dsn(dsn: str) -> str:
+    from sre_agent.config.postgres import ensure_expected_postgres_dsn
+
+    return ensure_expected_postgres_dsn(dsn, context="Migration runner")
+
+
 def _sorted_migration_files() -> list[Path]:
     """Return .sql migration files sorted by their numeric prefix."""
     files = sorted(
@@ -118,10 +124,14 @@ async def run_migrations(dsn: str) -> None:
 def main() -> None:
     """Entry point: resolve DSN, run migrations, exit with appropriate code."""
     try:
-        dsn = _resolve_dsn()
+        dsn = _validate_canonical_dsn(_resolve_dsn())
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         logger.error("dsn_resolution_failed", error=str(exc))
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        logger.error("dsn_validation_failed", error=str(exc))
         sys.exit(1)
 
     try:

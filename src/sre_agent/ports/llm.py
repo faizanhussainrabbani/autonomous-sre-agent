@@ -31,6 +31,7 @@ class LLMConfig:
     temperature: float = 0.1
     context_budget: int = 4000  # Max tokens for RAG context window
     timeout_seconds: float = 30.0
+    base_url: str | None = None
 
 
 @dataclass(frozen=True)

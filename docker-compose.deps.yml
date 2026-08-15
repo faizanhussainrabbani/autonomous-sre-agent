@@ -20,11 +20,11 @@ services:
     image: pgvector/pgvector:pg16
     container_name: sre-postgres
     ports:
-      - "5432:5432"
+      - "5434:5432"
     environment:
-      - POSTGRES_USER=sre_agent
-      - POSTGRES_PASSWORD=sre_agent
-      - POSTGRES_DB=sre_agent
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+      - POSTGRES_DB=sre_demo
     command:
       - postgres
       - -c
@@ -36,7 +36,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sre_agent -d sre_agent"]
+      test: ["CMD-SHELL", "pg_isready -U test -d sre_demo"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -284,7 +284,7 @@ The docker-compose stack uses `pgvector/pgvector:pg16` — a standard PostgreSQL
 ```yaml
 persistence:
   enabled: true
-  postgres_dsn: "postgresql://sre_agent:sre_agent@localhost:5432/sre_agent"
+    postgres_dsn: "postgresql://test:test@localhost:5434/sre_demo"
   pool_min_size: 2
   pool_max_size: 10
 

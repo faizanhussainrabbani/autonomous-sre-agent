@@ -17,6 +17,8 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 from dotenv import load_dotenv
 
+from sre_agent.config.postgres import EXPECTED_POSTGRES_DSN, ensure_expected_postgres_dsn
+
 # Load .env file if present.
 # override=True ensures .env values always win over inherited shell variables,
 # so the key in .env is guaranteed to be the one used — not a stale shell export.
@@ -137,7 +139,7 @@ class PersistenceConfig:
     """Persistence layer configuration."""
 
     enabled: bool = False
-    postgres_dsn: str = ""
+    postgres_dsn: str = EXPECTED_POSTGRES_DSN
     pool_min_size: int = 2
     pool_max_size: int = 10
     vector_embedding_dim: int = 1536
@@ -450,5 +452,11 @@ class AgentConfig:
                 errors.append("Retention: processed_events_retention_days must be positive")
             if self.retention.baseline_snapshots_retention_days <= 0:
                 errors.append("Retention: baseline_snapshots_retention_days must be positive")
+
+        if self.persistence.enabled:
+            try:
+                ensure_expected_postgres_dsn(self.persistence.postgres_dsn)
+            except ValueError as exc:
+                errors.append(f"Persistence: {exc}")
 
         return errors

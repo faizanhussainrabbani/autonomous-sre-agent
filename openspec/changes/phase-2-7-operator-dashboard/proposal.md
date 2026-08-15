@@ -6,8 +6,8 @@ The existing `operator-dashboard` capability spec defines abstract requirements 
 
 ## What Changes
 
-- **New React/Next.js dashboard application** (`dashboard/`): Single-page application with real-time incident feed, confidence visualization, and audit log viewer
-- **New FastAPI WebSocket endpoint** (`api/ws/incidents`): Real-time incident event stream for dashboard consumption
+- **New React/Vite dashboard package** (`fullstackapp/SRE-Command-Center/artifacts/operator-dashboard/`): Single-page application with real-time incident feed, confidence visualization, and audit log viewer
+- **Express WebSocket endpoint** (`/api/ws/incidents`): Real-time incident event stream for dashboard consumption
 - **New API endpoints**: GET `/api/v1/incidents`, GET `/api/v1/incidents/{id}/timeline`, GET `/api/v1/phases/status`, GET `/api/v1/accuracy/summary`
 - **Updated API Layer**: Additional REST endpoints for dashboard data consumption
 - **New Docker Compose service**: Dashboard served alongside API in development environment

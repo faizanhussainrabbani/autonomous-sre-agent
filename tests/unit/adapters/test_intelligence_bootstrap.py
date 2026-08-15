@@ -6,6 +6,8 @@ import sys
 import types
 from unittest.mock import MagicMock, Mock
 
+import pytest
+
 from sre_agent.adapters import intelligence_bootstrap as bootstrap
 from sre_agent.adapters.llm.throttled_adapter import ThrottledLLMAdapter
 from sre_agent.ports.llm import LLMConfig, LLMProvider
@@ -58,6 +60,19 @@ class TestFactoryCreation:
 
 class TestLLMProviderSelection:
     """Tests for provider selection logic in create_llm."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_llm_env(self, monkeypatch) -> None:
+        for var in (
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "LLM_PROVIDER",
+            "OPENAI_BASE_URL",
+            "OPENAI_MODEL_NAME",
+            "OPENAI_MODEL",
+            "LLM_MODEL",
+        ):
+            monkeypatch.delenv(var, raising=False)
 
     def test_create_llm_prefers_explicit_config_provider(self, monkeypatch) -> None:
         class FakeAnthropicAdapter:
@@ -148,7 +163,54 @@ class TestLLMProviderSelection:
         llm = bootstrap.create_llm()
 
         assert isinstance(llm, FakeOpenAIAdapter)
-        assert llm.config is None
+
+    def test_create_llm_respects_llm_provider_override(self, monkeypatch) -> None:
+        class FakeAnthropicAdapter:
+            def __init__(self, config):
+                self.config = config
+
+        class FakeOpenAIAdapter:
+            def __init__(self, config):
+                self.config = config
+
+        _install_module(
+            monkeypatch,
+            "sre_agent.adapters.llm.anthropic.adapter",
+            AnthropicLLMAdapter=FakeAnthropicAdapter,
+        )
+        _install_module(
+            monkeypatch,
+            "sre_agent.adapters.llm.openai.adapter",
+            OpenAILLMAdapter=FakeOpenAIAdapter,
+        )
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "k-ant")
+        monkeypatch.setenv("OPENAI_API_KEY", "k-open")
+        monkeypatch.setenv("LLM_PROVIDER", "openai")
+
+        llm = bootstrap.create_llm()
+
+        assert isinstance(llm, FakeOpenAIAdapter)
+
+    def test_create_llm_configures_openrouter_base_url_and_model(self, monkeypatch) -> None:
+        class FakeOpenAIAdapter:
+            def __init__(self, config):
+                self.config = config
+
+        _install_module(
+            monkeypatch,
+            "sre_agent.adapters.llm.openai.adapter",
+            OpenAILLMAdapter=FakeOpenAIAdapter,
+        )
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-or-v1-test")
+        monkeypatch.setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+        monkeypatch.setenv("OPENAI_MODEL_NAME", "meta-llama/llama-3.3-70b-instruct:free")
+
+        llm = bootstrap.create_llm()
+
+        assert isinstance(llm, FakeOpenAIAdapter)
+        assert llm.config is not None
+        assert llm.config.base_url == "https://openrouter.ai/api/v1"
+        assert llm.config.model_name == "meta-llama/llama-3.3-70b-instruct:free"
 
 
 class TestPipelineWiring:

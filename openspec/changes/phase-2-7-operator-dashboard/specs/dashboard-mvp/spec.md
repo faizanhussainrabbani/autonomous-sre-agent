@@ -55,10 +55,19 @@ The dashboard SHALL be fully functional on desktop and tablet screen sizes.
 - **THEN** layout SHALL collapse to single-column with expandable navigation
 - **AND** all features SHALL remain accessible
 
+### Requirement: Phase Terminology Consistency
+The dashboard SHALL use a consistent graduation phase taxonomy across API payloads, UI labels, and acceptance checks.
+
+#### Scenario: Phase taxonomy mapping
+- **GIVEN** phase status data from the Node API
+- **WHEN** the dashboard maps and renders current phase labels
+- **THEN** only OBSERVE, ASSIST, and AUTONOMOUS SHALL be used as canonical phases
+- **AND** no legacy alternatives SHALL be emitted in UI labels for phase status views
+
 ---
 
 ## Implementation References
 
-* **API:** `src/sre_agent/api/main.py` (new endpoints), `src/sre_agent/api/ws/incidents.py` (WebSocket)
-* **Dashboard:** `dashboard/` (Next.js application)
+* **API:** `fullstackapp/SRE-Command-Center/artifacts/api-server/src/routes/` and `fullstackapp/SRE-Command-Center/artifacts/api-server/src/ws/incidents.ts`
+* **Dashboard:** `fullstackapp/SRE-Command-Center/artifacts/operator-dashboard/` (Vite React package)
 * **Extends:** `openspec/changes/autonomous-sre-agent/specs/operator-dashboard/spec.md`

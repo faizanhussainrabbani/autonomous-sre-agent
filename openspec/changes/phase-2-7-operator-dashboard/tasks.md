@@ -9,7 +9,7 @@
 
 ## DASH-002 — Dashboard Foundation (High)
 
-- [ ] 2.1 Initialize Next.js 15 project in `dashboard/` with TypeScript
+- [ ] 2.1 Initialize Vite React package in `fullstackapp/SRE-Command-Center/artifacts/operator-dashboard/` with TypeScript
 - [ ] 2.2 Configure Tailwind CSS with SRE Agent design tokens (colors, spacing, typography)
 - [ ] 2.3 Create layout component with sidebar navigation, header with phase indicator, and kill switch status badge
 - [ ] 2.4 Implement WebSocket client with auto-reconnect and connection status indicator
@@ -41,6 +41,6 @@
 
 ## DASH-007 — Testing (High)
 
-- [ ] 7.1 Unit tests for all API endpoints (FastAPI TestClient)
-- [ ] 7.2 Component tests for React components (React Testing Library)
-- [ ] 7.3 E2E browser test: load dashboard, verify incident appears, drill into timeline
+- [ ] 7.1 Unit and integration tests for API endpoint contracts and validation responses
+- [ ] 7.2 Component and contract-mapper tests for dashboard React features
+- [ ] 7.3 Realtime acceptance tests: load dashboard state, verify incident updates, reconnect, and timeline drill-down

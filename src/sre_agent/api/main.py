@@ -96,8 +96,8 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
 
         Bootstraps the persistence layer (asyncpg pool, PostgresIncidentStore,
         PostgresOutboxStore) and wires the OutboxRelay when persistence is
-        enabled.  Falls back gracefully when the DB is unavailable so the
-        process can still serve requests from in-memory state.
+                enabled.  Startup now fails fast if the configured database is not the
+                canonical 5434/sre_demo target.
 
         Components stored on app.state for injection into route handlers:
           - pool            asyncpg.Pool | None
@@ -121,15 +121,14 @@ def create_app() -> Any:  # Returns FastAPI if available, else raises ImportErro
         from sre_agent.config.settings import AgentConfig
 
         _config_path = _Path(__file__).resolve().parents[3] / "config" / "agent.yaml"
+        if not _config_path.exists():
+            raise FileNotFoundError(f"Required configuration file not found: {_config_path}")
+
         try:
-            config = (
-                AgentConfig.from_yaml(_config_path)
-                if _config_path.exists()
-                else AgentConfig()
-            )
+            config = AgentConfig.from_yaml(_config_path)
         except Exception as _exc:  # noqa: BLE001
-            _log.warning("sre_agent.config_load_failed", error=str(_exc), fallback="defaults")
-            config = AgentConfig()
+            _log.error("sre_agent.config_load_failed", error=str(_exc))
+            raise
 
         pool = await bootstrap_asyncpg_pool(config)
         incident_store = bootstrap_incident_store(pool)

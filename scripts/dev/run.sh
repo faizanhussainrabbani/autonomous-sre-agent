@@ -220,6 +220,7 @@ cmd_test_unit() {
 cmd_test_e2e() {
     check_venv
     header "Running E2E Tests"
+    cmd_validate "$PROJECT_ROOT/config/agent.yaml"
     "$PYTEST" tests/e2e/ -v --tb=short "$@"
 }
 
@@ -227,6 +228,7 @@ cmd_test_integ() {
     check_venv
     header "Running Integration Tests"
     warn "Integration tests require Docker and LocalStack Pro."
+    cmd_validate "$PROJECT_ROOT/config/agent.yaml"
     validate_localstack_pro_runtime
     "$PYTEST" tests/integration/ -v --tb=short "$@"
 }

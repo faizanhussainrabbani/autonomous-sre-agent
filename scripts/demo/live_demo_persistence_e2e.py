@@ -33,8 +33,8 @@ Then run the demo:
     POSTGRES_DSN="postgresql://test:test@localhost:5434/sre_demo" \\
         python scripts/demo/live_demo_persistence_e2e.py
 
-To use the existing sre-pg-inspect container (port 5433) just set POSTGRES_DSN accordingly.
-The script TRUNCATES all demo tables at the end so it is safe to run repeatedly.
+The script rejects any DSN other than `postgresql://test:test@localhost:5434/sre_demo`.
+It TRUNCATES all demo tables at the end so it is safe to run repeatedly.
 Set SKIP_CLEANUP=1 to keep data for manual inspection.
 """
 
@@ -108,6 +108,8 @@ def pause(msg: str = "Press Enter to continue…") -> None:
 
 # ── DSN ────────────────────────────────────────────────────────────────────────
 
+from sre_agent.config.postgres import ensure_expected_postgres_dsn
+
 def get_dsn() -> str:
     dsn = os.getenv("POSTGRES_DSN", "")
     if not dsn:
@@ -117,8 +119,7 @@ def get_dsn() -> str:
             "python scripts/demo/live_demo_persistence_e2e.py\n"
         )
         sys.exit(1)
-    # Normalise SQLAlchemy-style scheme
-    return dsn.replace("postgresql+psycopg2://", "postgresql://", 1)
+    return ensure_expected_postgres_dsn(dsn, context="Persistence demo")
 
 
 # ── bootstrap adapters ─────────────────────────────────────────────────────────

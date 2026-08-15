@@ -10,6 +10,7 @@ Phase 2: Intelligence Layer
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import structlog
 
@@ -67,8 +68,12 @@ def create_llm(config: LLMConfig | None = None) -> LLMReasoningPort:
     """Create an LLM adapter based on configuration or environment.
 
     Auto-detects provider from environment variables:
-    - OPENAI_API_KEY present -> OpenAI
-    - ANTHROPIC_API_KEY present -> Anthropic
+    - LLM_PROVIDER="openai" or "openrouter" -> OpenAI (supports OpenRouter, Ollama, etc.)
+    - LLM_PROVIDER="anthropic" -> Anthropic
+    - If OPENAI_BASE_URL is present -> OpenAI
+    - If ANTHROPIC_API_KEY is present and OPENAI_API_KEY is present -> Anthropic (default fallback)
+    - If OPENAI_API_KEY is present -> OpenAI
+    - If ANTHROPIC_API_KEY is present -> Anthropic
     - Falls back to OpenAI if neither is set.
 
     Args:
@@ -77,8 +82,16 @@ def create_llm(config: LLMConfig | None = None) -> LLMReasoningPort:
     Returns:
         A configured LLMReasoningPort implementation.
     """
+    env_provider = os.environ.get("LLM_PROVIDER", "").strip().lower()
+
     if config is not None:
         provider = config.provider
+    elif env_provider in ("openai", "openrouter"):
+        provider = LLMProvider.OPENAI
+    elif env_provider == "anthropic":
+        provider = LLMProvider.ANTHROPIC
+    elif os.environ.get("OPENAI_BASE_URL"):
+        provider = LLMProvider.OPENAI
     elif os.environ.get("ANTHROPIC_API_KEY"):
         provider = LLMProvider.ANTHROPIC
     elif os.environ.get("OPENAI_API_KEY"):
@@ -86,16 +99,41 @@ def create_llm(config: LLMConfig | None = None) -> LLMReasoningPort:
     else:
         provider = LLMProvider.OPENAI
 
+    model_name = (
+        os.environ.get("OPENAI_MODEL_NAME")
+        or os.environ.get("OPENAI_MODEL")
+        or os.environ.get("LLM_MODEL")
+    )
+    base_url = os.environ.get("OPENAI_BASE_URL")
+
+    resolved_config = config
+    if resolved_config is None and (model_name or base_url):
+        cfg_kwargs: dict[str, Any] = {"provider": provider}
+        if model_name:
+            cfg_kwargs["model_name"] = model_name
+        if base_url:
+            cfg_kwargs["base_url"] = base_url
+        resolved_config = LLMConfig(**cfg_kwargs)
+
     if provider == LLMProvider.ANTHROPIC:
         from sre_agent.adapters.llm.anthropic.adapter import AnthropicLLMAdapter
 
-        logger.info("llm_adapter_created", provider="anthropic")
-        return AnthropicLLMAdapter(config)
+        logger.info(
+            "llm_adapter_created",
+            provider="anthropic",
+            model=resolved_config.model_name if resolved_config else "claude",
+        )
+        return AnthropicLLMAdapter(resolved_config)
 
     from sre_agent.adapters.llm.openai.adapter import OpenAILLMAdapter
 
-    logger.info("llm_adapter_created", provider="openai")
-    return OpenAILLMAdapter(config)
+    logger.info(
+        "llm_adapter_created",
+        provider="openai",
+        model=resolved_config.model_name if resolved_config else "gpt-4o-mini",
+        base_url=resolved_config.base_url if resolved_config else base_url,
+    )
+    return OpenAILLMAdapter(resolved_config)
 
 
 def create_diagnostic_pipeline(

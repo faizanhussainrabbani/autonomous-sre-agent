@@ -56,7 +56,7 @@ Minimum baseline variables:
 
 Local dependency endpoints started by `bash scripts/dev/setup_deps.sh start`:
 
-* PostgreSQL DSN: `postgresql://sre_agent:sre_agent@localhost:5432/sre_agent`
+* PostgreSQL DSN: `postgresql://test:test@localhost:5434/sre_demo`
 * Redis URL: `redis://localhost:6379/0`
 
 For dependency and provider details, see [External dependencies](operations/external_dependencies.md).

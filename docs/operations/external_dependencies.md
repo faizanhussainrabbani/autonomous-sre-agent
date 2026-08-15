@@ -9,7 +9,7 @@
 | Dependency | Required For | Default Port | Install Method |
 |---|---|---|---|
 | **Docker** | Integration/E2E tests, dep services | — | [docker.com](https://docs.docker.com/get-docker/) |
-| **PostgreSQL** | Persistence store (incident lifecycle, outbox, vector metadata) | 5432 | Docker (via `docker-compose.deps.yml`) or Homebrew |
+| **PostgreSQL** | Persistence store (incident lifecycle, outbox, vector metadata) | 5434 | Docker (via `docker-compose.deps.yml`) or Homebrew |
 | **Redis** | Distributed locks and Redis Streams event bus | 6379 | Docker (via `docker-compose.deps.yml`) or Homebrew |
 | **LocalStack Pro** | AWS integration tests | 4566 | Docker (via `docker-compose.deps.yml`) |
 | **Prometheus** | Metric queries, OTel adapter tests | 9090 | Docker (via `docker-compose.deps.yml`) |
@@ -40,7 +40,7 @@ This uses `docker-compose.deps.yml` in the project root.
 
 Local connection strings:
 
-* PostgreSQL: `postgresql://sre_agent:sre_agent@localhost:5432/sre_agent`
+* PostgreSQL: `postgresql://test:test@localhost:5434/sre_demo`
 * Redis: `redis://localhost:6379/0`
 
 ---
@@ -73,16 +73,18 @@ delivery state, coordination audit entries, and vector metadata.
 
 **Local credentials (default):**
 
-* user: `sre_agent`
-* password: `sre_agent`
-* database: `sre_agent`
+* user: `test`
+* password: `test`
+* database: `sre_demo`
 * host: `localhost`
-* port: `5432`
+* port: `5434`
 
 **Connection strings:**
 
-* `postgresql://sre_agent:sre_agent@localhost:5432/sre_agent`
-* `postgresql+asyncpg://sre_agent:sre_agent@localhost:5432/sre_agent`
+* `postgresql://test:test@localhost:5434/sre_demo`
+* `postgresql+asyncpg://test:test@localhost:5434/sre_demo`
+
+All demo, E2E, and migration flows must use this exact database target. Any other Postgres host, port, user, or database name is treated as a configuration error.
 
 **Note:** pgvector support is automatic when the extension is available; the
 migration layer falls back to JSONB vector storage when it is not.
